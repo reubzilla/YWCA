@@ -1,0 +1,345 @@
+/**
+ * Returns upcoming sessions together with the current
+ * member's existing availability responses.
+ *
+ * @return {Object}
+ */
+function getAvailabilityPageData() {
+  const member = getCurrentMember_();
+  const sessions = getUpcomingSessions_(
+    CONFIG.UPCOMING_WEEKS
+  );
+
+  const memberId = String(
+    member['Member ID'] || ''
+  ).trim();
+
+  const email = String(member.Email || '')
+    .trim()
+    .toLowerCase();
+
+  const responseRows = getSheetObjects_(
+    CONFIG.SHEETS.AVAILABILITY
+  );
+
+  const responsesBySession = {};
+
+  responseRows.forEach(row => {
+    if (!memberMatches_(row, memberId, email)) {
+      return;
+    }
+
+    const sessionId = String(
+      row['Session ID'] || ''
+    ).trim();
+
+    if (!sessionId) {
+      return;
+    }
+
+    responsesBySession[sessionId] = {
+      response: String(row.Response || ''),
+      reason: String(row.Reason || ''),
+      submittedAt: formatDateTime_(
+        row['Submitted At'],
+        getTimeZone_()
+      ),
+      updatedAt: formatDateTime_(
+        row['Updated At'],
+        getTimeZone_()
+      )
+    };
+  });
+
+  return {
+    sessions: sessions.map(session => ({
+      ...session,
+      availability:
+        responsesBySession[session.sessionId] || {
+          response: '',
+          reason: '',
+          submittedAt: '',
+          updatedAt: ''
+        }
+    }))
+  };
+}
+
+
+/**
+ * Creates or updates the signed-in member's availability
+ * response for one session.
+ *
+ * @param {Object} submission
+ * @return {Object}
+ */
+function saveAvailability(submission) {
+  const member = getCurrentMember_();
+
+  if (
+    !submission ||
+    typeof submission !== 'object'
+  ) {
+    throw new Error(
+      'No availability information was received.'
+    );
+  }
+
+  const sessionId = String(
+    submission.sessionId || ''
+  ).trim();
+
+  const response = String(
+    submission.response || ''
+  ).trim();
+
+  const reason = String(
+    submission.reason || ''
+  ).trim();
+
+  if (!sessionId) {
+    throw new Error(
+      'The session could not be identified.'
+    );
+  }
+
+  const allowedResponses = [
+    CONFIG.AVAILABILITY.AVAILABLE,
+    CONFIG.AVAILABILITY.UNAVAILABLE,
+    CONFIG.AVAILABILITY.UNSURE
+  ];
+
+  if (!allowedResponses.includes(response)) {
+    throw new Error(
+      'Please select Available, Unavailable, or Unsure.'
+    );
+  }
+
+  if (reason.length > 500) {
+    throw new Error(
+      'The note must be 500 characters or fewer.'
+    );
+  }
+
+  const session = getEditableSession_(sessionId);
+
+  if (!session) {
+    throw new Error(
+      'This session is not available for responses.'
+    );
+  }
+
+  const spreadsheet =
+    SpreadsheetApp.getActiveSpreadsheet();
+
+  const sheet = spreadsheet.getSheetByName(
+    CONFIG.SHEETS.AVAILABILITY
+  );
+
+  if (!sheet) {
+    throw new Error(
+      `The sheet "${CONFIG.SHEETS.AVAILABILITY}" ` +
+      'could not be found.'
+    );
+  }
+
+  const lock = LockService.getScriptLock();
+
+  try {
+    lock.waitLock(10000);
+
+    const values = sheet.getDataRange().getValues();
+
+    if (values.length === 0) {
+      throw new Error(
+        'The Availability sheet does not have a header row.'
+      );
+    }
+
+    const headers = values[0].map(header =>
+      String(header).trim()
+    );
+
+    validateAvailabilityHeaders_(headers);
+
+    const memberId = String(
+      member['Member ID'] || ''
+    ).trim();
+
+    const email = String(member.Email || '')
+      .trim()
+      .toLowerCase();
+
+    const now = new Date();
+
+    let matchingRowNumber = null;
+    let originalSubmittedAt = now;
+
+    for (
+      let rowIndex = 1;
+      rowIndex < values.length;
+      rowIndex++
+    ) {
+      const rowObject = rowToObject_(
+        headers,
+        values[rowIndex]
+      );
+
+      const rowSessionId = String(
+        rowObject['Session ID'] || ''
+      ).trim();
+
+      if (
+        rowSessionId === sessionId &&
+        memberMatches_(
+          rowObject,
+          memberId,
+          email
+        )
+      ) {
+        matchingRowNumber = rowIndex + 1;
+
+        originalSubmittedAt =
+          parseDateTime_(
+            rowObject['Submitted At']
+          ) || now;
+
+        break;
+      }
+    }
+
+    const newRowObject = {
+      'Session ID': sessionId,
+      'Member ID': memberId,
+      'Student Email': email,
+      'Response': response,
+      'Reason': reason,
+      'Submitted At': originalSubmittedAt,
+      'Updated At': now
+    };
+
+    const newRowValues = headers.map(header =>
+      Object.prototype.hasOwnProperty.call(
+        newRowObject,
+        header
+      )
+        ? newRowObject[header]
+        : ''
+    );
+
+    if (matchingRowNumber) {
+      sheet
+        .getRange(
+          matchingRowNumber,
+          1,
+          1,
+          headers.length
+        )
+        .setValues([newRowValues]);
+    } else {
+      sheet.appendRow(newRowValues);
+    }
+
+    SpreadsheetApp.flush();
+
+    return {
+      success: true,
+      sessionId: sessionId,
+      response: response,
+      reason: reason,
+      message: 'Your availability has been saved.',
+      updatedAt: formatDateTime_(
+        now,
+        getTimeZone_()
+      )
+    };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+
+/**
+ * Finds an active upcoming session that can receive
+ * an availability response.
+ *
+ * @param {string} sessionId
+ * @return {Object|null}
+ */
+function getEditableSession_(sessionId) {
+  const today = startOfDay_(new Date());
+
+  return getSheetObjects_(
+    CONFIG.SHEETS.SESSIONS
+  ).find(session => {
+    const rowSessionId = String(
+      session['Session ID'] || ''
+    ).trim();
+
+    const sessionDate = parseSheetDate_(
+      session.Date
+    );
+
+    const sessionType = String(
+      session['Session Type'] || ''
+    ).trim();
+
+    return (
+      rowSessionId === sessionId &&
+      sessionDate &&
+      sessionDate >= today &&
+      isTrue_(session.Active) &&
+      sessionType !==
+        CONFIG.SESSION_TYPES.CANCELLED
+    );
+  }) || null;
+}
+
+
+/**
+ * Confirms that the Availability sheet contains all
+ * required columns.
+ *
+ * @param {string[]} headers
+ */
+function validateAvailabilityHeaders_(headers) {
+  const requiredHeaders = [
+    'Session ID',
+    'Member ID',
+    'Student Email',
+    'Response',
+    'Reason',
+    'Submitted At',
+    'Updated At'
+  ];
+
+  const missingHeaders =
+    requiredHeaders.filter(header =>
+      !headers.includes(header)
+    );
+
+  if (missingHeaders.length > 0) {
+    throw new Error(
+      'The Availability sheet is missing these columns: ' +
+      missingHeaders.join(', ')
+    );
+  }
+}
+
+
+/**
+ * Converts a spreadsheet row into an object.
+ *
+ * @param {string[]} headers
+ * @param {Array} row
+ * @return {Object}
+ */
+function rowToObject_(headers, row) {
+  const object = {};
+
+  headers.forEach((header, index) => {
+    object[header] = row[index];
+  });
+
+  return object;
+}
