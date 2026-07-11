@@ -56,11 +56,10 @@ The following code paths are present:
 - a role-protected management dashboard with summaries and conflict detection;
 - responsive, framework-free HTML, CSS, and browser JavaScript.
 
-The complete application cannot currently initialize because the browser calls `getPortalData()`, which is not present in the server source.
+
+The initial portal payload is provided by `getPortalData()`, which returns the authenticated member's profile, permissions, notifications, and upcoming sessions.
 
 ## Incomplete features
-
-- `getPortalData()` and the initial home-page data response are missing.
 - The volunteer schedule view is placeholder text.
 - Student, QR, and manual attendance check-in are not implemented.
 - Attendance can be read for the dashboard but cannot be recorded through the application.
@@ -98,3 +97,67 @@ These column names are the repository's prescribed schemas and must not be chang
 6. `Active`
 7. `Join Date`
 8. `Leave Date`
+
+
+### Sessions
+
+1. `Session ID`
+2. `Date`
+3. `Title`
+4. `Session Type`
+5. `Start Time`
+6. `End Time`
+7. `Response Deadline`
+8. `Active`
+9. `Notes`
+
+### Availability
+
+1. `Session ID`
+2. `Member ID`
+3. `Student Email`
+4. `Response`
+5. `Reason`
+6. `Submitted At`
+7. `Updated At`
+
+### Volunteer Assignments
+
+1. `Session ID`
+2. `Member ID`
+3. `Student Email`
+4. `Activity`
+5. `Location`
+6. `Departure Time`
+7. `Assignment Status`
+8. `Notes`
+
+### Attendance
+
+1. `Session ID`
+2. `Member ID`
+3. `Student Email`
+4. `Attendance Status`
+5. `Check-in Time`
+6. `Method`
+7. `Teacher Note`
+
+### Settings
+
+1. `Setting`
+2. `Value`
+
+Internal business values remain English. Roles are `Student`, `Club Leader`, and `Teacher`; availability values are `Available`, `Unavailable`, and `Unsure`; session types are `Regular`, `Event`, and `Cancelled`.
+
+## Deployment assumptions
+
+The source assumes:
+
+- a Google Apps Script project containing the `.gs` files and an HTML file named `Index`;
+- access to an active spreadsheet containing all six sheets with matching headers;
+- a spreadsheet time zone, with `Asia/Tokyo` used as a fallback;
+- a V8-compatible Apps Script runtime because the code uses modern JavaScript syntax;
+- a web-app deployment configuration in which `Session.getActiveUser().getEmail()` identifies the signed-in school user;
+- students use the web app without direct access to the database spreadsheet.
+
+The repository does not show how `src/` is mapped into an Apps Script project. It has no `.clasp.json`. It also contains an empty `appscript.json`, whereas Apps Script normally uses a valid manifest named `appsscript.json`. Deployment cannot be reproduced from the repository alone.

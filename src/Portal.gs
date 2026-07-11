@@ -1,4 +1,28 @@
 /**
+ * Returns the initial portal data for the signed-in member.
+ *
+ * @return {Object}
+ */
+function getPortalData() {
+  const member = getCurrentMember_();
+
+  return {
+    user: {
+      name: String(member.Name || ''),
+      email: String(member.Email || ''),
+      grade: String(member.Grade || ''),
+      role: String(member.Role || '')
+    },
+    permissions: getPermissions_(member),
+    notifications: getNotifications_(member),
+    sessions: getUpcomingSessions_(
+      CONFIG.UPCOMING_WEEKS
+    )
+  };
+}
+
+
+/**
  * Returns upcoming sessions together with the current
  * member's existing availability responses.
  *
@@ -173,6 +197,7 @@ function saveAvailability(submission) {
     const now = new Date();
 
     let matchingRowNumber = null;
+    let matchingRowValues = null;
     let originalSubmittedAt = now;
 
     for (
@@ -198,6 +223,7 @@ function saveAvailability(submission) {
         )
       ) {
         matchingRowNumber = rowIndex + 1;
+        matchingRowValues = values[rowIndex];
 
         originalSubmittedAt =
           parseDateTime_(
@@ -218,13 +244,15 @@ function saveAvailability(submission) {
       'Updated At': now
     };
 
-    const newRowValues = headers.map(header =>
+    const newRowValues = headers.map((header, index) =>
       Object.prototype.hasOwnProperty.call(
         newRowObject,
         header
       )
         ? newRowObject[header]
-        : ''
+        : matchingRowValues
+          ? matchingRowValues[index]
+          : ''
     );
 
     if (matchingRowNumber) {
@@ -268,6 +296,7 @@ function saveAvailability(submission) {
  */
 function getEditableSession_(sessionId) {
   const today = startOfDay_(new Date());
+  const now = new Date();
 
   return getSheetObjects_(
     CONFIG.SHEETS.SESSIONS
@@ -284,13 +313,18 @@ function getEditableSession_(sessionId) {
       session['Session Type'] || ''
     ).trim();
 
+    const responseDeadline = parseDateTime_(
+      session['Response Deadline']
+    );
+
     return (
       rowSessionId === sessionId &&
       sessionDate &&
       sessionDate >= today &&
       isTrue_(session.Active) &&
       sessionType !==
-        CONFIG.SESSION_TYPES.CANCELLED
+        CONFIG.SESSION_TYPES.CANCELLED &&
+      (!responseDeadline || now <= responseDeadline)
     );
   }) || null;
 }

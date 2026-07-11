@@ -48,7 +48,19 @@ function getDashboardSession(sessionId) {
     );
   }
 
-  return buildTodaySessionData_(sessionId);
+  const todaySession = getTodaySessions_().find(session =>
+    session.sessionId === String(sessionId).trim()
+  );
+
+  if (!todaySession) {
+    throw new Error(
+      'The selected session is not active today.'
+    );
+  }
+
+  return buildTodaySessionData_(
+    todaySession.sessionId
+  );
 }
 
 

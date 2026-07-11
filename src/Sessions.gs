@@ -224,13 +224,13 @@ function createTodaySummary_(members) {
     Boolean(member.volunteer)
   );
 
-  const attendanceRecorded = members.filter(member =>
-    Boolean(member.attendance)
-  );
-
   const expected = members.filter(member =>
     member.availability !==
       CONFIG.AVAILABILITY.UNAVAILABLE
+  );
+
+  const attendanceRecorded = expected.filter(member =>
+    Boolean(member.attendance)
   );
 
   return {

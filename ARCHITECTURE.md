@@ -80,7 +80,8 @@ DOMContentLoaded
   → renderHome()
 ```
 
-This flow is broken: `getPortalData()` is called by the browser but no server implementation exists. The expected return shape is inferred from frontend property access and is not produced anywhere in the repository.
+`getPortalData()` authenticates the current member and returns that member's profile, role-derived permissions, notifications, and upcoming sessions. It does not return other members' records.
+
 
 Subsequent views independently request availability or dashboard data. Spreadsheet `Date` objects are converted to formatted strings before being returned to the browser.
 
@@ -98,3 +99,79 @@ Subsequent views independently request availability or dashboard data. Spreadshe
 10. The first matching row is replaced, preserving its original `Submitted At`; otherwise a row is appended.
 11. The server returns the saved values and formatted update time.
 12. The browser updates the card and attempts to refresh cached home data through the missing `getPortalData()` function.
+
+
+Known limitation: duplicate availability rows are not prevented. When updating an existing row, columns not managed by `saveAvailability()` are preserved.
+
+## Today's Engine flow
+
+There is no function or module formally named “Today's Engine.” Its current functional equivalent is `buildTodaySessionData_(sessionId)` in `Sessions.gs`.
+
+The flow is:
+
+1. Find a session row by `Session ID`.
+2. Map it to client-safe session data.
+3. Load active members whose roles are `Student` or `Club Leader`; Teachers are excluded from attendance totals.
+4. Load all availability, volunteer assignment, and attendance rows.
+5. For each member, find the first matching record for the selected session using `Member ID` or email.
+6. Ignore volunteer assignments whose normalized status is `cancelled` or `declined`.
+7. Produce a member record containing availability, private reason, volunteer details, and attendance details.
+8. Calculate totals and categorized groups, including volunteer/unavailable conflicts.
+
+**Intended, partially implemented:** Today's Engine should remain the shared cross-sheet aggregation layer. The dashboard already consumes `buildTodaySessionData_()` rather than rebuilding those joins, but no separate engine abstraction exists.
+
+## Dashboard flow
+
+1. `getDashboardData()` calls `requireDashboardAccess_()`.
+2. `getTodaySessions_()` returns active, non-cancelled sessions matching today's date, sorted by start time.
+3. The first session is passed to `buildTodaySessionData_()`.
+4. The browser renders a session selector when multiple sessions exist.
+5. It displays totals, volunteer and availability groups, conflicts, and an attendance count.
+6. Selecting or refreshing a session calls `getDashboardSession(sessionId)`, which repeats server-side dashboard authorization and calls the same aggregation function.
+
+`getDashboardSession()` validates the supplied ID against the active, non-cancelled sessions returned for today before building dashboard data.
+
+Attendance is read-only in the current dashboard. Manual and QR attendance operations are not implemented.
+
+## Localisation approach
+
+Current localisation is a mixture of hard-coded Japanese and English in `Index.html`, plus English server-generated errors, notifications, statuses, and dates. Member sorting uses the `ja` locale, but the HTML document has no `lang` attribute. There is no localisation dictionary, language selector, or `localStorage` preference.
+
+Spreadsheet and business values are currently English, including roles, availability values, session types, and assignment statuses.
+
+**Intended, not implemented:** Japanese should be the default display language, English should be selectable, the preference should be stored in `localStorage`, and all visible strings should come from a localisation dictionary without translating stored business values.
+
+## Public server API
+
+The HTML frontend calls:
+
+| Function | Present | Authorization and purpose |
+|---|---|---|
+| `getPortalData()` | Yes | Authenticates an active member and returns that member's profile, permissions, notifications, and sessions |
+| `getAvailabilityPageData()` | Yes | Authenticates an active member and returns only that member's availability |
+| `saveAvailability(submission)` | Yes | Authenticates the member and creates or updates that member's response |
+| `getDashboardData()` | Yes | Requires Club Leader or Teacher dashboard access |
+| `getDashboardSession(sessionId)` | Yes | Requires Club Leader or Teacher dashboard access |
+
+`doGet()` is the public HTTP entry point but is not called through `google.script.run`.
+
+Functions ending in `_` are internal by convention and are not called by the frontend.
+
+## Security boundaries
+
+Current server-enforced boundaries include:
+
+- identity comes from `Session.getActiveUser()`, not client input;
+- the account must match an active `Members` row;
+- availability reads and writes are scoped to the authenticated member;
+- dashboard APIs repeat authorization on the server;
+- availability input is validated server-side;
+- availability writes use `LockService`;
+- spreadsheet-derived text is normally escaped before insertion into generated HTML;
+- spreadsheet and script identifiers are not sent to the client by current code.
+
+Required boundaries from `AGENTS.md` include keeping the database spreadsheet inaccessible to students and never returning other students' private notes, attendance, or personal data to student clients. The current personal availability endpoint follows that rule. Dashboard payloads contain club-wide private and attendance data, but the dashboard functions enforce Club Leader or Teacher access.
+
+When both the current member and a related row have `Member ID`, matching requires those IDs to agree. Email is used only when a row lacks a member ID, reducing the chance that malformed rows disclose data to the wrong member.
+
+Remaining risks include deployment-dependent email visibility, absence of a domain restriction, lack of uniqueness constraints, and ambiguous date boundaries when script and spreadsheet time zones differ. Direct spreadsheet permissions and actual web-app deployment settings are outside the repository and cannot be verified here.

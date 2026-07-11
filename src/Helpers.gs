@@ -65,8 +65,7 @@ function getNotifications_(member) {
     const volunteerAssignment = volunteerRows.find(row =>
       String(row['Session ID'] || '').trim() === sessionId &&
       memberMatches_(row, memberId, email) &&
-      String(row['Assignment Status'] || '').trim() !==
-        'Cancelled'
+      !isCancelledAssignment_(row)
     );
 
     if (!response) {
@@ -137,9 +136,9 @@ function memberMatches_(row, memberId, email) {
     .trim()
     .toLowerCase();
 
-  return (
-    memberId && rowMemberId === memberId
-  ) || (
-    email && rowEmail === email
-  );
+  if (memberId && rowMemberId) {
+    return rowMemberId === memberId;
+  }
+
+  return Boolean(email && rowEmail === email);
 }
