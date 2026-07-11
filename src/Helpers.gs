@@ -1,0 +1,145 @@
+/**
+ * Returns notifications for the signed-in member.
+ *
+ * @param {Object} member
+ * @return {Object[]}
+ */
+function getNotifications_(member) {
+  const sessionRows = getSheetObjects_(
+    CONFIG.SHEETS.SESSIONS
+  );
+
+  const availabilityRows = getSheetObjects_(
+    CONFIG.SHEETS.AVAILABILITY
+  );
+
+  const volunteerRows = getSheetObjects_(
+    CONFIG.SHEETS.VOLUNTEERS
+  );
+
+  const memberId = String(
+    member['Member ID'] || ''
+  ).trim();
+
+  const email = String(member.Email || '')
+    .trim()
+    .toLowerCase();
+
+  const today = startOfDay_(new Date());
+  const limit = new Date(today);
+
+  limit.setDate(
+    limit.getDate() + CONFIG.NOTIFICATION_DAYS
+  );
+
+  const relevantSessions = sessionRows
+    .filter(session => {
+      const date = parseSheetDate_(session.Date);
+
+      return date &&
+        date >= today &&
+        date <= limit &&
+        isTrue_(session.Active) &&
+        String(session['Session Type'] || '') !==
+          CONFIG.SESSION_TYPES.CANCELLED;
+    })
+    .sort((a, b) =>
+      parseSheetDate_(a.Date) -
+      parseSheetDate_(b.Date)
+    );
+
+  const notifications = [];
+
+  relevantSessions.forEach(session => {
+    const sessionId = String(
+      session['Session ID'] || ''
+    ).trim();
+
+    const sessionDate = parseSheetDate_(session.Date);
+
+    const response = availabilityRows.find(row =>
+      String(row['Session ID'] || '').trim() === sessionId &&
+      memberMatches_(row, memberId, email)
+    );
+
+    const volunteerAssignment = volunteerRows.find(row =>
+      String(row['Session ID'] || '').trim() === sessionId &&
+      memberMatches_(row, memberId, email) &&
+      String(row['Assignment Status'] || '').trim() !==
+        'Cancelled'
+    );
+
+    if (!response) {
+      notifications.push({
+        type: 'response',
+        priority: 'action',
+        title: 'Availability response needed',
+        message:
+          `You have not responded for ${session.Title}.`,
+        sessionId: sessionId,
+        date: Utilities.formatDate(
+          sessionDate,
+          getTimeZone_(),
+          'EEE, d MMM'
+        )
+      });
+    }
+
+    if (volunteerAssignment) {
+      const activity = String(
+        volunteerAssignment.Activity ||
+        'Volunteer activity'
+      );
+
+      const location = String(
+        volunteerAssignment.Location || ''
+      );
+
+      notifications.push({
+        type: 'volunteer',
+        priority: 'information',
+        title: 'Upcoming volunteer assignment',
+        message: location
+          ? `${activity} at ${location}`
+          : activity,
+        sessionId: sessionId,
+        date: Utilities.formatDate(
+          sessionDate,
+          getTimeZone_(),
+          'EEE, d MMM'
+        )
+      });
+    }
+  });
+
+  return notifications.slice(0, 6);
+}
+
+
+/**
+ * Checks whether a row refers to a particular member.
+ *
+ * @param {Object} row
+ * @param {string} memberId
+ * @param {string} email
+ * @return {boolean}
+ */
+function memberMatches_(row, memberId, email) {
+  const rowMemberId = String(
+    row['Member ID'] || ''
+  ).trim();
+
+  const rowEmail = String(
+    row['Student Email'] ||
+    row.Email ||
+    ''
+  )
+    .trim()
+    .toLowerCase();
+
+  return (
+    memberId && rowMemberId === memberId
+  ) || (
+    email && rowEmail === email
+  );
+}
