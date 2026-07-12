@@ -1,0 +1,11 @@
+{
+  "private": true,
+  "scripts": {
+    "clasp": "clasp",
+    "apps-script:status": "clasp status",
+    "apps-script:push": "clasp push"
+  },
+  "devDependencies": {
+    "@google/clasp": "3.3.0"
+  }
+}

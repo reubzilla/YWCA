@@ -68,7 +68,7 @@ The initial portal payload is provided by `getPortalData()`, which returns the a
 - Response deadlines are displayed but not enforced by `saveAvailability()`.
 - There is no localisation dictionary, language selector, or saved browser preference.
 - The frontend is not split into HTML partials.
-- There is no repository-provided sheet setup, migration, testing, or deployment tooling.
+- There is no repository-provided sheet setup, migration, or test suite. Local Apps Script source synchronization is configured through `clasp`.
 
 ## Future planned features
 
@@ -160,4 +160,6 @@ The source assumes:
 - a web-app deployment configuration in which `Session.getActiveUser().getEmail()` identifies the signed-in school user;
 - students use the web app without direct access to the database spreadsheet.
 
-The repository does not show how `src/` is mapped into an Apps Script project. It has no `.clasp.json`. It also contains an empty `appscript.json`, whereas Apps Script normally uses a valid manifest named `appsscript.json`. Deployment cannot be reproduced from the repository alone.
+The repository uses a local `clasp` installation and maps `src/` to an existing Apps Script project through an ignored `.clasp.json`. The Script ID and OAuth credentials are deliberately excluded from Git. The tracked `src/appsscript.json` preserves the existing V8, `Asia/Tokyo`, domain-only web-app configuration.
+
+After installing dependencies, use `npm run apps-script:status` to inspect the files that would be uploaded and `npm run apps-script:push` to replace the online project source. A push does not create or update a deployment version automatically. Because Apps Script pushes replace the complete online source set, review `clasp status` and the Git diff before every push.

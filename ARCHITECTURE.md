@@ -12,8 +12,11 @@ This document describes the code currently in the repository. Sections explicitl
 ├── README.md            Empty
 ├── TODO.md              Empty
 ├── CHANGELOG.md         Empty
-├── appscript.json       Empty and not the standard Apps Script manifest name
+├── package.json         Repository-local clasp commands and version
+├── package-lock.json    Locked development-tool dependencies
+├── .claspignore         Files permitted in an Apps Script push
 └── src/
+    ├── appsscript.json  Apps Script V8, time-zone, and web-app manifest
     ├── Auth.gs          HTML Service entry point
     ├── Code.gs          Constants, sheet names, roles, and internal values
     ├── Config.gs        Current-member lookup and permission calculation
@@ -27,13 +30,13 @@ This document describes the code currently in the repository. Sections explicitl
     └── Today.gs         Public dashboard API and authorization guard
 ```
 
-There is no test suite, dependency manifest, `.clasp.json`, schema setup script, or deployment script.
+There is no test suite or schema setup script. The repository has a local `clasp` development dependency. An ignored `.clasp.json` maps `src/` to the target project without committing its Script ID, and OAuth credentials remain outside the repository.
 
 ## Apps Script entry point
 
 `doGet()` in `Auth.gs` returns `HtmlService.createHtmlOutputFromFile('Index')` and sets the page title from `CONFIG.APP_TITLE`.
 
-This requires an Apps Script HTML file named `Index`. `src/Index.html` matches that name, but the repository does not include tooling that maps the local `src/` directory into an Apps Script project.
+This requires an Apps Script HTML file named `Index`. `src/Index.html` matches that name. The local `clasp` configuration uses `src/` as its `rootDir`.
 
 ## HTML partial and include mechanism
 
