@@ -26,7 +26,7 @@ This document describes the code currently in the repository. Sections explicitl
     ├── Index.html       Frontend shell, views, event handlers, and Apps Script calls
     ├── Styles.html      CSS partial included by Index.html
     ├── Localization.html Translation dictionary and browser localisation helpers
-    ├── Helpers.html     Shared browser utility functions
+    ├── BrowserHelpers.html Shared browser utility functions
     ├── Notifications.gs Date, time, and Boolean utilities
     ├── Portal.gs        Availability read/write API
     ├── Sessions.gs      Same-day cross-sheet aggregation and summaries
@@ -43,9 +43,9 @@ This requires an Apps Script HTML file named `Index`. `src/Index.html` matches t
 
 ## HTML partial and include mechanism
 
-`include_(filename)` in `Code.gs` reads a trusted Apps Script HTML file for inclusion in the evaluated `Index` template. `Index.html` includes `Styles` inside its `<style>` element, then includes `Helpers` and `Localization` at the start of its application `<script>` element. Helpers load before localisation because localisation rendering uses shared HTML escaping.
+`include_(filename)` in `Code.gs` reads a trusted Apps Script HTML file for inclusion in the evaluated `Index` template. `Index.html` includes `Styles` inside its `<style>` element, then includes `BrowserHelpers` and `Localization` at the start of its application `<script>` element. Browser helpers load before localisation because localisation rendering uses shared HTML escaping.
 
-Page markup, view rendering, event handlers, and `google.script.run` calls remain in `Index.html`. CSS is in `Styles.html`, the single translation dictionary and translation helpers are in `Localization.html`, and shared browser utilities are in `Helpers.html`.
+Page markup, view rendering, event handlers, and `google.script.run` calls remain in `Index.html`. CSS is in `Styles.html`, the single translation dictionary and translation helpers are in `Localization.html`, and shared browser utilities are in `BrowserHelpers.html`.
 
 **Intended, partially implemented:** later stages may divide view presentation and browser interaction into additional HTML partials while business logic remains in `.gs` files.
 
