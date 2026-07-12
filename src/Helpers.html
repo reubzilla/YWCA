@@ -1,0 +1,59 @@
+/**
+ * Escapes a value used in a CSS selector.
+ * Modern browsers support CSS.escape, but this fallback
+ * handles Apps Script web-app browsers as well.
+ */
+function cssEscape(value) {
+  if (
+    window.CSS &&
+    typeof window.CSS.escape === 'function'
+  ) {
+    return window.CSS.escape(value);
+  }
+
+  return String(value)
+    .replace(/[^a-zA-Z0-9_-]/g, '\\$&');
+}
+    function renderPlaceholder(title, message) {
+      const content =
+        document.getElementById('content');
+
+      content.className = '';
+      content.innerHTML = `
+        <h2 class="section-title">
+          ${escapeHtml(title)}
+        </h2>
+
+        <section class="card empty">
+          ${escapeHtml(message)}
+        </section>
+      `;
+    }
+
+    function renderError(error) {
+      const content =
+        document.getElementById('content');
+
+      content.className = 'error';
+      content.textContent =
+        error && error.message
+          ? error.message
+          : t('app.error.loadFailed');
+    }
+
+    function buildTimeText(startTime, endTime) {
+      if (startTime && endTime) {
+        return `${startTime}–${endTime}`;
+      }
+
+      return startTime || endTime || '';
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }

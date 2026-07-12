@@ -32,3 +32,13 @@ const CONFIG = Object.freeze({
   UPCOMING_WEEKS: 8,
   NOTIFICATION_DAYS: 14
 });
+
+/**
+ * Returns the contents of a trusted HTML partial for template inclusion.
+ *
+ * @param {string} filename Apps Script HTML filename without the extension.
+ * @return {string} Partial contents.
+ */
+function include_(filename) {
+  return HtmlService.createHtmlOutputFromFile(filename).getContent();
+}

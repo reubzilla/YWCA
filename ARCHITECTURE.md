@@ -23,7 +23,10 @@ This document describes the code currently in the repository. Sections explicitl
     ├── Dashboard.gs     Generic sheet-to-object reader
     ├── Data.gs          Upcoming-session retrieval and client mapping
     ├── Helpers.gs       Notifications and member-record matching
-    ├── Index.html       Entire frontend: HTML, CSS, and browser JavaScript
+    ├── Index.html       Frontend shell, views, event handlers, and Apps Script calls
+    ├── Styles.html      CSS partial included by Index.html
+    ├── Localization.html Translation dictionary and browser localisation helpers
+    ├── Helpers.html     Shared browser utility functions
     ├── Notifications.gs Date, time, and Boolean utilities
     ├── Portal.gs        Availability read/write API
     ├── Sessions.gs      Same-day cross-sheet aggregation and summaries
@@ -34,17 +37,17 @@ There is no test suite or schema setup script. The repository has a local `clasp
 
 ## Apps Script entry point
 
-`doGet()` in `Auth.gs` returns `HtmlService.createHtmlOutputFromFile('Index')` and sets the page title from `CONFIG.APP_TITLE`.
+`doGet()` in `Auth.gs` creates and evaluates an HTML template from `Index`, then sets the page title from `CONFIG.APP_TITLE`.
 
 This requires an Apps Script HTML file named `Index`. `src/Index.html` matches that name. The local `clasp` configuration uses `src/` as its `rootDir`.
 
 ## HTML partial and include mechanism
 
-There is no include mechanism in the current code. `doGet()` uses `createHtmlOutputFromFile()`, not an evaluated HTML template. There is no `include()` helper and no `<?!= ... ?>` inclusion syntax.
+`include_(filename)` in `Code.gs` reads a trusted Apps Script HTML file for inclusion in the evaluated `Index` template. `Index.html` includes `Styles` inside its `<style>` element, then includes `Helpers` and `Localization` at the start of its application `<script>` element. Helpers load before localisation because localisation rendering uses shared HTML escaping.
 
-All markup, styles, translations, rendering, event handlers, and `google.script.run` calls are contained in `Index.html`.
+Page markup, view rendering, event handlers, and `google.script.run` calls remain in `Index.html`. CSS is in `Styles.html`, the single translation dictionary and translation helpers are in `Localization.html`, and shared browser utilities are in `Helpers.html`.
 
-**Intended, not implemented:** presentation and browser interaction should be divided into HTML partials while business logic remains in `.gs` files.
+**Intended, partially implemented:** later stages may divide view presentation and browser interaction into additional HTML partials while business logic remains in `.gs` files.
 
 ## Authentication flow
 
@@ -138,7 +141,7 @@ Attendance is read-only in the current dashboard. Manual and QR attendance opera
 
 ## Localisation approach
 
-English is the canonical source language. `Index.html` contains one `TRANSLATIONS` dictionary with English and Japanese catalogues and a `t()` interpolation helper used by client-rendered labels and messages. Japanese is selected by default. The header language selector stores a valid `ja` or `en` preference in `localStorage`, updates the document language, and rerenders the active view. Server-generated errors, notifications, and formatted dates remain raw English or spreadsheet-derived data.
+English is the canonical source language. `Localization.html` contains one `TRANSLATIONS` dictionary with English and Japanese catalogues and a `t()` interpolation helper used by client-rendered labels and messages. Japanese is selected by default. The header language selector stores a valid `ja` or `en` preference in `localStorage`, updates the document language, and rerenders the active view. Server-generated errors, notifications, and formatted dates remain raw English or spreadsheet-derived data.
 
 Spreadsheet and business values are currently English, including roles, availability values, session types, and assignment statuses.
 

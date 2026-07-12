@@ -3,6 +3,7 @@
  */
 function doGet() {
   return HtmlService
-    .createHtmlOutputFromFile('Index')
+    .createTemplateFromFile('Index')
+    .evaluate()
     .setTitle(CONFIG.APP_TITLE);
 }
