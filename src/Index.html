@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <base target="_top">
 
@@ -601,23 +601,148 @@
 <body>
   <main class="page">
     <header class="header">
-      <h1>中高YWCA</h1>
-      <p>出席、訪問</p>
+      <h1 id="app-name"></h1>
+      <p id="app-subtitle"></p>
     </header>
 
     <nav
       id="navigation"
       class="navigation hidden"
-      aria-label="Club Portal sections"
+      aria-label=""
     ></nav>
 
     <div id="content" class="loading">
-      クラブ情報を読み込んでいます… Loading your club information… 
     </div>
   </main>
 
   <script>
     let portalData = null;
+
+    const DEFAULT_LOCALE = 'en';
+    const activeLocale = DEFAULT_LOCALE;
+
+    const TRANSLATIONS = Object.freeze({
+      en: Object.freeze({
+        'app.name': 'Miyagi Gakuin YWCA',
+        'app.subtitle': 'Attendance and community visits',
+        'app.loading': 'Loading your club information…',
+        'a11y.primaryNavigation': 'Club Portal sections',
+        'nav.home': 'Home',
+        'nav.availability': 'Availability',
+        'nav.volunteerSchedule': 'Volunteer Schedule',
+        'nav.checkIn': 'Check In',
+        'nav.dashboard': 'Dashboard',
+        'volunteer.placeholder':
+          'Personal volunteer assignments will appear here.',
+        'attendance.placeholder':
+          'QR and same-day attendance check-in will appear here.',
+        'home.welcome': 'Welcome, {name}',
+        'home.notificationsTitle': 'Notifications',
+        'home.noNotifications': 'There are no notifications.',
+        'home.upcomingSessionsTitle': 'Upcoming Sessions',
+        'home.noUpcomingSessions':
+          'There are no upcoming sessions scheduled.',
+        'session.timeNotSpecified': 'Time not specified',
+        'session.responseDeadlineLabel': 'Response deadline:',
+        'availability.title': 'My Availability',
+        'availability.loading': 'Loading availability…',
+        'availability.instructions':
+          'Please tell the club whether you can attend each upcoming meeting or event. Only Club Leaders and Teachers can view your response.',
+        'availability.noSessions':
+          'There are no upcoming sessions requiring a response.',
+        'availability.responseGroupAriaLabel':
+          'Availability for {title}',
+        'availability.status.available': 'Available',
+        'availability.status.unavailable': 'Unavailable',
+        'availability.status.unsure': 'Unsure',
+        'availability.status.noResponse': 'No response',
+        'availability.privateNoteLabel': 'Private note',
+        'availability.privateNotePlaceholder':
+          'Example: Dentist appointment',
+        'availability.privateNoteHelp':
+          'This note is optional and is not shown to other students.',
+        'availability.characterCount': '{count}/{max}',
+        'availability.saveButton': 'Save response',
+        'availability.lastUpdated': 'Last updated: {updatedAt}',
+        'availability.validation.responseRequired':
+          'Please select a response.',
+        'availability.saving': 'Saving…',
+        'availability.error.saveFailed':
+          'The response could not be saved.',
+        'availability.error.loadFailed':
+          'Availability could not be loaded.',
+        'dashboard.title': 'Management Dashboard',
+        'dashboard.loadingToday': "Loading today's information…",
+        'dashboard.noSessionToday':
+          'There is no active club session scheduled for today.',
+        'dashboard.sessionSelectorLabel': "Today's session",
+        'dashboard.loadingSession': 'Loading session information…',
+        'common.refresh': 'Refresh',
+        'common.refreshing': 'Refreshing…',
+        'dashboard.summary.activeMembers': 'Active members',
+        'dashboard.summary.available': 'Available',
+        'dashboard.summary.volunteers': 'Volunteers',
+        'dashboard.summary.unavailable': 'Unavailable',
+        'dashboard.summary.unsure': 'Unsure',
+        'dashboard.summary.noResponse': 'No response',
+        'dashboard.group.volunteers': 'Scheduled volunteers',
+        'dashboard.group.available': 'Available for club',
+        'dashboard.group.unavailable': 'Unavailable',
+        'dashboard.group.unsure': 'Unsure',
+        'dashboard.group.noResponse': 'No response',
+        'dashboard.group.empty': 'No students in this category.',
+        'dashboard.attendance.title': 'Attendance',
+        'dashboard.attendance.summary':
+          'Attendance has been recorded for {recorded} of {expected} expected members.',
+        'dashboard.attendance.futureNotice':
+          'This section will update automatically once manual or QR check-in is added.',
+        'dashboard.volunteer.departureTime': 'Leave {time}',
+        'dashboard.conflict.title':
+          'Volunteer assignment conflict',
+        'dashboard.conflict.description':
+          'The following students are assigned to volunteer but have marked themselves unavailable:',
+        'dashboard.error.loadFailed':
+          'The dashboard could not be loaded.',
+        'app.error.loadFailed':
+          'The Club Portal could not be loaded.'
+      })
+    });
+
+    function t(key, replacements) {
+      const dictionary =
+        TRANSLATIONS[activeLocale] ||
+        TRANSLATIONS[DEFAULT_LOCALE];
+
+      let text = dictionary[key] || key;
+
+      Object.entries(replacements || {}).forEach(
+        ([name, value]) => {
+          text = text.split(`{${name}}`).join(String(value));
+        }
+      );
+
+      return text;
+    }
+
+    function initialiseStaticTranslations() {
+      document.getElementById('app-name').textContent =
+        t('app.name');
+
+      document.getElementById('app-subtitle').textContent =
+        t('app.subtitle');
+
+      document
+        .getElementById('navigation')
+        .setAttribute(
+          'aria-label',
+          t('a11y.primaryNavigation')
+        );
+
+      document.getElementById('content').textContent =
+        t('app.loading');
+    }
+
+    initialiseStaticTranslations();
 
     document.addEventListener(
       'DOMContentLoaded',
@@ -643,16 +768,19 @@
         document.getElementById('navigation');
 
       const items = [
-        { id: 'home', label: 'ホーム' },
-        { id: 'availability', label: '可用性' },
-        { id: 'volunteer', label: '訪問スケジュール' },
-        { id: 'attendance', label: 'チェックイン' }
+        { id: 'home', label: t('nav.home') },
+        { id: 'availability', label: t('nav.availability') },
+        {
+          id: 'volunteer',
+          label: t('nav.volunteerSchedule')
+        },
+        { id: 'attendance', label: t('nav.checkIn') }
       ];
 
       if (permissions.canViewDashboard) {
         items.push({
           id: 'dashboard',
-          label: 'ダッシュボード'
+          label: t('nav.dashboard')
         });
       }
 
@@ -698,15 +826,15 @@
 
         case 'volunteer':
           renderPlaceholder(
-            '訪問スケジュール',
-            'Personal volunteer assignments will appear here.'
+            t('nav.volunteerSchedule'),
+            t('volunteer.placeholder')
           );
           break;
 
         case 'attendance':
           renderPlaceholder(
-            'Check In',
-            'QR and same-day attendance check-in will appear here.'
+            t('nav.checkIn'),
+            t('attendance.placeholder')
           );
           break;
 
@@ -729,7 +857,9 @@
       let html = `
         <section class="card">
           <h2 class="user-name">
-            ようこそ, ${escapeHtml(user.name)}
+            ${t('home.welcome', {
+              name: escapeHtml(user.name)
+            })}
           </h2>
 
           <p class="user-details">
@@ -743,14 +873,14 @@
         </section>
 
         <h2 class="section-title">
-          通知
+          ${t('home.notificationsTitle')}
         </h2>
       `;
 
       if (notifications.length === 0) {
         html += `
           <section class="card empty">
-            通知はありません。
+            ${t('home.noNotifications')}
           </section>
         `;
       } else {
@@ -778,14 +908,14 @@
 
       html += `
         <h2 class="section-title">
-          今後の日程
+          ${t('home.upcomingSessionsTitle')}
         </h2>
       `;
 
       if (sessions.length === 0) {
         html += `
           <section class="card empty">
-            今後予定されているセッションは掲載されていません。
+            ${t('home.noUpcomingSessions')}
           </section>
         `;
       } else {
@@ -808,7 +938,7 @@
               <p class="session-details">
                 ${timeText
                   ? escapeHtml(timeText)
-                  : 'Time not specified'}
+                  : t('session.timeNotSpecified')}
               </p>
 
               <span class="session-type">
@@ -821,7 +951,7 @@
                     class="session-details"
                     style="margin-top: 12px;"
                   >
-                    Response deadline:
+                    ${t('session.responseDeadlineLabel')}
                     ${escapeHtml(
                       session.responseDeadline
                     )}
@@ -851,11 +981,11 @@ function renderAvailability() {
   content.className = '';
   content.innerHTML = `
     <h2 class="section-title">
-      対応可能日時
+      ${t('availability.title')}
     </h2>
 
     <section class="card availability-loading">
-      空き状況を読み込んでいます…
+      ${t('availability.loading')}
     </section>
   `;
 
@@ -874,12 +1004,12 @@ function renderAvailabilityData(data) {
 
   let html = `
     <h2 class="section-title">
-      対応可能日時
+      ${t('availability.title')}
     </h2>
 
     <section class="card">
       <p style="margin: 0; line-height: 1.6;">
-        今後の各ミーティングやイベントに出席できるかどうかをクラブにお知らせください。入力した内容は、クラブのリーダーと指導者のみが閲覧できます。
+        ${t('availability.instructions')}
       </p>
     </section>
   `;
@@ -887,7 +1017,7 @@ function renderAvailabilityData(data) {
   if (sessions.length === 0) {
     html += `
       <section class="card empty">
-        回答が必要な今後のセッションはありません。
+        ${t('availability.noSessions')}
       </section>
     `;
 
@@ -941,7 +1071,7 @@ function buildAvailabilityCard(session) {
       <p class="session-details">
         ${timeText
           ? escapeHtml(timeText)
-          : '時間は指定されていません'}
+          : t('session.timeNotSpecified')}
       </p>
 
       <span
@@ -957,7 +1087,7 @@ function buildAvailabilityCard(session) {
             class="session-details"
             style="margin-top: 12px;"
           >
-            Response deadline:
+            ${t('session.responseDeadlineLabel')}
             ${escapeHtml(session.responseDeadline)}
           </p>
         `
@@ -966,28 +1096,29 @@ function buildAvailabilityCard(session) {
       <div
         class="response-options"
         role="radiogroup"
-       aria-label="${escapeHtml(
-  `${session.title}の参加可否`
-)}"
+       aria-label="${escapeHtml(t(
+         'availability.responseGroupAriaLabel',
+         { title: session.title }
+       ))}"
       >
         ${buildResponseOption(
           session.sessionId,
           'Available',
-          '参加可能',
+          t('availability.status.available'),
           response
         )}
 
         ${buildResponseOption(
           session.sessionId,
           'Unavailable',
-          '参加不可',
+          t('availability.status.unavailable'),
           response
         )}
 
         ${buildResponseOption(
           session.sessionId,
           'Unsure',
-          '未定',
+          t('availability.status.unsure'),
           response
         )}
       </div>
@@ -996,25 +1127,30 @@ function buildAvailabilityCard(session) {
         class="form-label"
         for="reason-${safeSessionId}"
       >
-        個人メモ
+        ${t('availability.privateNoteLabel')}
       </label>
 
       <textarea
         class="note-input"
         id="reason-${safeSessionId}"
         maxlength="500"
-        placeholder="例：歯医者の予約"
+        placeholder="${escapeHtml(
+          t('availability.privateNotePlaceholder')
+        )}"
       >${escapeHtml(availability.reason || '')}</textarea>
 
       <p class="form-help">
-        このメモは任意です。他の生徒には表示されません。
+        ${t('availability.privateNoteHelp')}
       </p>
 
       <div
         class="character-count"
         id="count-${safeSessionId}"
       >
-        ${(availability.reason || '').length}/500
+        ${t('availability.characterCount', {
+          count: (availability.reason || '').length,
+          max: 500
+        })}
       </div>
 
       <div class="form-actions">
@@ -1023,7 +1159,7 @@ function buildAvailabilityCard(session) {
           id="save-${safeSessionId}"
           type="button"
         >
-          回答を保存
+          ${t('availability.saveButton')}
         </button>
 
         <span
@@ -1040,8 +1176,9 @@ function buildAvailabilityCard(session) {
             class="updated-time"
             id="updated-${safeSessionId}"
           >
-            Last updated:
-            ${escapeHtml(availability.updatedAt)}
+            ${t('availability.lastUpdated', {
+              updatedAt: escapeHtml(availability.updatedAt)
+            })}
           </div>
         `
         : `
@@ -1116,7 +1253,10 @@ function initialiseAvailabilityCard(sessionId) {
 
     if (count) {
       count.textContent =
-        `${noteInput.value.length}/500`;
+        t('availability.characterCount', {
+          count: noteInput.value.length,
+          max: 500
+        });
     }
   });
 }
@@ -1139,7 +1279,7 @@ function submitAvailability(sessionId) {
 
   if (!selectedResponse) {
     message.textContent =
-      'Please select a response.';
+      t('availability.validation.responseRequired');
 
     message.classList.add('error-message');
     return;
@@ -1149,7 +1289,7 @@ function submitAvailability(sessionId) {
   message.classList.remove('error-message');
 
   saveButton.disabled = true;
-  saveButton.textContent = 'Saving…';
+  saveButton.textContent = t('availability.saving');
 
   google.script.run
     .withSuccessHandler(result => {
@@ -1192,7 +1332,7 @@ function handleAvailabilitySaved(
     getStatusDisplay(result.response);
 
   saveButton.disabled = false;
-  saveButton.textContent = 'Save response';
+  saveButton.textContent = t('availability.saveButton');
 
   message.classList.remove('error-message');
   message.textContent = result.message;
@@ -1204,7 +1344,9 @@ function handleAvailabilitySaved(
     statusDisplay.label;
 
   updated.textContent =
-    `Last updated: ${result.updatedAt}`;
+    t('availability.lastUpdated', {
+      updatedAt: result.updatedAt
+    });
 
   /*
    * Refresh the cached portal information so the Home
@@ -1233,13 +1375,13 @@ function handleAvailabilitySaveError(
     document.getElementById(`message-${sessionId}`);
 
   saveButton.disabled = false;
-  saveButton.textContent = 'Save response';
+  saveButton.textContent = t('availability.saveButton');
 
   message.classList.add('error-message');
   message.textContent =
     error && error.message
       ? error.message
-      : 'The response could not be saved.';
+      : t('availability.error.saveFailed');
 }
 
 
@@ -1249,14 +1391,14 @@ function renderAvailabilityError(error) {
 
   content.innerHTML = `
     <h2 class="section-title">
-      My Availability
+      ${t('availability.title')}
     </h2>
 
     <section class="error">
       ${escapeHtml(
         error && error.message
           ? error.message
-          : 'Availability could not be loaded.'
+          : t('availability.error.loadFailed')
       )}
     </section>
   `;
@@ -1267,25 +1409,25 @@ function getStatusDisplay(response) {
   switch (response) {
     case 'Available':
       return {
-        label: 'Available',
+        label: t('availability.status.available'),
         className: 'available'
       };
 
     case 'Unavailable':
       return {
-        label: 'Unavailable',
+        label: t('availability.status.unavailable'),
         className: 'unavailable'
       };
 
     case 'Unsure':
       return {
-        label: 'Unsure',
+        label: t('availability.status.unsure'),
         className: 'unsure'
       };
 
     default:
       return {
-        label: 'No response',
+        label: t('availability.status.noResponse'),
         className: 'no-response'
       };
   }
@@ -1315,11 +1457,11 @@ function renderDashboard() {
   content.className = '';
   content.innerHTML = `
     <h2 class="section-title">
-      Management Dashboard
+      ${t('dashboard.title')}
     </h2>
 
     <section class="card availability-loading">
-      Loading today's information…
+      ${t('dashboard.loadingToday')}
     </section>
   `;
 
@@ -1339,7 +1481,7 @@ function renderDashboardData(data) {
   if (sessions.length === 0) {
     content.innerHTML = `
       <h2 class="section-title">
-        Management Dashboard
+        ${t('dashboard.title')}
       </h2>
 
       <section class="card">
@@ -1348,8 +1490,7 @@ function renderDashboardData(data) {
         </p>
 
         <div class="dashboard-empty">
-          There is no active club session scheduled
-          for today.
+          ${t('dashboard.noSessionToday')}
         </div>
       </section>
     `;
@@ -1365,7 +1506,7 @@ function renderDashboardData(data) {
         class="form-label"
         for="dashboard-session-selector"
       >
-        Today's session
+        ${t('dashboard.sessionSelectorLabel')}
       </label>
 
       <select
@@ -1388,7 +1529,7 @@ function renderDashboardData(data) {
 
   content.innerHTML = `
     <h2 class="section-title">
-      Management Dashboard
+      ${t('dashboard.title')}
     </h2>
 
     <section class="card">
@@ -1432,7 +1573,7 @@ function loadDashboardSession(sessionId) {
 
   container.innerHTML = `
     <section class="card availability-loading">
-      Loading session information…
+      ${t('dashboard.loadingSession')}
     </section>
   `;
 
@@ -1490,32 +1631,32 @@ function renderDashboardSession(data) {
         class="secondary-button"
         id="refresh-dashboard-button"
       >
-        Refresh
+        ${t('common.refresh')}
       </button>
     </div>
 
     <section class="summary-grid">
       ${buildSummaryCard(
         summary.activeMembers,
-        'Active members',
+        t('dashboard.summary.activeMembers'),
         ''
       )}
 
       ${buildSummaryCard(
         summary.available,
-        'Available',
+        t('dashboard.summary.available'),
         'positive'
       )}
 
       ${buildSummaryCard(
         summary.volunteers,
-        'Volunteers',
+        t('dashboard.summary.volunteers'),
         'positive'
       )}
 
       ${buildSummaryCard(
         summary.unavailable,
-        'Unavailable',
+        t('dashboard.summary.unavailable'),
         summary.unavailable > 0
           ? 'problem'
           : ''
@@ -1523,7 +1664,7 @@ function renderDashboardSession(data) {
 
       ${buildSummaryCard(
         summary.unsure,
-        'Unsure',
+        t('dashboard.summary.unsure'),
         summary.unsure > 0
           ? 'attention'
           : ''
@@ -1531,7 +1672,7 @@ function renderDashboardSession(data) {
 
       ${buildSummaryCard(
         summary.noResponse,
-        'No response',
+        t('dashboard.summary.noResponse'),
         summary.noResponse > 0
           ? 'attention'
           : ''
@@ -1547,55 +1688,53 @@ function renderDashboardSession(data) {
   }
 
   html += buildDashboardGroup(
-    'Scheduled volunteers',
+    t('dashboard.group.volunteers'),
     groups.volunteers,
     'volunteer'
   );
 
   html += buildDashboardGroup(
-    'Available for club',
+    t('dashboard.group.available'),
     groups.available,
     'available'
   );
 
   html += buildDashboardGroup(
-    'Unavailable',
+    t('dashboard.group.unavailable'),
     groups.unavailable,
     'unavailable'
   );
 
   html += buildDashboardGroup(
-    'Unsure',
+    t('dashboard.group.unsure'),
     groups.unsure,
     'unsure'
   );
 
   html += buildDashboardGroup(
-    'No response',
+    t('dashboard.group.noResponse'),
     groups.noResponse,
     'no-response'
   );
 
   html += `
     <h2 class="section-title">
-      Attendance
+      ${t('dashboard.attendance.title')}
     </h2>
 
     <section class="card">
       <p style="margin: 0; line-height: 1.6;">
-        Attendance has been recorded for
-        <strong>${summary.attendanceRecorded}</strong>
-        of
-        <strong>${summary.expected}</strong>
-        expected members.
+        ${t('dashboard.attendance.summary', {
+          recorded: `<strong>${summary.attendanceRecorded}</strong>`,
+          expected: `<strong>${summary.expected}</strong>`
+        })}
       </p>
 
       <p
         class="session-details"
         style="margin-top: 8px;"
       >
-        This section will update automatically once
-        manual or QR check-in is added.
+        ${t('dashboard.attendance.futureNotice')}
       </p>
     </section>
   `;
@@ -1610,7 +1749,7 @@ function renderDashboardSession(data) {
   if (refreshButton) {
     refreshButton.addEventListener('click', () => {
       refreshButton.disabled = true;
-      refreshButton.textContent = 'Refreshing…';
+      refreshButton.textContent = t('common.refreshing');
 
       loadDashboardSession(session.sessionId);
     });
@@ -1661,7 +1800,7 @@ function buildDashboardGroup(
       ${list.length === 0
         ? `
           <div class="dashboard-empty">
-            No students in this category.
+            ${t('dashboard.group.empty')}
           </div>
         `
         : `
@@ -1694,7 +1833,9 @@ function buildDashboardMember(member, type) {
 
     if (member.volunteer.departureTime) {
       details.push(
-        `Leave ${member.volunteer.departureTime}`
+        t('dashboard.volunteer.departureTime', {
+          time: member.volunteer.departureTime
+        })
       );
     }
   }
@@ -1730,11 +1871,10 @@ function buildDashboardMember(member, type) {
 function buildConflictBox(conflicts) {
   return `
     <section class="conflict-box">
-      <h3>Volunteer assignment conflict</h3>
+      <h3>${t('dashboard.conflict.title')}</h3>
 
       <p style="margin: 0 0 10px; line-height: 1.5;">
-        The following students are assigned to volunteer
-        but have marked themselves unavailable:
+        ${t('dashboard.conflict.description')}
       </p>
 
       <ul style="margin-bottom: 0;">
@@ -1761,14 +1901,14 @@ function renderDashboardError(error) {
   content.className = '';
   content.innerHTML = `
     <h2 class="section-title">
-      Management Dashboard
+      ${t('dashboard.title')}
     </h2>
 
     <section class="error">
       ${escapeHtml(
         error && error.message
           ? error.message
-          : 'The dashboard could not be loaded.'
+          : t('dashboard.error.loadFailed')
       )}
     </section>
   `;
@@ -1797,7 +1937,7 @@ function renderDashboardError(error) {
       content.textContent =
         error && error.message
           ? error.message
-          : 'The Club Portal could not be loaded.';
+          : t('app.error.loadFailed');
     }
 
     function buildTimeText(startTime, endTime) {

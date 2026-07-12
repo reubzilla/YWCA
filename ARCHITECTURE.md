@@ -138,11 +138,11 @@ Attendance is read-only in the current dashboard. Manual and QR attendance opera
 
 ## Localisation approach
 
-Current localisation is a mixture of hard-coded Japanese and English in `Index.html`, plus English server-generated errors, notifications, statuses, and dates. Member sorting uses the `ja` locale, but the HTML document has no `lang` attribute. There is no localisation dictionary, language selector, or `localStorage` preference.
+English is the canonical source language. `Index.html` contains an English `TRANSLATIONS` dictionary and a `t()` interpolation helper used by client-rendered labels and messages. Server-generated errors, notifications, and formatted dates remain English. There is no language selector, Japanese catalogue, or `localStorage` preference yet.
 
 Spreadsheet and business values are currently English, including roles, availability values, session types, and assignment statuses.
 
-**Intended, not implemented:** Japanese should be the default display language, English should be selectable, the preference should be stored in `localStorage`, and all visible strings should come from a localisation dictionary without translating stored business values.
+**Intended, not implemented:** a future Japanese catalogue may be selected through a language selector with the preference stored in `localStorage`. English remains the canonical key source, and stored business values must not be translated.
 
 ## Public server API
 
