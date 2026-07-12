@@ -66,7 +66,7 @@ The initial portal payload is provided by `getPortalData()`, which returns the a
 - Volunteer assignments can be read but cannot be managed through the application.
 - Session, member, role, and settings management are not implemented.
 - Response deadlines are displayed but not enforced by `saveAvailability()`.
-- English is the canonical frontend language and visible client labels come from an English translation dictionary. There is not yet a language selector, Japanese catalogue, or saved browser preference.
+- English is the canonical frontend source language. A single English/Japanese dictionary supplies client labels, Japanese is the default, and the language selector stores the user's preference in `localStorage`.
 - The frontend is not split into HTML partials.
 - There is no repository-provided sheet setup, migration, or test suite. Local Apps Script source synchronization is configured through `clasp`.
 
@@ -74,7 +74,6 @@ The initial portal payload is provided by `getPortalData()`, which returns the a
 
 The repository instructions establish the following intended direction. These items are not implemented unless explicitly listed above:
 
-- a Japanese translation catalogue, language selector, and `localStorage` preference, while retaining English as the canonical source language;
 - personal volunteer assignment views;
 - same-day student check-in;
 - manual and QR attendance workflows;

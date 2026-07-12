@@ -66,6 +66,33 @@
       opacity: 0.92;
     }
 
+    .header-row {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 18px;
+    }
+
+    .language-control {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .language-label {
+      font-size: 14px;
+      font-weight: bold;
+    }
+
+    .language-selector {
+      padding: 7px 9px;
+      border: 1px solid rgba(255, 255, 255, 0.65);
+      border-radius: 7px;
+      background: white;
+      color: var(--primary-dark);
+      font: inherit;
+    }
+
     .navigation {
       display: flex;
       gap: 8px;
@@ -216,6 +243,10 @@
 
       .header h1 {
         font-size: 24px;
+      }
+
+      .header-row {
+        flex-direction: column;
       }
     }
     .availability-card {
@@ -601,8 +632,25 @@
 <body>
   <main class="page">
     <header class="header">
-      <h1 id="app-name"></h1>
-      <p id="app-subtitle"></p>
+      <div class="header-row">
+        <div>
+          <h1 id="app-name"></h1>
+          <p id="app-subtitle"></p>
+        </div>
+
+        <div class="language-control">
+          <label
+            id="language-label"
+            class="language-label"
+            for="language-selector"
+          ></label>
+
+          <select
+            id="language-selector"
+            class="language-selector"
+          ></select>
+        </div>
+      </div>
     </header>
 
     <nav
@@ -617,16 +665,38 @@
 
   <script>
     let portalData = null;
+    let currentView = 'home';
+    let currentDashboardSessionId = null;
 
-    const DEFAULT_LOCALE = 'en';
-    const activeLocale = DEFAULT_LOCALE;
+    const availabilityDrafts = {};
+
+    const DEFAULT_LOCALE = 'ja';
+    const FALLBACK_LOCALE = 'en';
+    const LANGUAGE_STORAGE_KEY = 'ywcaPortal.language';
+    const SUPPORTED_LOCALES = Object.freeze(['ja', 'en']);
+
+    let activeLocale = getStoredLanguage();
 
     const TRANSLATIONS = Object.freeze({
       en: Object.freeze({
         'app.name': 'Miyagi Gakuin YWCA',
+        'app.browserTitle': 'Club Portal',
         'app.subtitle': 'Attendance and community visits',
         'app.loading': 'Loading your club information…',
         'a11y.primaryNavigation': 'Club Portal sections',
+        'language.label': 'Language',
+        'language.japanese': 'Japanese',
+        'language.english': 'English',
+        'role.student': 'Student',
+        'role.clubLeader': 'Club Leader',
+        'role.teacher': 'Teacher',
+        'sessionType.regular': 'Regular',
+        'sessionType.event': 'Event',
+        'sessionType.cancelled': 'Cancelled',
+        'assignmentStatus.assigned': 'Assigned',
+        'assignmentStatus.confirmed': 'Confirmed',
+        'assignmentStatus.declined': 'Declined',
+        'assignmentStatus.cancelled': 'Cancelled',
         'nav.home': 'Home',
         'nav.availability': 'Availability',
         'nav.volunteerSchedule': 'Volunteer Schedule',
@@ -705,15 +775,158 @@
           'The dashboard could not be loaded.',
         'app.error.loadFailed':
           'The Club Portal could not be loaded.'
+      }),
+      ja: Object.freeze({
+        'app.name': '中高YWCA',
+        'app.browserTitle': 'クラブポータル',
+        'app.subtitle': '出席・地域訪問',
+        'app.loading': 'クラブ情報を読み込んでいます…',
+        'a11y.primaryNavigation': 'クラブポータルのセクション',
+        'language.label': '言語',
+        'language.japanese': '日本語',
+        'language.english': 'English',
+        'role.student': '生徒',
+        'role.clubLeader': 'クラブリーダー',
+        'role.teacher': '教員',
+        'sessionType.regular': '通常活動',
+        'sessionType.event': '行事',
+        'sessionType.cancelled': '中止',
+        'assignmentStatus.assigned': '割り当て済み',
+        'assignmentStatus.confirmed': '確認済み',
+        'assignmentStatus.declined': '辞退',
+        'assignmentStatus.cancelled': '取消',
+        'nav.home': 'ホーム',
+        'nav.availability': '参加可否',
+        'nav.volunteerSchedule': '訪問スケジュール',
+        'nav.checkIn': 'チェックイン',
+        'nav.dashboard': 'ダッシュボード',
+        'volunteer.placeholder':
+          '個人の訪問担当予定はここに表示されます。',
+        'attendance.placeholder':
+          'QRコードと当日の出席チェックインはここに表示されます。',
+        'home.welcome': 'ようこそ、{name}さん',
+        'home.notificationsTitle': '通知',
+        'home.noNotifications': '通知はありません。',
+        'home.upcomingSessionsTitle': '今後の日程',
+        'home.noUpcomingSessions':
+          '今後予定されている活動はありません。',
+        'session.timeNotSpecified': '時間は指定されていません',
+        'session.responseDeadlineLabel': '回答期限：',
+        'availability.title': '参加可否',
+        'availability.loading': '参加可否を読み込んでいます…',
+        'availability.instructions':
+          '今後の各ミーティングやイベントに参加できるかどうかをお知らせください。回答はクラブリーダーと教員のみが確認できます。',
+        'availability.noSessions':
+          '回答が必要な今後の活動はありません。',
+        'availability.responseGroupAriaLabel':
+          '{title}の参加可否',
+        'availability.status.available': '参加可能',
+        'availability.status.unavailable': '参加不可',
+        'availability.status.unsure': '未定',
+        'availability.status.noResponse': '未回答',
+        'availability.privateNoteLabel': '個人メモ',
+        'availability.privateNotePlaceholder':
+          '例：歯医者の予約',
+        'availability.privateNoteHelp':
+          'このメモは任意です。他の生徒には表示されません。',
+        'availability.characterCount': '{count}/{max}',
+        'availability.saveButton': '回答を保存',
+        'availability.lastUpdated': '最終更新：{updatedAt}',
+        'availability.validation.responseRequired':
+          '回答を選択してください。',
+        'availability.saving': '保存しています…',
+        'availability.error.saveFailed':
+          '回答を保存できませんでした。',
+        'availability.error.loadFailed':
+          '参加可否を読み込めませんでした。',
+        'dashboard.title': '管理ダッシュボード',
+        'dashboard.loadingToday': '本日の情報を読み込んでいます…',
+        'dashboard.noSessionToday':
+          '本日予定されている有効なクラブ活動はありません。',
+        'dashboard.sessionSelectorLabel': '本日の活動',
+        'dashboard.loadingSession': '活動情報を読み込んでいます…',
+        'common.refresh': '更新',
+        'common.refreshing': '更新しています…',
+        'dashboard.summary.activeMembers': '在籍メンバー',
+        'dashboard.summary.available': '参加可能',
+        'dashboard.summary.volunteers': '訪問担当',
+        'dashboard.summary.unavailable': '参加不可',
+        'dashboard.summary.unsure': '未定',
+        'dashboard.summary.noResponse': '未回答',
+        'dashboard.group.volunteers': '訪問担当者',
+        'dashboard.group.available': 'クラブに参加可能',
+        'dashboard.group.unavailable': '参加不可',
+        'dashboard.group.unsure': '未定',
+        'dashboard.group.noResponse': '未回答',
+        'dashboard.group.empty': 'この区分に生徒はいません。',
+        'dashboard.attendance.title': '出席',
+        'dashboard.attendance.summary':
+          '出席記録：対象{expected}名のうち{recorded}名',
+        'dashboard.attendance.futureNotice':
+          '手動またはQRコードのチェックイン追加後、この欄は自動的に更新されます。',
+        'dashboard.volunteer.departureTime': '出発 {time}',
+        'dashboard.conflict.title': '訪問担当の不一致',
+        'dashboard.conflict.description':
+          '訪問担当に割り当てられていますが、参加不可と回答している生徒：',
+        'dashboard.error.loadFailed':
+          'ダッシュボードを読み込めませんでした。',
+        'app.error.loadFailed':
+          'クラブポータルを読み込めませんでした。'
       })
     });
+
+    const BUSINESS_VALUE_KEYS = Object.freeze({
+      role: Object.freeze({
+        Student: 'role.student',
+        'Club Leader': 'role.clubLeader',
+        Teacher: 'role.teacher'
+      }),
+      sessionType: Object.freeze({
+        Regular: 'sessionType.regular',
+        Event: 'sessionType.event',
+        Cancelled: 'sessionType.cancelled'
+      }),
+      assignmentStatus: Object.freeze({
+        Assigned: 'assignmentStatus.assigned',
+        Confirmed: 'assignmentStatus.confirmed',
+        Declined: 'assignmentStatus.declined',
+        Cancelled: 'assignmentStatus.cancelled'
+      })
+    });
+
+    function getStoredLanguage() {
+      try {
+        const storedLanguage = localStorage.getItem(
+          LANGUAGE_STORAGE_KEY
+        );
+
+        return SUPPORTED_LOCALES.includes(storedLanguage)
+          ? storedLanguage
+          : DEFAULT_LOCALE;
+      } catch (error) {
+        return DEFAULT_LOCALE;
+      }
+    }
+
+    function storeLanguage(language) {
+      try {
+        localStorage.setItem(
+          LANGUAGE_STORAGE_KEY,
+          language
+        );
+      } catch (error) {
+        // The selected language still applies for this page.
+      }
+    }
 
     function t(key, replacements) {
       const dictionary =
         TRANSLATIONS[activeLocale] ||
-        TRANSLATIONS[DEFAULT_LOCALE];
+        TRANSLATIONS[FALLBACK_LOCALE];
 
-      let text = dictionary[key] || key;
+      let text = dictionary[key] ||
+        TRANSLATIONS[FALLBACK_LOCALE][key] ||
+        key;
 
       Object.entries(replacements || {}).forEach(
         ([name, value]) => {
@@ -724,7 +937,47 @@
       return text;
     }
 
+    function setLanguage(language) {
+      if (
+        !SUPPORTED_LOCALES.includes(language) ||
+        language === activeLocale
+      ) {
+        return;
+      }
+
+      captureAvailabilityDrafts();
+
+      activeLocale = language;
+      storeLanguage(language);
+      initialiseStaticTranslations();
+
+      if (portalData) {
+        renderNavigation(portalData.permissions);
+        selectView(currentView);
+      }
+    }
+
+    function translateBusinessValue(group, value) {
+      const groupKeys = BUSINESS_VALUE_KEYS[group] || {};
+      const key = groupKeys[value];
+
+      return key ? t(key) : String(value || '');
+    }
+
+    function initialiseLanguageSelector() {
+      const selector = document.getElementById(
+        'language-selector'
+      );
+
+      selector.addEventListener('change', () => {
+        setLanguage(selector.value);
+      });
+    }
+
     function initialiseStaticTranslations() {
+      document.documentElement.lang = activeLocale;
+      document.title = t('app.browserTitle');
+
       document.getElementById('app-name').textContent =
         t('app.name');
 
@@ -740,8 +993,27 @@
 
       document.getElementById('content').textContent =
         t('app.loading');
+
+      document.getElementById('language-label').textContent =
+        t('language.label');
+
+      const selector = document.getElementById(
+        'language-selector'
+      );
+
+      selector.innerHTML = `
+        <option value="ja">
+          ${escapeHtml(t('language.japanese'))}
+        </option>
+        <option value="en">
+          ${escapeHtml(t('language.english'))}
+        </option>
+      `;
+
+      selector.value = activeLocale;
     }
 
+    initialiseLanguageSelector();
     initialiseStaticTranslations();
 
     document.addEventListener(
@@ -760,7 +1032,7 @@
       portalData = data;
 
       renderNavigation(data.permissions);
-      renderHome();
+      selectView(currentView);
     }
 
     function renderNavigation(permissions) {
@@ -786,7 +1058,7 @@
 
       navigation.innerHTML = items.map(item => `
         <button
-          class="nav-button ${item.id === 'home' ? 'active' : ''}"
+          class="nav-button ${item.id === currentView ? 'active' : ''}"
           data-view="${escapeHtml(item.id)}"
           type="button"
         >
@@ -806,6 +1078,8 @@
     }
 
     function selectView(view) {
+      currentView = view;
+
       document
         .querySelectorAll('.nav-button')
         .forEach(button => {
@@ -863,7 +1137,10 @@
           </h2>
 
           <p class="user-details">
-            ${escapeHtml(user.role)}
+            ${escapeHtml(translateBusinessValue(
+              'role',
+              user.role
+            ))}
             ${user.grade
               ? ` · ${escapeHtml(user.grade)}`
               : ''}
@@ -942,7 +1219,10 @@
               </p>
 
               <span class="session-type">
-                ${escapeHtml(session.sessionType)}
+                ${escapeHtml(translateBusinessValue(
+                  'sessionType',
+                  session.sessionType
+                ))}
               </span>
 
               ${session.responseDeadline
@@ -1032,8 +1312,74 @@ function renderAvailabilityData(data) {
   content.innerHTML = html;
 
   sessions.forEach(session => {
+    restoreAvailabilityDraft(session.sessionId);
     initialiseAvailabilityCard(session.sessionId);
   });
+}
+
+
+function captureAvailabilityDrafts() {
+  document
+    .querySelectorAll('.availability-card')
+    .forEach(card => {
+      const sessionId = card.dataset.sessionId;
+
+      const selectedResponse = card.querySelector(
+        'input[type="radio"]:checked'
+      );
+
+      const noteInput = card.querySelector(
+        '.note-input'
+      );
+
+      availabilityDrafts[sessionId] = {
+        response: selectedResponse
+          ? selectedResponse.value
+          : '',
+        reason: noteInput ? noteInput.value : ''
+      };
+    });
+}
+
+
+function restoreAvailabilityDraft(sessionId) {
+  const draft = availabilityDrafts[sessionId];
+
+  if (!draft) {
+    return;
+  }
+
+  const noteInput =
+    document.getElementById(`reason-${sessionId}`);
+
+  if (noteInput) {
+    noteInput.value = draft.reason;
+  }
+
+  if (draft.response) {
+    const responseInput = document.querySelector(
+      `input[name="response-${cssEscape(
+        sessionId
+      )}"][value="${cssEscape(draft.response)}"]`
+    );
+
+    if (responseInput) {
+      responseInput.checked = true;
+    }
+  }
+
+  const count =
+    document.getElementById(`count-${sessionId}`);
+
+  if (count) {
+    count.textContent = t(
+      'availability.characterCount',
+      {
+        count: draft.reason.length,
+        max: 500
+      }
+    );
+  }
 }
 
 
@@ -1549,9 +1895,20 @@ function renderDashboardData(data) {
         'dashboard-session-selector'
       );
 
+    const retainedSession = sessions.find(session =>
+      session.sessionId === currentDashboardSessionId
+    );
+
+    if (retainedSession) {
+      selectorElement.value = retainedSession.sessionId;
+    }
+
     selectorElement.addEventListener(
       'change',
       () => {
+        currentDashboardSessionId =
+          selectorElement.value;
+
         loadDashboardSession(
           selectorElement.value
         );
@@ -1559,9 +1916,20 @@ function renderDashboardData(data) {
     );
   }
 
-  renderDashboardSession(
-    data.selectedSession
+  const selectedSession = sessions.find(session =>
+    session.sessionId === currentDashboardSessionId
   );
+
+  if (
+    selectedSession &&
+    data.selectedSession &&
+    data.selectedSession.session.sessionId !==
+      selectedSession.sessionId
+  ) {
+    loadDashboardSession(selectedSession.sessionId);
+  } else {
+    renderDashboardSession(data.selectedSession);
+  }
 }
 
 
@@ -1593,6 +1961,8 @@ function renderDashboardSession(data) {
   if (!container || !data) {
     return;
   }
+
+  currentDashboardSessionId = data.session.sessionId;
 
   const session = data.session;
   const summary = data.summary;

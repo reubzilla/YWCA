@@ -60,8 +60,8 @@ Teachers may additionally:
 
 ## Localisation
 
-- English is the canonical source language and current default.
-- Japanese may be added later through a language selector.
+- English is the canonical source language.
+- Japanese is the default display language; English is optional through the language selector.
 - Store the browser preference in `localStorage`.
 - All new user-facing text must come from the localisation dictionary.
 - Do not hard-code visible Japanese or English inside render functions.
