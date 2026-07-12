@@ -1,0 +1,101 @@
+let portalData = null;
+let currentView = 'home';
+
+initialiseLanguageSelector();
+initialiseStaticTranslations();
+
+document.addEventListener(
+  'DOMContentLoaded',
+  loadPortal
+);
+
+function loadPortal() {
+  google.script.run
+    .withSuccessHandler(initialisePortal)
+    .withFailureHandler(renderError)
+    .getPortalData();
+}
+
+function initialisePortal(data) {
+  portalData = data;
+
+  renderNavigation(data.permissions);
+  selectView(currentView);
+}
+
+function renderNavigation(permissions) {
+  const navigation =
+    document.getElementById('navigation');
+
+  const items = [
+    { id: 'home', label: t('nav.home') },
+    { id: 'availability', label: t('nav.availability') },
+    {
+      id: 'volunteer',
+      label: t('nav.volunteerSchedule')
+    },
+    { id: 'attendance', label: t('nav.checkIn') }
+  ];
+
+  if (permissions.canViewDashboard) {
+    items.push({
+      id: 'dashboard',
+      label: t('nav.dashboard')
+    });
+  }
+
+  navigation.innerHTML = items.map(item => `
+    <button
+      class="nav-button ${item.id === currentView ? 'active' : ''}"
+      data-view="${escapeHtml(item.id)}"
+      type="button"
+    >
+      ${escapeHtml(item.label)}
+    </button>
+  `).join('');
+
+  navigation.classList.remove('hidden');
+
+  navigation
+    .querySelectorAll('.nav-button')
+    .forEach(button => {
+      button.addEventListener('click', () => {
+        selectView(button.dataset.view);
+      });
+    });
+}
+
+function selectView(view) {
+  currentView = view;
+
+  document
+    .querySelectorAll('.nav-button')
+    .forEach(button => {
+      button.classList.toggle(
+        'active',
+        button.dataset.view === view
+      );
+    });
+
+  switch (view) {
+    case 'home':
+      renderHome();
+      break;
+
+    case 'availability':
+      renderAvailability();
+      break;
+
+    case 'volunteer':
+      renderVolunteer();
+      break;
+
+    case 'attendance':
+      renderAttendance();
+      break;
+
+    case 'dashboard':
+      renderDashboard();
+      break;
+  }
+}

@@ -67,7 +67,7 @@ The initial portal payload is provided by `getPortalData()`, which returns the a
 - Session, member, role, and settings management are not implemented.
 - Response deadlines are displayed but not enforced by `saveAvailability()`.
 - English is the canonical frontend source language. A single English/Japanese dictionary supplies client labels, Japanese is the default, and the language selector stores the user's preference in `localStorage`.
-- CSS, localisation, and shared browser utilities are split into HTML partials; view rendering and event handlers remain in `Index.html` pending later refactor stages.
+- The frontend is split into HTML partials for styles, localisation, shared browser utilities, application routing, and each view; `Index.html` contains only the document shell and ordered includes.
 - There is no repository-provided sheet setup, migration, or test suite. Local Apps Script source synchronization is configured through `clasp`.
 
 ## Future planned features
@@ -79,7 +79,6 @@ The repository instructions establish the following intended direction. These it
 - manual and QR attendance workflows;
 - Club Leader and Teacher volunteer and attendance management;
 - Teacher management of sessions, members, roles, and settings;
-- further HTML partials separating view presentation and browser interaction;
 - a clearly defined Today's Engine abstraction shared by dashboard features.
 
 ## Google Sheets schemas

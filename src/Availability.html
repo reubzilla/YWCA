@@ -1,0 +1,528 @@
+const availabilityDrafts = {};
+
+function renderAvailability() {
+  const content =
+    document.getElementById('content');
+
+  content.className = '';
+  content.innerHTML = `
+    <h2 class="section-title">
+      ${t('availability.title')}
+    </h2>
+
+    <section class="card availability-loading">
+      ${t('availability.loading')}
+    </section>
+  `;
+
+  google.script.run
+    .withSuccessHandler(renderAvailabilityData)
+    .withFailureHandler(renderAvailabilityError)
+    .getAvailabilityPageData();
+}
+
+
+function renderAvailabilityData(data) {
+  const content =
+    document.getElementById('content');
+
+  const sessions = data.sessions || [];
+
+  let html = `
+    <h2 class="section-title">
+      ${t('availability.title')}
+    </h2>
+
+    <section class="card">
+      <p style="margin: 0; line-height: 1.6;">
+        ${t('availability.instructions')}
+      </p>
+    </section>
+  `;
+
+  if (sessions.length === 0) {
+    html += `
+      <section class="card empty">
+        ${t('availability.noSessions')}
+      </section>
+    `;
+
+    content.innerHTML = html;
+    return;
+  }
+
+  sessions.forEach(session => {
+    html += buildAvailabilityCard(session);
+  });
+
+  content.innerHTML = html;
+
+  sessions.forEach(session => {
+    restoreAvailabilityDraft(session.sessionId);
+    initialiseAvailabilityCard(session.sessionId);
+  });
+}
+
+
+function captureAvailabilityDrafts() {
+  document
+    .querySelectorAll('.availability-card')
+    .forEach(card => {
+      const sessionId = card.dataset.sessionId;
+
+      const selectedResponse = card.querySelector(
+        'input[type="radio"]:checked'
+      );
+
+      const noteInput = card.querySelector(
+        '.note-input'
+      );
+
+      availabilityDrafts[sessionId] = {
+        response: selectedResponse
+          ? selectedResponse.value
+          : '',
+        reason: noteInput ? noteInput.value : ''
+      };
+    });
+}
+
+
+function restoreAvailabilityDraft(sessionId) {
+  const draft = availabilityDrafts[sessionId];
+
+  if (!draft) {
+    return;
+  }
+
+  const noteInput =
+    document.getElementById(`reason-${sessionId}`);
+
+  if (noteInput) {
+    noteInput.value = draft.reason;
+  }
+
+  if (draft.response) {
+    const responseInput = document.querySelector(
+      `input[name="response-${cssEscape(
+        sessionId
+      )}"][value="${cssEscape(draft.response)}"]`
+    );
+
+    if (responseInput) {
+      responseInput.checked = true;
+    }
+  }
+
+  const count =
+    document.getElementById(`count-${sessionId}`);
+
+  if (count) {
+    count.textContent = t(
+      'availability.characterCount',
+      {
+        count: draft.reason.length,
+        max: 500
+      }
+    );
+  }
+}
+
+
+function buildAvailabilityCard(session) {
+  const availability =
+    session.availability || {};
+
+  const response =
+    availability.response || '';
+
+  const status = getStatusDisplay(response);
+
+  const timeText = buildTimeText(
+    session.startTime,
+    session.endTime
+  );
+
+  const safeSessionId =
+    escapeHtml(session.sessionId);
+
+  return `
+    <section
+      class="card availability-card"
+      id="availability-card-${safeSessionId}"
+      data-session-id="${safeSessionId}"
+    >
+      <div class="session-date">
+        ${escapeHtml(session.date)}
+      </div>
+
+      <h3 class="session-title">
+        ${escapeHtml(session.title)}
+      </h3>
+
+      <p class="session-details">
+        ${timeText
+          ? escapeHtml(timeText)
+          : t('session.timeNotSpecified')}
+      </p>
+
+      <span
+        id="status-${safeSessionId}"
+        class="current-status ${status.className}"
+      >
+        ${escapeHtml(status.label)}
+      </span>
+
+      ${session.responseDeadline
+        ? `
+          <p
+            class="session-details"
+            style="margin-top: 12px;"
+          >
+            ${t('session.responseDeadlineLabel')}
+            ${escapeHtml(session.responseDeadline)}
+          </p>
+        `
+        : ''}
+
+      <div
+        class="response-options"
+        role="radiogroup"
+       aria-label="${escapeHtml(t(
+         'availability.responseGroupAriaLabel',
+         { title: session.title }
+       ))}"
+      >
+        ${buildResponseOption(
+          session.sessionId,
+          'Available',
+          t('availability.status.available'),
+          response
+        )}
+
+        ${buildResponseOption(
+          session.sessionId,
+          'Unavailable',
+          t('availability.status.unavailable'),
+          response
+        )}
+
+        ${buildResponseOption(
+          session.sessionId,
+          'Unsure',
+          t('availability.status.unsure'),
+          response
+        )}
+      </div>
+
+      <label
+        class="form-label"
+        for="reason-${safeSessionId}"
+      >
+        ${t('availability.privateNoteLabel')}
+      </label>
+
+      <textarea
+        class="note-input"
+        id="reason-${safeSessionId}"
+        maxlength="500"
+        placeholder="${escapeHtml(
+          t('availability.privateNotePlaceholder')
+        )}"
+      >${escapeHtml(availability.reason || '')}</textarea>
+
+      <p class="form-help">
+        ${t('availability.privateNoteHelp')}
+      </p>
+
+      <div
+        class="character-count"
+        id="count-${safeSessionId}"
+      >
+        ${t('availability.characterCount', {
+          count: (availability.reason || '').length,
+          max: 500
+        })}
+      </div>
+
+      <div class="form-actions">
+        <button
+          class="primary-button"
+          id="save-${safeSessionId}"
+          type="button"
+        >
+          ${t('availability.saveButton')}
+        </button>
+
+        <span
+          class="save-message"
+          id="message-${safeSessionId}"
+          role="status"
+          aria-live="polite"
+        ></span>
+      </div>
+
+      ${availability.updatedAt
+        ? `
+          <div
+            class="updated-time"
+            id="updated-${safeSessionId}"
+          >
+            ${t('availability.lastUpdated', {
+              updatedAt: escapeHtml(availability.updatedAt)
+            })}
+          </div>
+        `
+        : `
+          <div
+            class="updated-time"
+            id="updated-${safeSessionId}"
+          ></div>
+        `}
+
+      ${session.notes
+        ? `
+          <div class="notes">
+            ${escapeHtml(session.notes)}
+          </div>
+        `
+        : ''}
+    </section>
+  `;
+}
+
+
+function buildResponseOption(
+  sessionId,
+  value,
+  label,
+  currentResponse
+) {
+  const inputId =
+    `response-${sessionId}-${value}`;
+
+  const checked =
+    currentResponse === value
+      ? 'checked'
+      : '';
+
+  return `
+    <div class="response-option">
+      <input
+        type="radio"
+        id="${escapeHtml(inputId)}"
+        name="response-${escapeHtml(sessionId)}"
+        value="${escapeHtml(value)}"
+        ${checked}
+      >
+
+      <label for="${escapeHtml(inputId)}">
+        ${escapeHtml(label)}
+      </label>
+    </div>
+  `;
+}
+
+
+function initialiseAvailabilityCard(sessionId) {
+  const saveButton =
+    document.getElementById(`save-${sessionId}`);
+
+  const noteInput =
+    document.getElementById(`reason-${sessionId}`);
+
+  if (!saveButton || !noteInput) {
+    return;
+  }
+
+  saveButton.addEventListener('click', () => {
+    submitAvailability(sessionId);
+  });
+
+  noteInput.addEventListener('input', () => {
+    const count =
+      document.getElementById(`count-${sessionId}`);
+
+    if (count) {
+      count.textContent =
+        t('availability.characterCount', {
+          count: noteInput.value.length,
+          max: 500
+        });
+    }
+  });
+}
+
+
+function submitAvailability(sessionId) {
+  const selectedResponse =
+    document.querySelector(
+      `input[name="response-${cssEscape(sessionId)}"]:checked`
+    );
+
+  const reasonInput =
+    document.getElementById(`reason-${sessionId}`);
+
+  const saveButton =
+    document.getElementById(`save-${sessionId}`);
+
+  const message =
+    document.getElementById(`message-${sessionId}`);
+
+  if (!selectedResponse) {
+    message.textContent =
+      t('availability.validation.responseRequired');
+
+    message.classList.add('error-message');
+    return;
+  }
+
+  message.textContent = '';
+  message.classList.remove('error-message');
+
+  saveButton.disabled = true;
+  saveButton.textContent = t('availability.saving');
+
+  google.script.run
+    .withSuccessHandler(result => {
+      handleAvailabilitySaved(
+        result,
+        sessionId
+      );
+    })
+    .withFailureHandler(error => {
+      handleAvailabilitySaveError(
+        error,
+        sessionId
+      );
+    })
+    .saveAvailability({
+      sessionId: sessionId,
+      response: selectedResponse.value,
+      reason: reasonInput.value
+    });
+}
+
+
+function handleAvailabilitySaved(
+  result,
+  sessionId
+) {
+  const saveButton =
+    document.getElementById(`save-${sessionId}`);
+
+  const message =
+    document.getElementById(`message-${sessionId}`);
+
+  const status =
+    document.getElementById(`status-${sessionId}`);
+
+  const updated =
+    document.getElementById(`updated-${sessionId}`);
+
+  const statusDisplay =
+    getStatusDisplay(result.response);
+
+  saveButton.disabled = false;
+  saveButton.textContent = t('availability.saveButton');
+
+  message.classList.remove('error-message');
+  message.textContent = result.message;
+
+  status.className =
+    `current-status ${statusDisplay.className}`;
+
+  status.textContent =
+    statusDisplay.label;
+
+  updated.textContent =
+    t('availability.lastUpdated', {
+      updatedAt: result.updatedAt
+    });
+
+  /*
+   * Refresh the cached portal information so the Home
+   * notifications are correct when the student returns.
+   */
+  google.script.run
+    .withSuccessHandler(data => {
+      portalData = data;
+    })
+    .withFailureHandler(() => {
+      // The availability has already saved successfully,
+      // so a background refresh failure can be ignored.
+    })
+    .getPortalData();
+}
+
+
+function handleAvailabilitySaveError(
+  error,
+  sessionId
+) {
+  const saveButton =
+    document.getElementById(`save-${sessionId}`);
+
+  const message =
+    document.getElementById(`message-${sessionId}`);
+
+  saveButton.disabled = false;
+  saveButton.textContent = t('availability.saveButton');
+
+  message.classList.add('error-message');
+  message.textContent =
+    error && error.message
+      ? error.message
+      : t('availability.error.saveFailed');
+}
+
+
+function renderAvailabilityError(error) {
+  const content =
+    document.getElementById('content');
+
+  content.innerHTML = `
+    <h2 class="section-title">
+      ${t('availability.title')}
+    </h2>
+
+    <section class="error">
+      ${escapeHtml(
+        error && error.message
+          ? error.message
+          : t('availability.error.loadFailed')
+      )}
+    </section>
+  `;
+}
+
+
+function getStatusDisplay(response) {
+  switch (response) {
+    case 'Available':
+      return {
+        label: t('availability.status.available'),
+        className: 'available'
+      };
+
+    case 'Unavailable':
+      return {
+        label: t('availability.status.unavailable'),
+        className: 'unavailable'
+      };
+
+    case 'Unsure':
+      return {
+        label: t('availability.status.unsure'),
+        className: 'unsure'
+      };
+
+    default:
+      return {
+        label: t('availability.status.noResponse'),
+        className: 'no-response'
+      };
+  }
+}
+
+

@@ -1,0 +1,489 @@
+let currentDashboardSessionId = null;
+
+function renderDashboard() {
+  const content =
+    document.getElementById('content');
+
+  content.className = '';
+  content.innerHTML = `
+    <h2 class="section-title">
+      ${t('dashboard.title')}
+    </h2>
+
+    <section class="card availability-loading">
+      ${t('dashboard.loadingToday')}
+    </section>
+  `;
+
+  google.script.run
+    .withSuccessHandler(renderDashboardData)
+    .withFailureHandler(renderDashboardError)
+    .getDashboardData();
+}
+
+
+function renderDashboardData(data) {
+  const content =
+    document.getElementById('content');
+
+  const sessions = data.sessions || [];
+
+  if (sessions.length === 0) {
+    content.innerHTML = `
+      <h2 class="section-title">
+        ${t('dashboard.title')}
+      </h2>
+
+      <section class="card">
+        <p class="dashboard-date">
+          ${escapeHtml(data.todayLabel)}
+        </p>
+
+        <div class="dashboard-empty">
+          ${t('dashboard.noSessionToday')}
+        </div>
+      </section>
+    `;
+
+    return;
+  }
+
+  let selector = '';
+
+  if (sessions.length > 1) {
+    selector = `
+      <label
+        class="form-label"
+        for="dashboard-session-selector"
+      >
+        ${t('dashboard.sessionSelectorLabel')}
+      </label>
+
+      <select
+        id="dashboard-session-selector"
+        class="session-selector"
+      >
+        ${sessions.map(session => `
+          <option
+            value="${escapeHtml(session.sessionId)}"
+          >
+            ${escapeHtml(session.title)}
+            ${session.startTime
+              ? ` — ${escapeHtml(session.startTime)}`
+              : ''}
+          </option>
+        `).join('')}
+      </select>
+    `;
+  }
+
+  content.innerHTML = `
+    <h2 class="section-title">
+      ${t('dashboard.title')}
+    </h2>
+
+    <section class="card">
+      <p class="dashboard-date">
+        ${escapeHtml(data.todayLabel)}
+      </p>
+
+      ${selector}
+    </section>
+
+    <div id="dashboard-session-content"></div>
+  `;
+
+  if (sessions.length > 1) {
+    const selectorElement =
+      document.getElementById(
+        'dashboard-session-selector'
+      );
+
+    const retainedSession = sessions.find(session =>
+      session.sessionId === currentDashboardSessionId
+    );
+
+    if (retainedSession) {
+      selectorElement.value = retainedSession.sessionId;
+    }
+
+    selectorElement.addEventListener(
+      'change',
+      () => {
+        currentDashboardSessionId =
+          selectorElement.value;
+
+        loadDashboardSession(
+          selectorElement.value
+        );
+      }
+    );
+  }
+
+  const selectedSession = sessions.find(session =>
+    session.sessionId === currentDashboardSessionId
+  );
+
+  if (
+    selectedSession &&
+    data.selectedSession &&
+    data.selectedSession.session.sessionId !==
+      selectedSession.sessionId
+  ) {
+    loadDashboardSession(selectedSession.sessionId);
+  } else {
+    renderDashboardSession(data.selectedSession);
+  }
+}
+
+
+function loadDashboardSession(sessionId) {
+  const container =
+    document.getElementById(
+      'dashboard-session-content'
+    );
+
+  container.innerHTML = `
+    <section class="card availability-loading">
+      ${t('dashboard.loadingSession')}
+    </section>
+  `;
+
+  google.script.run
+    .withSuccessHandler(renderDashboardSession)
+    .withFailureHandler(renderDashboardError)
+    .getDashboardSession(sessionId);
+}
+
+
+function renderDashboardSession(data) {
+  const container =
+    document.getElementById(
+      'dashboard-session-content'
+    );
+
+  if (!container || !data) {
+    return;
+  }
+
+  currentDashboardSessionId = data.session.sessionId;
+
+  const session = data.session;
+  const summary = data.summary;
+  const groups = data.groups;
+
+  const timeText = buildTimeText(
+    session.startTime,
+    session.endTime
+  );
+
+  let html = `
+    <section class="card">
+      <h2 class="dashboard-session-heading">
+        ${escapeHtml(session.title)}
+      </h2>
+
+      <p class="dashboard-session-meta">
+        ${escapeHtml(session.date)}
+        ${timeText
+          ? `<br>${escapeHtml(timeText)}`
+          : ''}
+      </p>
+
+      ${session.notes
+        ? `
+          <div class="notes">
+            ${escapeHtml(session.notes)}
+          </div>
+        `
+        : ''}
+    </section>
+
+    <div class="dashboard-refresh-row">
+      <button
+        type="button"
+        class="secondary-button"
+        id="refresh-dashboard-button"
+      >
+        ${t('common.refresh')}
+      </button>
+    </div>
+
+    <section class="summary-grid">
+      ${buildSummaryCard(
+        summary.activeMembers,
+        t('dashboard.summary.activeMembers'),
+        ''
+      )}
+
+      ${buildSummaryCard(
+        summary.available,
+        t('dashboard.summary.available'),
+        'positive'
+      )}
+
+      ${buildSummaryCard(
+        summary.volunteers,
+        t('dashboard.summary.volunteers'),
+        'positive'
+      )}
+
+      ${buildSummaryCard(
+        summary.unavailable,
+        t('dashboard.summary.unavailable'),
+        summary.unavailable > 0
+          ? 'problem'
+          : ''
+      )}
+
+      ${buildSummaryCard(
+        summary.unsure,
+        t('dashboard.summary.unsure'),
+        summary.unsure > 0
+          ? 'attention'
+          : ''
+      )}
+
+      ${buildSummaryCard(
+        summary.noResponse,
+        t('dashboard.summary.noResponse'),
+        summary.noResponse > 0
+          ? 'attention'
+          : ''
+      )}
+    </section>
+  `;
+
+  if (
+    groups.conflicts &&
+    groups.conflicts.length > 0
+  ) {
+    html += buildConflictBox(groups.conflicts);
+  }
+
+  html += buildDashboardGroup(
+    t('dashboard.group.volunteers'),
+    groups.volunteers,
+    'volunteer'
+  );
+
+  html += buildDashboardGroup(
+    t('dashboard.group.available'),
+    groups.available,
+    'available'
+  );
+
+  html += buildDashboardGroup(
+    t('dashboard.group.unavailable'),
+    groups.unavailable,
+    'unavailable'
+  );
+
+  html += buildDashboardGroup(
+    t('dashboard.group.unsure'),
+    groups.unsure,
+    'unsure'
+  );
+
+  html += buildDashboardGroup(
+    t('dashboard.group.noResponse'),
+    groups.noResponse,
+    'no-response'
+  );
+
+  html += `
+    <h2 class="section-title">
+      ${t('dashboard.attendance.title')}
+    </h2>
+
+    <section class="card">
+      <p style="margin: 0; line-height: 1.6;">
+        ${t('dashboard.attendance.summary', {
+          recorded: `<strong>${summary.attendanceRecorded}</strong>`,
+          expected: `<strong>${summary.expected}</strong>`
+        })}
+      </p>
+
+      <p
+        class="session-details"
+        style="margin-top: 8px;"
+      >
+        ${t('dashboard.attendance.futureNotice')}
+      </p>
+    </section>
+  `;
+
+  container.innerHTML = html;
+
+  const refreshButton =
+    document.getElementById(
+      'refresh-dashboard-button'
+    );
+
+  if (refreshButton) {
+    refreshButton.addEventListener('click', () => {
+      refreshButton.disabled = true;
+      refreshButton.textContent = t('common.refreshing');
+
+      loadDashboardSession(session.sessionId);
+    });
+  }
+}
+
+
+function buildSummaryCard(
+  number,
+  label,
+  className
+) {
+  return `
+    <div class="summary-card ${escapeHtml(
+      className || ''
+    )}">
+      <span class="summary-number">
+        ${escapeHtml(number)}
+      </span>
+
+      <span class="summary-label">
+        ${escapeHtml(label)}
+      </span>
+    </div>
+  `;
+}
+
+
+function buildDashboardGroup(
+  title,
+  members,
+  type
+) {
+  const list = members || [];
+
+  return `
+    <section class="dashboard-group">
+      <div class="dashboard-group-header">
+        <h3 class="dashboard-group-title">
+          ${escapeHtml(title)}
+        </h3>
+
+        <span class="dashboard-count">
+          ${list.length}
+        </span>
+      </div>
+
+      ${list.length === 0
+        ? `
+          <div class="dashboard-empty">
+            ${t('dashboard.group.empty')}
+          </div>
+        `
+        : `
+          <ul class="member-list">
+            ${list.map(member =>
+              buildDashboardMember(member, type)
+            ).join('')}
+          </ul>
+        `}
+    </section>
+  `;
+}
+
+
+function buildDashboardMember(member, type) {
+  let details = [];
+
+  if (member.grade) {
+    details.push(member.grade);
+  }
+
+  if (type === 'volunteer' && member.volunteer) {
+    if (member.volunteer.activity) {
+      details.push(member.volunteer.activity);
+    }
+
+    if (member.volunteer.location) {
+      details.push(member.volunteer.location);
+    }
+
+    if (member.volunteer.departureTime) {
+      details.push(
+        t('dashboard.volunteer.departureTime', {
+          time: member.volunteer.departureTime
+        })
+      );
+    }
+  }
+
+  return `
+    <li class="member-row">
+      <div class="member-name">
+        ${escapeHtml(member.name)}
+      </div>
+
+      ${details.length > 0
+        ? `
+          <div class="member-meta">
+            ${details
+              .map(escapeHtml)
+              .join(' · ')}
+          </div>
+        `
+        : ''}
+
+      ${member.reason
+        ? `
+          <div class="member-reason">
+            ${escapeHtml(member.reason)}
+          </div>
+        `
+        : ''}
+    </li>
+  `;
+}
+
+
+function buildConflictBox(conflicts) {
+  return `
+    <section class="conflict-box">
+      <h3>${t('dashboard.conflict.title')}</h3>
+
+      <p style="margin: 0 0 10px; line-height: 1.5;">
+        ${t('dashboard.conflict.description')}
+      </p>
+
+      <ul style="margin-bottom: 0;">
+        ${conflicts.map(member => `
+          <li>
+            <strong>
+              ${escapeHtml(member.name)}
+            </strong>
+            ${member.reason
+              ? ` — ${escapeHtml(member.reason)}`
+              : ''}
+          </li>
+        `).join('')}
+      </ul>
+    </section>
+  `;
+}
+
+
+function renderDashboardError(error) {
+  const content =
+    document.getElementById('content');
+
+  content.className = '';
+  content.innerHTML = `
+    <h2 class="section-title">
+      ${t('dashboard.title')}
+    </h2>
+
+    <section class="error">
+      ${escapeHtml(
+        error && error.message
+          ? error.message
+          : t('dashboard.error.loadFailed')
+      )}
+    </section>
+  `;
+}

@@ -1,0 +1,136 @@
+function renderHome() {
+  const content =
+    document.getElementById('content');
+
+  const user = portalData.user;
+  const notifications =
+    portalData.notifications || [];
+  const sessions =
+    portalData.sessions || [];
+
+  let html = `
+    <section class="card">
+      <h2 class="user-name">
+        ${t('home.welcome', {
+          name: escapeHtml(user.name)
+        })}
+      </h2>
+
+      <p class="user-details">
+        ${escapeHtml(translateBusinessValue(
+          'role',
+          user.role
+        ))}
+        ${user.grade
+          ? ` · ${escapeHtml(user.grade)}`
+          : ''}
+        <br>
+        ${escapeHtml(user.email)}
+      </p>
+    </section>
+
+    <h2 class="section-title">
+      ${t('home.notificationsTitle')}
+    </h2>
+  `;
+
+  if (notifications.length === 0) {
+    html += `
+      <section class="card empty">
+        ${t('home.noNotifications')}
+      </section>
+    `;
+  } else {
+    notifications.forEach(notification => {
+      html += `
+        <article
+          class="notification
+            ${escapeHtml(notification.priority)}"
+        >
+          <p class="notification-title">
+            ${escapeHtml(notification.title)}
+          </p>
+
+          <p class="notification-message">
+            ${escapeHtml(notification.message)}
+          </p>
+
+          <div class="notification-date">
+            ${escapeHtml(notification.date)}
+          </div>
+        </article>
+      `;
+    });
+  }
+
+  html += `
+    <h2 class="section-title">
+      ${t('home.upcomingSessionsTitle')}
+    </h2>
+  `;
+
+  if (sessions.length === 0) {
+    html += `
+      <section class="card empty">
+        ${t('home.noUpcomingSessions')}
+      </section>
+    `;
+  } else {
+    sessions.forEach(session => {
+      const timeText = buildTimeText(
+        session.startTime,
+        session.endTime
+      );
+
+      html += `
+        <section class="card">
+          <div class="session-date">
+            ${escapeHtml(session.date)}
+          </div>
+
+          <h3 class="session-title">
+            ${escapeHtml(session.title)}
+          </h3>
+
+          <p class="session-details">
+            ${timeText
+              ? escapeHtml(timeText)
+              : t('session.timeNotSpecified')}
+          </p>
+
+          <span class="session-type">
+            ${escapeHtml(translateBusinessValue(
+              'sessionType',
+              session.sessionType
+            ))}
+          </span>
+
+          ${session.responseDeadline
+            ? `
+              <p
+                class="session-details"
+                style="margin-top: 12px;"
+              >
+                ${t('session.responseDeadlineLabel')}
+                ${escapeHtml(
+                  session.responseDeadline
+                )}
+              </p>
+            `
+            : ''}
+
+          ${session.notes
+            ? `
+              <div class="notes">
+                ${escapeHtml(session.notes)}
+              </div>
+            `
+            : ''}
+        </section>
+      `;
+    });
+  }
+
+  content.className = '';
+  content.innerHTML = html;
+}

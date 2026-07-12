@@ -20,13 +20,19 @@ This document describes the code currently in the repository. Sections explicitl
     ├── Auth.gs          HTML Service entry point
     ├── Code.gs          Constants, sheet names, roles, and internal values
     ├── Config.gs        Current-member lookup and permission calculation
-    ├── Dashboard.gs     Generic sheet-to-object reader
+    ├── SheetData.gs     Generic sheet-to-object reader
     ├── Data.gs          Upcoming-session retrieval and client mapping
     ├── Helpers.gs       Notifications and member-record matching
-    ├── Index.html       Frontend shell, views, event handlers, and Apps Script calls
+    ├── Index.html       Frontend document shell and ordered partial includes
     ├── Styles.html      CSS partial included by Index.html
     ├── Localization.html Translation dictionary and browser localisation helpers
     ├── BrowserHelpers.html Shared browser utility functions
+    ├── Home.html        Home view rendering
+    ├── Availability.html Availability rendering, saving, and event handlers
+    ├── Dashboard.html   Management dashboard rendering and event handlers
+    ├── Volunteer.html   Volunteer placeholder view
+    ├── Attendance.html  Attendance placeholder view
+    ├── App.html         Shared state, startup, navigation, and routing
     ├── Notifications.gs Date, time, and Boolean utilities
     ├── Portal.gs        Availability read/write API
     ├── Sessions.gs      Same-day cross-sheet aggregation and summaries
@@ -43,11 +49,11 @@ This requires an Apps Script HTML file named `Index`. `src/Index.html` matches t
 
 ## HTML partial and include mechanism
 
-`include_(filename)` in `Code.gs` reads a trusted Apps Script HTML file for inclusion in the evaluated `Index` template. `Index.html` includes `Styles` inside its `<style>` element, then includes `BrowserHelpers` and `Localization` at the start of its application `<script>` element. Browser helpers load before localisation because localisation rendering uses shared HTML escaping.
+`include_(filename)` in `Code.gs` reads the raw contents of a trusted Apps Script HTML template for inclusion in the evaluated `Index` template. `Index.html` includes `Styles` inside its `<style>` element. Its application `<script>` then includes `BrowserHelpers`, `Localization`, `Home`, `Availability`, `Dashboard`, `Volunteer`, `Attendance`, and `App` in that order.
 
-Page markup, view rendering, event handlers, and `google.script.run` calls remain in `Index.html`. CSS is in `Styles.html`, the single translation dictionary and translation helpers are in `Localization.html`, and shared browser utilities are in `BrowserHelpers.html`.
+Browser helpers load before localisation because localisation rendering uses shared HTML escaping. View functions load before `App.html`, whose startup code executes only after every renderer has been declared. `Index.html` contains only the document shell and these ordered includes. CSS is in `Styles.html`, the single translation dictionary and translation helpers are in `Localization.html`, shared browser utilities are in `BrowserHelpers.html`, and each view has its own partial.
 
-**Intended, partially implemented:** later stages may divide view presentation and browser interaction into additional HTML partials while business logic remains in `.gs` files.
+Apps Script requires unique filenames regardless of extension. The generic sheet reader therefore resides in `SheetData.gs`, leaving the `Dashboard` basename available for the frontend partial.
 
 ## Authentication flow
 
@@ -74,7 +80,7 @@ The frontend uses `canViewDashboard` to decide whether to show dashboard navigat
 
 ## Server-to-client data flow
 
-The browser calls public global Apps Script functions through `google.script.run`. Success handlers render returned plain objects into `Index.html`; failure handlers display escaped error messages.
+The browser calls public global Apps Script functions through `google.script.run`. Success handlers render returned plain objects into the active view container; failure handlers display escaped error messages.
 
 The intended initial flow is:
 
