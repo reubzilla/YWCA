@@ -28,6 +28,13 @@ const CONFIG = Object.freeze({
     UNSURE: 'Unsure'
   }),
 
+  ASSIGNMENT_STATUSES: Object.freeze({
+    ASSIGNED: 'Assigned',
+    CONFIRMED: 'Confirmed',
+    DECLINED: 'Declined',
+    CANCELLED: 'Cancelled'
+  }),
+
   DEFAULT_TIME_ZONE: 'Asia/Tokyo',
   UPCOMING_WEEKS: 8,
   NOTIFICATION_DAYS: 14

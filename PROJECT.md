@@ -31,13 +31,13 @@ The intended student workflow is to:
 5. view personal volunteer assignments;
 6. eventually check in for a same-day session.
 
-The availability interface and save operation exist. Personal volunteer scheduling and check-in are placeholders.
+The availability interface and save operation exist. The personal volunteer schedule shows only the signed-in member's assignments. Check-in remains a placeholder.
 
 ### Club Leaders and Teachers
 
 Club Leaders and Teachers can open a same-day management dashboard. It combines active students and Club Leaders with their availability, volunteer assignment, and attendance records. It displays totals, categorized member lists, volunteer conflicts, and an attendance summary.
 
-Day-to-day attendance editing and volunteer management are intended but not implemented. Teachers can manage sessions and events, and can manage club member records, roles, and active status. Teacher-only settings management is not implemented.
+Day-to-day attendance editing is intended but not implemented. Club Leaders and Teachers can manage visitor schedules/Volunteer Assignments. Teachers can also manage sessions and events, and club member records, roles, and active status. Teacher-only settings management is not implemented.
 
 ## Current working features
 
@@ -57,6 +57,8 @@ The following code paths are present:
 - Teacher-only session and event creation, editing, cancellation, filtering, and integrity-protected deletion;
 - Teacher-only member creation, editing, role changes, activation, deactivation, filtering, and integrity-protected deletion;
 - locked M001-style Member ID generation, normalized unique member emails, final-active-Teacher protection, and strong confirmation before a Teacher removes their own management access;
+- signed-in-member-only volunteer schedule display;
+- Teacher and Club Leader visitor-schedule management with multi-member assignment, availability warnings, filtering, locked duplicate prevention, cancellation, and safe future deletion;
 - language-neutral date payloads with Japanese and British English browser formatting;
 - responsive, framework-free HTML, CSS, and browser JavaScript.
 
@@ -64,10 +66,8 @@ The following code paths are present:
 The initial portal payload is provided by `getPortalData()`, which returns the authenticated member's profile, permissions, notifications, and upcoming sessions.
 
 ## Incomplete features
-- The volunteer schedule view is placeholder text.
 - Student, QR, and manual attendance check-in are not implemented.
 - Attendance can be read for the dashboard but cannot be recorded through the application.
-- Volunteer assignments can be read but cannot be managed through the application.
 - Settings management is not implemented.
 - Response deadlines are displayed but not enforced by `saveAvailability()`.
 - English is the canonical frontend source language. A single English/Japanese dictionary supplies client labels, Japanese is the default, and the language selector stores the user's preference in `localStorage`.
@@ -78,10 +78,9 @@ The initial portal payload is provided by `getPortalData()`, which returns the a
 
 The repository instructions establish the following intended direction. These items are not implemented unless explicitly listed above:
 
-- personal volunteer assignment views;
 - same-day student check-in;
 - manual and QR attendance workflows;
-- Club Leader and Teacher volunteer and attendance management;
+- Club Leader and Teacher attendance management;
 - Teacher management of settings;
 - a clearly defined Today's Engine abstraction shared by dashboard features.
 
@@ -149,7 +148,7 @@ These column names are the repository's prescribed schemas and must not be chang
 1. `Setting`
 2. `Value`
 
-Internal business values remain English. Roles are `Student`, `Club Leader`, and `Teacher`; availability values are `Available`, `Unavailable`, and `Unsure`; session types are `Regular`, `Event`, and `Cancelled`.
+Internal business values remain English. Roles are `Student`, `Club Leader`, and `Teacher`; availability values are `Available`, `Unavailable`, and `Unsure`; session types are `Regular`, `Event`, and `Cancelled`; assignment statuses are `Assigned`, `Confirmed`, `Declined`, and `Cancelled`.
 
 ## Deployment assumptions
 

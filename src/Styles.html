@@ -615,7 +615,8 @@
 }
 
 #session-management-message,
-#member-management-message {
+#member-management-message,
+#visitor-schedule-message {
   min-height: 20px;
   margin-bottom: 12px;
 }
@@ -797,6 +798,185 @@
   margin-top: 18px;
 }
 
+.view-intro {
+  margin: 0 0 18px;
+  color: var(--secondary);
+  line-height: 1.6;
+}
+
+.dashboard-management-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.dashboard-management-link h3,
+.dashboard-management-link p {
+  margin: 0;
+}
+
+.dashboard-management-link p {
+  margin-top: 5px;
+  color: var(--secondary);
+  line-height: 1.5;
+}
+
+.volunteer-assignment-card,
+.managed-visitor-card {
+  border-left: 5px solid var(--primary);
+}
+
+.managed-visitor-card.problem {
+  border-left-color: #d93025;
+}
+
+.managed-visitor-card.attention {
+  border-left-color: #b06000;
+}
+
+.volunteer-assignment-header,
+.managed-visitor-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.assignment-status {
+  flex: 0 0 auto;
+  padding: 5px 9px;
+  border-radius: 20px;
+  background: var(--info-bg);
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.volunteer-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 13px;
+  margin: 18px 0 0;
+}
+
+.volunteer-detail-grid dt {
+  color: var(--secondary);
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.volunteer-detail-grid dd {
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.volunteer-student-notes {
+  margin-top: 16px;
+}
+
+.visitor-filter-card {
+  align-items: flex-end;
+}
+
+.visitor-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  flex: 1;
+}
+
+.visitor-session-field {
+  grid-column: span 2;
+}
+
+.managed-visitor-member {
+  margin: 5px 0 0;
+  color: var(--secondary);
+}
+
+.visitor-availability {
+  margin-top: 14px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #e6f4ea;
+  color: #137333;
+  font-size: 13px;
+  font-weight: bold;
+}
+
+.visitor-availability.attention {
+  background: #fff4ce;
+  color: #7a4b00;
+}
+
+.visitor-availability.problem {
+  background: #fce8e6;
+  color: #a50e0e;
+}
+
+.visitor-member-fieldset {
+  margin: 18px 0;
+  padding: 0;
+  border: 0;
+}
+
+.visitor-member-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+  max-height: 340px;
+  margin-top: 8px;
+  padding: 2px;
+  overflow-y: auto;
+}
+
+.visitor-member-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: white;
+  cursor: pointer;
+}
+
+.visitor-member-option.attention {
+  border-color: #d39b3a;
+  background: #fffaf0;
+}
+
+.visitor-member-option.problem {
+  border-color: #d93025;
+  background: #fff7f6;
+}
+
+.visitor-member-option small {
+  display: block;
+  margin-top: 3px;
+  color: var(--secondary);
+}
+
+.visitor-form-notice {
+  min-height: 20px;
+  margin: 0 0 16px;
+  color: #7a4b00;
+  line-height: 1.5;
+}
+
+.visitor-form-notice.problem {
+  color: #a50e0e;
+  font-weight: bold;
+}
+
+.managed-visitor-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 18px;
+}
+
 @media (max-width: 600px) {
   .summary-grid {
     grid-template-columns: repeat(2, 1fr);
@@ -820,22 +1000,31 @@
   .management-filter-grid,
   .management-form-grid,
   .member-filter-grid,
-  .member-detail-grid {
+  .member-detail-grid,
+  .visitor-filter-grid,
+  .visitor-member-list,
+  .volunteer-detail-grid {
     grid-template-columns: 1fr;
   }
 
-  .management-title-field {
+  .management-title-field,
+  .visitor-session-field {
     grid-column: auto;
   }
 
   .managed-session-header,
-  .managed-member-header {
+  .managed-member-header,
+  .managed-visitor-header,
+  .volunteer-assignment-header,
+  .dashboard-management-link {
     align-items: flex-start;
     flex-direction: column;
   }
 
   .managed-session-actions > button,
   .managed-member-actions > button,
+  .managed-visitor-actions > button,
+  .dashboard-management-link > button,
   .management-heading-row > .primary-button {
     width: 100%;
   }

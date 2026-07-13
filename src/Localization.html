@@ -28,12 +28,25 @@
         'nav.home': 'Home',
         'nav.availability': 'Availability',
         'nav.volunteerSchedule': 'Volunteer Schedule',
+        'nav.visitorSchedules': 'Visitor Schedules',
         'nav.checkIn': 'Check In',
         'nav.dashboard': 'Dashboard',
         'nav.sessionsEvents': 'Sessions & Events',
         'nav.members': 'Members',
-        'volunteer.placeholder':
-          'Personal volunteer assignments will appear here.',
+        'volunteer.title': 'My Volunteer Schedule',
+        'volunteer.loading': 'Loading your assignments…',
+        'volunteer.intro':
+          'Your volunteer visits and event assignments are shown below.',
+        'volunteer.empty':
+          'You do not currently have any volunteer assignments.',
+        'volunteer.sessionUnavailable': 'Session unavailable',
+        'volunteer.activity': 'Activity',
+        'volunteer.location': 'Location',
+        'volunteer.departureTime': 'Departure time',
+        'volunteer.notes': 'Notes',
+        'volunteer.notSet': 'Not set',
+        'volunteer.error.loadFailed':
+          'Your volunteer assignments could not be loaded.',
         'attendance.placeholder':
           'QR and same-day attendance check-in will appear here.',
         'home.welcome': 'Welcome, {name}',
@@ -103,6 +116,10 @@
           'The following students are assigned to volunteer but have marked themselves unavailable:',
         'dashboard.error.loadFailed':
           'The dashboard could not be loaded.',
+        'dashboard.visitors.title': 'Visitor Schedules',
+        'dashboard.visitors.description':
+          'Plan and update volunteer assignments for upcoming sessions.',
+        'dashboard.visitors.open': 'Manage visitor schedules',
         'sessions.title': 'Sessions & Events',
         'sessions.intro':
           'Create and manage regular club sessions and special events.',
@@ -287,6 +304,120 @@
           'The member has linked records and cannot be permanently deleted.',
         'members.error.unexpected':
           'An unexpected error occurred while managing members.',
+        'visitors.title': 'Visitor Schedules',
+        'visitors.intro':
+          'Assign students to visits and manage their assignment details.',
+        'visitors.loading': 'Loading visitor schedules…',
+        'visitors.add': 'Add assignment',
+        'visitors.listTitle': 'Volunteer assignments',
+        'visitors.filter.session': 'Upcoming session',
+        'visitors.filter.allSessions': 'All sessions',
+        'visitors.filter.fromDate': 'From date',
+        'visitors.filter.toDate': 'To date',
+        'visitors.filter.activity': 'Activity',
+        'visitors.filter.location': 'Location',
+        'visitors.filter.status': 'Assignment status',
+        'visitors.filter.allStatuses': 'All statuses',
+        'visitors.filter.clear': 'Clear filters',
+        'visitors.noUpcomingSessions':
+          'There are no active upcoming sessions available for new assignments.',
+        'visitors.noEligibleMembers':
+          'There are no active Students or Club Leaders available to assign.',
+        'visitors.empty': 'No assignments match these filters.',
+        'visitors.sessionUnavailable': 'Session unavailable',
+        'visitors.memberUnavailable': 'Member unavailable',
+        'visitors.alreadyAssigned': 'Already assigned',
+        'visitors.availabilityLabel':
+          'Availability: {response}',
+        'visitors.notSet': 'Not set',
+        'visitors.form.createTitle': 'Create assignments',
+        'visitors.form.editTitle': 'Edit assignment',
+        'visitors.form.session': 'Session',
+        'visitors.form.member': 'Member',
+        'visitors.form.activity': 'Activity',
+        'visitors.form.location': 'Location',
+        'visitors.form.departureTime': 'Departure time',
+        'visitors.form.departureHelp':
+          'Departure must not be later than the session end time.',
+        'visitors.form.status': 'Assignment status',
+        'visitors.form.notes': 'Notes for the student',
+        'visitors.form.notesHelp':
+          'These notes are visible to the assigned student.',
+        'visitors.form.save': 'Save assignment',
+        'visitors.form.saving': 'Saving…',
+        'visitors.form.close': 'Close form',
+        'visitors.action.edit': 'Edit',
+        'visitors.action.cancel': 'Mark Cancelled',
+        'visitors.action.delete': 'Delete permanently',
+        'visitors.notice.unavailable':
+          'Unavailable: {names}. Confirmation is required before saving.',
+        'visitors.notice.unsure': 'Unsure: {names}.',
+        'visitors.notice.noResponse':
+          'No availability response: {names}.',
+        'visitors.confirm.unavailable':
+          'The following members marked themselves Unavailable: {names}. Assign them anyway?',
+        'visitors.confirm.cancel':
+          'Mark {name}’s assignment as Cancelled? The row will be preserved.',
+        'visitors.confirm.delete':
+          'Permanently delete {name}’s future assignment? This cannot be undone.',
+        'visitors.confirm.deleteBlockedCancel':
+          'This assignment cannot be deleted: {reason} Mark it Cancelled instead?',
+        'visitors.message.created':
+          '{count} assignment(s) were created.',
+        'visitors.message.updated': 'The assignment was updated.',
+        'visitors.message.cancelled':
+          'The assignment was marked Cancelled.',
+        'visitors.message.deleted':
+          'The assignment was permanently deleted.',
+        'visitors.error.loadFailed':
+          'Visitor schedules could not be loaded.',
+        'visitors.error.saveFailed':
+          'The assignment could not be saved.',
+        'visitors.error.actionFailed':
+          'The requested assignment action could not be completed.',
+        'visitors.error.invalidSubmission':
+          'The assignment information is invalid.',
+        'visitors.error.originalKeyRequired':
+          'The original assignment could not be identified.',
+        'visitors.error.sessionRequired': 'Select a session.',
+        'visitors.error.sessionNotFound':
+          'The selected session could not be found.',
+        'visitors.error.duplicateSessionId':
+          'More than one session has this Session ID. Correct the spreadsheet before continuing.',
+        'visitors.error.sessionNotActive':
+          'The selected session is not active and upcoming.',
+        'visitors.error.memberRequired':
+          'Select at least one member.',
+        'visitors.error.memberNotFound':
+          'A selected member could not be found.',
+        'visitors.error.duplicateMemberId':
+          'More than one member has this Member ID. Correct the spreadsheet before continuing.',
+        'visitors.error.memberNotEligible':
+          'Only active Students and Club Leaders may be assigned.',
+        'visitors.error.departureTimeInvalid':
+          'Enter a valid departure time.',
+        'visitors.error.departureAfterEnd':
+          'Departure time must not be later than the session end time.',
+        'visitors.error.statusInvalid':
+          'Select a valid assignment status.',
+        'visitors.error.requestIdInvalid':
+          'The request could not be identified. Reopen the form and try again.',
+        'visitors.error.duplicateAssignment':
+          'An assignment already exists for one or more selected members in this session.',
+        'visitors.error.duplicateExistingAssignment':
+          'Duplicate rows already exist for this member and session. Correct the spreadsheet before continuing.',
+        'visitors.error.unavailableMembers':
+          'One or more selected members marked themselves Unavailable.',
+        'visitors.error.assignmentNotFound':
+          'The selected assignment could not be found.',
+        'visitors.error.sessionMissing':
+          'The assignment’s session could not be found, so it cannot be deleted.',
+        'visitors.error.historicalAssignment':
+          'Today’s and historical assignments must be Cancelled rather than deleted.',
+        'visitors.error.attendanceLinked':
+          'This assignment has associated attendance history and cannot be deleted.',
+        'visitors.error.unexpected':
+          'An unexpected error occurred while managing visitor schedules.',
         'app.error.loadFailed':
           'The Club Portal could not be loaded.'
       }),
@@ -312,12 +443,24 @@
         'nav.home': 'ホーム',
         'nav.availability': '参加可否',
         'nav.volunteerSchedule': '訪問スケジュール',
+        'nav.visitorSchedules': '訪問予定管理',
         'nav.checkIn': 'チェックイン',
         'nav.dashboard': 'ダッシュボード',
         'nav.sessionsEvents': '活動・イベント管理',
         'nav.members': 'メンバー管理',
-        'volunteer.placeholder':
-          '個人の訪問担当予定はここに表示されます。',
+        'volunteer.title': '自分の訪問予定',
+        'volunteer.loading': '担当予定を読み込んでいます…',
+        'volunteer.intro':
+          '訪問活動やイベントの担当予定を表示しています。',
+        'volunteer.empty': '現在、訪問担当の予定はありません。',
+        'volunteer.sessionUnavailable': '活動情報なし',
+        'volunteer.activity': '活動内容',
+        'volunteer.location': '場所',
+        'volunteer.departureTime': '出発時刻',
+        'volunteer.notes': 'メモ',
+        'volunteer.notSet': '未設定',
+        'volunteer.error.loadFailed':
+          '訪問担当予定を読み込めませんでした。',
         'attendance.placeholder':
           'QRコードと当日の出席チェックインはここに表示されます。',
         'home.welcome': 'ようこそ、{name}さん',
@@ -386,6 +529,10 @@
           '訪問担当に割り当てられていますが、参加不可と回答している生徒：',
         'dashboard.error.loadFailed':
           'ダッシュボードを読み込めませんでした。',
+        'dashboard.visitors.title': '訪問予定管理',
+        'dashboard.visitors.description':
+          '今後の活動の訪問担当を作成・更新します。',
+        'dashboard.visitors.open': '訪問予定を管理',
         'sessions.title': '活動・イベント管理',
         'sessions.intro':
           '通常のクラブ活動と特別イベントを作成・管理します。',
@@ -578,6 +725,114 @@
           '関連データがあるため、このメンバーを完全に削除できません。',
         'members.error.unexpected':
           'メンバー管理中に予期しないエラーが発生しました。',
+        'visitors.title': '訪問予定管理',
+        'visitors.intro':
+          '生徒の訪問担当と、その詳細を管理します。',
+        'visitors.loading': '訪問予定を読み込んでいます…',
+        'visitors.add': '担当を追加',
+        'visitors.listTitle': '訪問担当一覧',
+        'visitors.filter.session': '今後の活動',
+        'visitors.filter.allSessions': 'すべての活動',
+        'visitors.filter.fromDate': '開始日',
+        'visitors.filter.toDate': '終了日',
+        'visitors.filter.activity': '活動内容',
+        'visitors.filter.location': '場所',
+        'visitors.filter.status': '担当状態',
+        'visitors.filter.allStatuses': 'すべての状態',
+        'visitors.filter.clear': '絞り込みを解除',
+        'visitors.noUpcomingSessions':
+          '新しい担当を作成できる有効な今後の活動はありません。',
+        'visitors.noEligibleMembers':
+          '担当にできる在籍中の生徒またはクラブリーダーはいません。',
+        'visitors.empty': '条件に一致する担当はありません。',
+        'visitors.sessionUnavailable': '活動情報なし',
+        'visitors.memberUnavailable': 'メンバー情報なし',
+        'visitors.alreadyAssigned': '割り当て済み',
+        'visitors.availabilityLabel': '参加可否：{response}',
+        'visitors.notSet': '未設定',
+        'visitors.form.createTitle': '担当を作成',
+        'visitors.form.editTitle': '担当を編集',
+        'visitors.form.session': '活動',
+        'visitors.form.member': 'メンバー',
+        'visitors.form.activity': '活動内容',
+        'visitors.form.location': '場所',
+        'visitors.form.departureTime': '出発時刻',
+        'visitors.form.departureHelp':
+          '出発時刻は活動の終了時刻より後に設定できません。',
+        'visitors.form.status': '担当状態',
+        'visitors.form.notes': '生徒向けメモ',
+        'visitors.form.notesHelp':
+          'このメモは担当する生徒に表示されます。',
+        'visitors.form.save': '担当を保存',
+        'visitors.form.saving': '保存しています…',
+        'visitors.form.close': 'フォームを閉じる',
+        'visitors.action.edit': '編集',
+        'visitors.action.cancel': '取消にする',
+        'visitors.action.delete': '完全に削除',
+        'visitors.notice.unavailable':
+          '参加不可：{names}。保存するには確認が必要です。',
+        'visitors.notice.unsure': '未定：{names}。',
+        'visitors.notice.noResponse': '未回答：{names}。',
+        'visitors.confirm.unavailable':
+          '次のメンバーは参加不可と回答しています：{names}。それでも担当にしますか？',
+        'visitors.confirm.cancel':
+          '「{name}」の担当を取消にしますか？行は保持されます。',
+        'visitors.confirm.delete':
+          '「{name}」の今後の担当を完全に削除しますか？この操作は取り消せません。',
+        'visitors.confirm.deleteBlockedCancel':
+          'この担当は削除できません：{reason} 代わりに取消にしますか？',
+        'visitors.message.created': '{count}件の担当を作成しました。',
+        'visitors.message.updated': '担当を更新しました。',
+        'visitors.message.cancelled': '担当を取消にしました。',
+        'visitors.message.deleted': '担当を完全に削除しました。',
+        'visitors.error.loadFailed':
+          '訪問予定を読み込めませんでした。',
+        'visitors.error.saveFailed': '担当を保存できませんでした。',
+        'visitors.error.actionFailed':
+          '担当の操作を完了できませんでした。',
+        'visitors.error.invalidSubmission':
+          '担当情報が正しくありません。',
+        'visitors.error.originalKeyRequired':
+          '元の担当を特定できませんでした。',
+        'visitors.error.sessionRequired': '活動を選択してください。',
+        'visitors.error.sessionNotFound':
+          '選択した活動が見つかりませんでした。',
+        'visitors.error.duplicateSessionId':
+          '同じ活動IDの行が複数あります。続行する前にスプレッドシートを修正してください。',
+        'visitors.error.sessionNotActive':
+          '選択した活動は有効な今後の活動ではありません。',
+        'visitors.error.memberRequired':
+          'メンバーを1人以上選択してください。',
+        'visitors.error.memberNotFound':
+          '選択したメンバーが見つかりませんでした。',
+        'visitors.error.duplicateMemberId':
+          '同じメンバーIDの行が複数あります。続行する前にスプレッドシートを修正してください。',
+        'visitors.error.memberNotEligible':
+          '在籍中の生徒またはクラブリーダーのみ担当にできます。',
+        'visitors.error.departureTimeInvalid':
+          '正しい出発時刻を入力してください。',
+        'visitors.error.departureAfterEnd':
+          '出発時刻は活動の終了時刻より後に設定できません。',
+        'visitors.error.statusInvalid':
+          '正しい担当状態を選択してください。',
+        'visitors.error.requestIdInvalid':
+          'リクエストを特定できませんでした。フォームを開き直して再試行してください。',
+        'visitors.error.duplicateAssignment':
+          '選択した活動には、同じメンバーの担当が既にあります。',
+        'visitors.error.duplicateExistingAssignment':
+          'この活動とメンバーの担当行が複数あります。続行する前にスプレッドシートを修正してください。',
+        'visitors.error.unavailableMembers':
+          '選択したメンバーの中に参加不可の回答があります。',
+        'visitors.error.assignmentNotFound':
+          '選択した担当が見つかりませんでした。',
+        'visitors.error.sessionMissing':
+          '担当の活動が見つからないため削除できません。',
+        'visitors.error.historicalAssignment':
+          '本日または過去の担当は削除せず、取消にしてください。',
+        'visitors.error.attendanceLinked':
+          'この担当には出席履歴があるため削除できません。',
+        'visitors.error.unexpected':
+          '訪問予定の管理中に予期しないエラーが発生しました。',
         'app.error.loadFailed':
           'クラブポータルを読み込めませんでした。'
       })

@@ -30,7 +30,8 @@ This document describes the code currently in the repository. Sections explicitl
     ├── Home.html        Home view rendering
     ├── Availability.html Availability rendering, saving, and event handlers
     ├── Dashboard.html   Management dashboard rendering and event handlers
-    ├── Volunteer.html   Volunteer placeholder view
+    ├── Volunteer.html   Signed-in member's volunteer schedule
+    ├── VisitorScheduleManagement.html Manager visitor-schedule view
     ├── Attendance.html  Attendance placeholder view
     ├── App.html         Shared state, startup, navigation, and routing
     ├── Notifications.gs Date, time, and Boolean utilities
@@ -40,6 +41,7 @@ This document describes the code currently in the repository. Sections explicitl
     ├── SessionManagement.html Teacher session-management view
     ├── ManageMembers.gs Teacher-only member management
     ├── MemberManagement.html Teacher member-management view
+    ├── VolunteerAssignments.gs Personal and managed Volunteer Assignment APIs
     └── Today.gs         Public dashboard API and authorization guard
 ```
 
@@ -53,7 +55,7 @@ This requires an Apps Script HTML file named `Index`. `src/Index.html` matches t
 
 ## HTML partial and include mechanism
 
-`include_(filename)` in `Code.gs` reads the raw contents of a trusted Apps Script HTML template for inclusion in the evaluated `Index` template. `Index.html` includes `Styles` inside its `<style>` element. Its application `<script>` then includes `BrowserHelpers`, `Localization`, `Home`, `Availability`, `Dashboard`, `Volunteer`, `Attendance`, `SessionManagement`, `MemberManagement`, and `App` in that order.
+`include_(filename)` in `Code.gs` reads the raw contents of a trusted Apps Script HTML template for inclusion in the evaluated `Index` template. `Index.html` includes `Styles` inside its `<style>` element. Its application `<script>` then includes `BrowserHelpers`, `Localization`, `Home`, `Availability`, `Dashboard`, `Volunteer`, `VisitorScheduleManagement`, `Attendance`, `SessionManagement`, `MemberManagement`, and `App` in that order.
 
 Browser helpers load before localisation because localisation rendering uses shared HTML escaping. View functions load before `App.html`, whose startup code executes only after every renderer has been declared. `Index.html` contains only the document shell and these ordered includes. CSS is in `Styles.html`, the single translation dictionary and translation helpers are in `Localization.html`, shared browser utilities are in `BrowserHelpers.html`, and each view has its own partial.
 
@@ -82,7 +84,7 @@ Authentication depends on the Apps Script deployment and Google Workspace policy
 
 The frontend uses `canViewDashboard` to decide whether to show dashboard navigation. Server-side `requireDashboardAccess_()` independently protects both public dashboard functions.
 
-`saveAvailability()` authenticates the member server-side, but does not explicitly consult `canSubmitAvailability`; that permission is currently true for every active member. Every public session-management endpoint calls `requireSessionTeacherAccess_()`, which authenticates the member and requires `canManageSessions`. Every public member-management endpoint calls `requireMemberTeacherAccess_()`, which authenticates the member and requires `canManageMembers`. Club Leaders can use the operational dashboard but cannot read or mutate session- or member-management data.
+`saveAvailability()` authenticates the member server-side, but does not explicitly consult `canSubmitAvailability`; that permission is currently true for every active member. Every public session-management endpoint calls `requireSessionTeacherAccess_()`, which authenticates the member and requires `canManageSessions`. Every public member-management endpoint calls `requireMemberTeacherAccess_()`, which authenticates the member and requires `canManageMembers`. Visitor-schedule management endpoints independently require `canManageVolunteers`, which is granted to Club Leaders and Teachers. The personal volunteer endpoint requires own-schedule access and derives identity server-side. Club Leaders can manage visitor schedules and use the operational dashboard but cannot read or mutate session- or member-management data.
 
 ## Server-to-client data flow
 
@@ -138,6 +140,8 @@ The flow is:
 
 **Intended, partially implemented:** Today's Engine should remain the shared cross-sheet aggregation layer. The dashboard already consumes `buildTodaySessionData_()` rather than rebuilding those joins, but no separate engine abstraction exists.
 
+Visitor-schedule management does not replace or duplicate this same-day aggregation. New and updated Volunteer Assignment rows are consumed automatically by `buildTodaySessionData_()` when the dashboard reloads.
+
 ## Dashboard flow
 
 1. `getDashboardData()` calls `requireDashboardAccess_()`.
@@ -173,6 +177,18 @@ Deactivation is the normal removal path and requires a selected Leave Date; acti
 
 Permanent deletion is a separate action. While holding the lock, the server counts Availability, Volunteer Assignment, and Attendance rows matching either the Member ID or normalized student email. Any match blocks deletion and the frontend offers deactivation instead.
 
+## Visitor Schedule management flow
+
+“Visitor Schedule” is the user-facing name for rows in `Volunteer Assignments`. The `Volunteer.html` view calls `getMyVolunteerAssignments()`, which derives the signed-in member's Member ID and email and filters rows before mapping them for the browser. Its payload contains assignment and session display fields only; it never includes another member's assignment, member identity, availability, attendance, or private availability note.
+
+Teachers and Club Leaders are routed to `VisitorScheduleManagement.html`. `getVisitorScheduleManagementData()` requires `canManageVolunteers` and returns active upcoming sessions, active eligible Students and Club Leaders, assignment rows, and availability status. The limited manager member payload contains Member ID, name, grade, role, and availability response; it excludes member email and availability Reason.
+
+Creates may assign multiple eligible members in one locked write. Creates and updates validate the active upcoming session, active eligible member, approved English assignment status, `HH:mm` departure time, and the composite Session ID/Member ID uniqueness. When a member is `Unavailable`, the server returns a confirmation-required result unless the manager explicitly resubmits with the override. `Unsure` and missing responses are returned as notices without blocking the save.
+
+The departure time may precede the nominal session start because travel can begin earlier, but it cannot be later than a valid session End Time. Assignment statuses remain `Assigned`, `Confirmed`, `Declined`, and `Cancelled` in the sheet.
+
+Cancellation changes only `Assignment Status` to `Cancelled`. Permanent deletion is allowed only for a future assignment whose session exists and that has no matching Attendance row. Today's, historical, orphaned-session, and attendance-linked assignments must be cancelled. No visitor-schedule operation writes to Attendance.
+
 ## Localisation approach
 
 English is the canonical source language. `Localization.html` contains one `TRANSLATIONS` dictionary with English and Japanese catalogues and a `t()` interpolation helper used by client-rendered labels and messages. Japanese is selected by default. The header language selector stores a valid `ja` or `en` preference in `localStorage`, updates the document language, and rerenders the active view. Shared browser helpers format machine-readable dates as `ja-JP` or `en-GB` using `Asia/Tokyo`. Server-generated errors and notification text remain raw English or spreadsheet-derived data.
@@ -204,6 +220,12 @@ The HTML frontend calls:
 | `updateMember(submission)` | Yes | Requires Teacher access; validates and updates one unique Member ID under lock |
 | `setMemberActiveStatus(submission)` | Yes | Requires Teacher access; activates or deactivates a member under lock |
 | `deleteMember(submission)` | Yes | Requires Teacher access and deletes only after Teacher and linked-record protections |
+| `getMyVolunteerAssignments()` | Yes | Authenticates an active member and returns only that member's assignments |
+| `getVisitorScheduleManagementData()` | Yes | Requires Club Leader or Teacher volunteer-management access |
+| `createVolunteerAssignments(submission)` | Yes | Requires volunteer-management access; creates one or more locked, validated assignments |
+| `updateVolunteerAssignment(submission)` | Yes | Requires volunteer-management access; updates one composite-key assignment under lock |
+| `cancelVolunteerAssignment(submission)` | Yes | Requires volunteer-management access and marks one assignment Cancelled under lock |
+| `deleteVolunteerAssignment(submission)` | Yes | Requires volunteer-management access and deletes only a safe future assignment |
 
 `doGet()` is the public HTTP entry point but is not called through `google.script.run`.
 
@@ -226,6 +248,11 @@ Current server-enforced boundaries include:
 - member-management writes use `LockService`, enforce unique normalized email addresses, and retain server-owned Member IDs;
 - the final active Teacher cannot be deactivated, demoted, or deleted, and self-access removal requires signed-in-email confirmation;
 - permanent member deletion is blocked while linked Availability, Volunteer Assignment, or Attendance rows match the Member ID or email;
+- personal volunteer reads are filtered to the authenticated member before client mapping;
+- every visitor-schedule management read and write requires Club Leader or Teacher volunteer-management permission;
+- the manager payload excludes availability Reason, member email, and attendance detail;
+- Volunteer Assignment writes use `LockService`, exact English statuses, and composite-key duplicate checks;
+- attendance-linked, current, and historical assignments cannot be permanently deleted, and visitor-schedule operations never alter Attendance;
 - spreadsheet-derived text is normally escaped before insertion into generated HTML;
 - spreadsheet and script identifiers are not sent to the client by current code.
 

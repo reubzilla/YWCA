@@ -1,0 +1,1341 @@
+let visitorScheduleSessions = [];
+let visitorScheduleMembers = [];
+let visitorScheduleAssignments = [];
+let visitorAssignmentStatuses = [];
+let selectedVisitorSessionId = '';
+let visitorAssignmentRequestId = '';
+let visitorAssignmentSaveInProgress = false;
+let visitorAssignmentActionInProgress = false;
+let visitorScheduleNotice = null;
+
+function renderVisitorScheduleManagement() {
+  const content = document.getElementById('content');
+
+  content.className = '';
+  content.innerHTML = `
+    <h2 class="section-title">
+      ${t('visitors.title')}
+    </h2>
+
+    <section class="card view-loading">
+      ${t('visitors.loading')}
+    </section>
+  `;
+
+  loadVisitorScheduleManagementData();
+}
+
+function loadVisitorScheduleManagementData() {
+  google.script.run
+    .withSuccessHandler(renderVisitorScheduleManagementData)
+    .withFailureHandler(renderVisitorScheduleManagementError)
+    .getVisitorScheduleManagementData();
+}
+
+function renderVisitorScheduleManagementData(data) {
+  visitorScheduleSessions = data.sessions || [];
+  visitorScheduleMembers = data.members || [];
+  visitorScheduleAssignments = data.assignments || [];
+  visitorAssignmentStatuses = data.assignmentStatuses || [];
+
+  if (
+    !selectedVisitorSessionId ||
+    !visitorScheduleSessions.some(session =>
+      session.sessionId === selectedVisitorSessionId
+    )
+  ) {
+    selectedVisitorSessionId = visitorScheduleSessions.length
+      ? visitorScheduleSessions[0].sessionId
+      : '';
+  }
+
+  const content = document.getElementById('content');
+
+  content.innerHTML = `
+    <div class="management-heading-row">
+      <div>
+        <h2 class="section-title management-title">
+          ${t('visitors.title')}
+        </h2>
+        <p class="management-intro">
+          ${t('visitors.intro')}
+        </p>
+      </div>
+
+      <button
+        type="button"
+        class="primary-button"
+        id="add-visitor-assignment"
+        ${
+          selectedVisitorSessionId &&
+          visitorScheduleMembers.length
+            ? ''
+            : 'disabled'
+        }
+      >
+        ${t('visitors.add')}
+      </button>
+    </div>
+
+    <div
+      id="visitor-schedule-message"
+      class="save-message"
+      role="status"
+    ></div>
+
+    <section class="card management-filter-card visitor-filter-card">
+      <div class="visitor-filter-grid">
+        <label class="visitor-session-field">
+          <span class="form-label">
+            ${t('visitors.filter.session')}
+          </span>
+          <select
+            class="management-input"
+            id="visitor-filter-session"
+          >
+            <option value="">
+              ${t('visitors.filter.allSessions')}
+            </option>
+            ${buildVisitorSessionOptions(
+              selectedVisitorSessionId
+            )}
+          </select>
+        </label>
+
+        <label>
+          <span class="form-label">
+            ${t('visitors.filter.fromDate')}
+          </span>
+          <input
+            type="date"
+            class="management-input"
+            id="visitor-filter-from"
+          >
+        </label>
+
+        <label>
+          <span class="form-label">
+            ${t('visitors.filter.toDate')}
+          </span>
+          <input
+            type="date"
+            class="management-input"
+            id="visitor-filter-to"
+          >
+        </label>
+
+        <label>
+          <span class="form-label">
+            ${t('visitors.filter.activity')}
+          </span>
+          <input
+            type="search"
+            class="management-input"
+            id="visitor-filter-activity"
+          >
+        </label>
+
+        <label>
+          <span class="form-label">
+            ${t('visitors.filter.location')}
+          </span>
+          <input
+            type="search"
+            class="management-input"
+            id="visitor-filter-location"
+          >
+        </label>
+
+        <label>
+          <span class="form-label">
+            ${t('visitors.filter.status')}
+          </span>
+          <select
+            class="management-input"
+            id="visitor-filter-status"
+          >
+            <option value="">
+              ${t('visitors.filter.allStatuses')}
+            </option>
+            ${buildVisitorStatusOptions('')}
+          </select>
+        </label>
+      </div>
+
+      <button
+        type="button"
+        class="secondary-button"
+        id="clear-visitor-filters"
+      >
+        ${t('visitors.filter.clear')}
+      </button>
+    </section>
+
+    ${visitorScheduleSessions.length === 0
+      ? `
+        <section class="card empty">
+          ${t('visitors.noUpcomingSessions')}
+        </section>
+      `
+      : ''}
+
+    <div id="visitor-assignment-form"></div>
+
+    <h2 class="section-title">
+      ${t('visitors.listTitle')}
+    </h2>
+
+    <div id="visitor-assignment-list"></div>
+  `;
+
+  document
+    .getElementById('add-visitor-assignment')
+    .addEventListener('click', () => {
+      openVisitorAssignmentForm(null);
+    });
+
+  document
+    .getElementById('visitor-filter-session')
+    .addEventListener('change', event => {
+      selectedVisitorSessionId = event.target.value;
+      document.getElementById(
+        'add-visitor-assignment'
+      ).disabled = !selectedVisitorSessionId ||
+        visitorScheduleMembers.length === 0;
+      closeVisitorAssignmentForm();
+      renderVisitorAssignmentList();
+    });
+
+  [
+    'visitor-filter-from',
+    'visitor-filter-to',
+    'visitor-filter-status'
+  ].forEach(id => {
+    document
+      .getElementById(id)
+      .addEventListener('change', renderVisitorAssignmentList);
+  });
+
+  [
+    'visitor-filter-activity',
+    'visitor-filter-location'
+  ].forEach(id => {
+    document
+      .getElementById(id)
+      .addEventListener('input', renderVisitorAssignmentList);
+  });
+
+  document
+    .getElementById('clear-visitor-filters')
+    .addEventListener('click', clearVisitorScheduleFilters);
+
+  showVisitorScheduleNotice();
+  renderVisitorAssignmentList();
+}
+
+function clearVisitorScheduleFilters() {
+  [
+    'visitor-filter-session',
+    'visitor-filter-from',
+    'visitor-filter-to',
+    'visitor-filter-activity',
+    'visitor-filter-location',
+    'visitor-filter-status'
+  ].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+
+  selectedVisitorSessionId = '';
+  document.getElementById(
+    'add-visitor-assignment'
+  ).disabled = true;
+  closeVisitorAssignmentForm();
+  renderVisitorAssignmentList();
+}
+
+function showVisitorScheduleNotice() {
+  if (!visitorScheduleNotice) {
+    return;
+  }
+
+  const message = document.getElementById(
+    'visitor-schedule-message'
+  );
+
+  if (message) {
+    message.textContent = t(
+      visitorScheduleNotice.key,
+      visitorScheduleNotice.values || {}
+    );
+  }
+
+  visitorScheduleNotice = null;
+}
+
+function renderVisitorAssignmentList() {
+  const container = document.getElementById(
+    'visitor-assignment-list'
+  );
+
+  if (!container) {
+    return;
+  }
+
+  const sessionId = document.getElementById(
+    'visitor-filter-session'
+  ).value;
+  const fromDate = document.getElementById(
+    'visitor-filter-from'
+  ).value;
+  const toDate = document.getElementById(
+    'visitor-filter-to'
+  ).value;
+  const activity = document.getElementById(
+    'visitor-filter-activity'
+  ).value.trim().toLowerCase();
+  const location = document.getElementById(
+    'visitor-filter-location'
+  ).value.trim().toLowerCase();
+  const status = document.getElementById(
+    'visitor-filter-status'
+  ).value;
+  const filtered = visitorScheduleAssignments.filter(assignment =>
+    (!sessionId || assignment.sessionId === sessionId) &&
+    (!fromDate || assignment.dateValue >= fromDate) &&
+    (!toDate || assignment.dateValue <= toDate) &&
+    (!activity || assignment.activity.toLowerCase().includes(activity)) &&
+    (!location || assignment.location.toLowerCase().includes(location)) &&
+    (!status || assignment.assignmentStatus === status)
+  );
+
+  if (filtered.length === 0) {
+    container.innerHTML = `
+      <section class="card empty">
+        ${t('visitors.empty')}
+      </section>
+    `;
+    return;
+  }
+
+  container.innerHTML = filtered.map(
+    buildManagedVisitorAssignmentCard
+  ).join('');
+
+  container
+    .querySelectorAll('[data-visitor-edit]')
+    .forEach(button => {
+      button.addEventListener('click', () => {
+        const assignment = findVisitorAssignment(
+          button.dataset.visitorEdit,
+          button.dataset.visitorMember
+        );
+
+        if (assignment) {
+          openVisitorAssignmentForm(assignment);
+        }
+      });
+    });
+
+  container
+    .querySelectorAll('[data-visitor-cancel]')
+    .forEach(button => {
+      button.addEventListener('click', () => {
+        requestVisitorAssignmentCancellation(
+          button.dataset.visitorCancel,
+          button.dataset.visitorMember
+        );
+      });
+    });
+
+  container
+    .querySelectorAll('[data-visitor-delete]')
+    .forEach(button => {
+      button.addEventListener('click', () => {
+        requestVisitorAssignmentDeletion(
+          button.dataset.visitorDelete,
+          button.dataset.visitorMember
+        );
+      });
+    });
+}
+
+function buildManagedVisitorAssignmentCard(assignment) {
+  const availabilityKey = getVisitorAvailabilityKey(
+    assignment.availability
+  );
+  const warningClass = assignment.availability === 'Unavailable'
+    ? 'problem'
+    : assignment.availability === 'Unsure' ||
+      !assignment.availability
+      ? 'attention'
+      : '';
+
+  return `
+    <article class="card managed-visitor-card ${warningClass}">
+      <div class="managed-visitor-header">
+        <div>
+          <div class="session-date">
+            ${escapeHtml(
+              assignment.dateValue
+                ? formatDateOnly(assignment.dateValue)
+                : t('visitors.sessionUnavailable')
+            )}
+          </div>
+          <h3 class="session-title">
+            ${escapeHtml(
+              assignment.sessionTitle ||
+              t('visitors.sessionUnavailable')
+            )}
+          </h3>
+          <p class="managed-visitor-member">
+            ${escapeHtml(
+              assignment.memberName ||
+              t('visitors.memberUnavailable')
+            )}
+            ${assignment.memberGrade
+              ? ` · ${escapeHtml(assignment.memberGrade)}`
+              : ''}
+          </p>
+        </div>
+
+        <span class="assignment-status">
+          ${escapeHtml(translateBusinessValue(
+            'assignmentStatus',
+            assignment.assignmentStatus
+          ))}
+        </span>
+      </div>
+
+      <div class="visitor-availability ${warningClass}">
+        ${t('visitors.availabilityLabel', {
+          response: escapeHtml(t(availabilityKey))
+        })}
+      </div>
+
+      <dl class="volunteer-detail-grid">
+        <div>
+          <dt>${t('visitors.form.activity')}</dt>
+          <dd>${escapeHtml(
+            assignment.activity || t('visitors.notSet')
+          )}</dd>
+        </div>
+        <div>
+          <dt>${t('visitors.form.location')}</dt>
+          <dd>${escapeHtml(
+            assignment.location || t('visitors.notSet')
+          )}</dd>
+        </div>
+        <div>
+          <dt>${t('visitors.form.departureTime')}</dt>
+          <dd>${escapeHtml(
+            assignment.departureTime || t('visitors.notSet')
+          )}</dd>
+        </div>
+      </dl>
+
+      ${assignment.notes
+        ? `
+          <div class="notes">
+            ${escapeHtml(assignment.notes)}
+          </div>
+        `
+        : ''}
+
+      <div class="managed-visitor-actions">
+        ${assignment.canEdit
+          ? `
+            <button
+              type="button"
+              class="secondary-button"
+              data-visitor-edit="${escapeHtml(assignment.sessionId)}"
+              data-visitor-member="${escapeHtml(assignment.memberId)}"
+              ${visitorAssignmentActionInProgress ? 'disabled' : ''}
+            >
+              ${t('visitors.action.edit')}
+            </button>
+          `
+          : ''}
+
+        ${assignment.assignmentStatus !== 'Cancelled'
+          ? `
+            <button
+              type="button"
+              class="secondary-button"
+              data-visitor-cancel="${escapeHtml(assignment.sessionId)}"
+              data-visitor-member="${escapeHtml(assignment.memberId)}"
+              ${visitorAssignmentActionInProgress ? 'disabled' : ''}
+            >
+              ${t('visitors.action.cancel')}
+            </button>
+          `
+          : ''}
+
+        ${assignment.canDelete
+          ? `
+            <button
+              type="button"
+              class="danger-button"
+              data-visitor-delete="${escapeHtml(assignment.sessionId)}"
+              data-visitor-member="${escapeHtml(assignment.memberId)}"
+              ${visitorAssignmentActionInProgress ? 'disabled' : ''}
+            >
+              ${t('visitors.action.delete')}
+            </button>
+          `
+          : ''}
+      </div>
+    </article>
+  `;
+}
+
+function openVisitorAssignmentForm(assignment) {
+  const container = document.getElementById(
+    'visitor-assignment-form'
+  );
+
+  if (!container) {
+    return;
+  }
+
+  const editing = Boolean(assignment);
+  const sessionId = editing
+    ? assignment.sessionId
+    : selectedVisitorSessionId;
+
+  if (!sessionId) {
+    showVisitorScheduleActionError('sessionRequired');
+    return;
+  }
+
+  visitorAssignmentRequestId = createClientRequestId();
+
+  container.innerHTML = `
+    <section class="card management-form-card">
+      <h2 class="section-title management-form-title">
+        ${t(
+          editing
+            ? 'visitors.form.editTitle'
+            : 'visitors.form.createTitle'
+        )}
+      </h2>
+
+      <form id="managed-visitor-form" novalidate>
+        <input
+          type="hidden"
+          id="visitor-original-session"
+          value="${escapeHtml(editing ? assignment.sessionId : '')}"
+        >
+        <input
+          type="hidden"
+          id="visitor-original-member"
+          value="${escapeHtml(editing ? assignment.memberId : '')}"
+        >
+
+        <div class="management-form-grid">
+          <label class="management-title-field">
+            <span class="form-label">
+              ${t('visitors.form.session')}
+            </span>
+            <select
+              class="management-input"
+              id="visitor-form-session"
+            >
+              ${buildVisitorSessionOptions(sessionId)}
+            </select>
+          </label>
+
+          <label>
+            <span class="form-label">
+              ${t('visitors.form.activity')}
+            </span>
+            <input
+              type="text"
+              class="management-input"
+              id="visitor-form-activity"
+              value="${escapeHtml(editing ? assignment.activity : '')}"
+            >
+          </label>
+
+          <label>
+            <span class="form-label">
+              ${t('visitors.form.location')}
+            </span>
+            <input
+              type="text"
+              class="management-input"
+              id="visitor-form-location"
+              value="${escapeHtml(editing ? assignment.location : '')}"
+            >
+          </label>
+
+          <label>
+            <span class="form-label">
+              ${t('visitors.form.departureTime')}
+            </span>
+            <input
+              type="time"
+              class="management-input"
+              id="visitor-form-departure"
+              value="${escapeHtml(
+                editing ? assignment.departureTime : ''
+              )}"
+            >
+            <span class="form-help">
+              ${t('visitors.form.departureHelp')}
+            </span>
+          </label>
+
+          <label>
+            <span class="form-label">
+              ${t('visitors.form.status')}
+            </span>
+            <select
+              class="management-input"
+              id="visitor-form-status"
+            >
+              ${buildVisitorStatusOptions(
+                editing
+                  ? assignment.assignmentStatus
+                  : 'Assigned'
+              )}
+            </select>
+          </label>
+        </div>
+
+        <fieldset class="visitor-member-fieldset">
+          <legend class="form-label">
+            ${t('visitors.form.member')}
+          </legend>
+          <div id="visitor-member-selector"></div>
+        </fieldset>
+
+        <div
+          id="visitor-availability-notice"
+          class="visitor-form-notice"
+          role="status"
+        ></div>
+
+        <label>
+          <span class="form-label">
+            ${t('visitors.form.notes')}
+          </span>
+          <textarea
+            class="note-input"
+            id="visitor-form-notes"
+          >${escapeHtml(editing ? assignment.notes : '')}</textarea>
+          <span class="form-help">
+            ${t('visitors.form.notesHelp')}
+          </span>
+        </label>
+
+        <div
+          id="visitor-form-message"
+          class="save-message error-message"
+          role="alert"
+        ></div>
+
+        <div class="form-actions">
+          <button
+            type="submit"
+            class="primary-button"
+            id="visitor-form-save"
+          >
+            ${t('visitors.form.save')}
+          </button>
+
+          <button
+            type="button"
+            class="secondary-button"
+            id="visitor-form-close"
+          >
+            ${t('visitors.form.close')}
+          </button>
+        </div>
+      </form>
+    </section>
+  `;
+
+  renderVisitorMemberSelector(
+    sessionId,
+    editing ? assignment.memberId : '',
+    editing
+  );
+
+  document
+    .getElementById('visitor-form-session')
+    .addEventListener('change', event => {
+      renderVisitorMemberSelector(
+        event.target.value,
+        editing ? assignment.memberId : '',
+        editing
+      );
+    });
+
+  document
+    .getElementById('managed-visitor-form')
+    .addEventListener('submit', event => {
+      event.preventDefault();
+      submitVisitorAssignmentForm(false);
+    });
+
+  document
+    .getElementById('visitor-form-close')
+    .addEventListener('click', closeVisitorAssignmentForm);
+
+  container.scrollIntoView({
+    behavior: 'smooth',
+    block: 'start'
+  });
+}
+
+function closeVisitorAssignmentForm() {
+  const container = document.getElementById(
+    'visitor-assignment-form'
+  );
+
+  if (container) {
+    container.innerHTML = '';
+  }
+
+  visitorAssignmentRequestId = '';
+  visitorAssignmentSaveInProgress = false;
+}
+
+function renderVisitorMemberSelector(
+  sessionId,
+  selectedMemberId,
+  editing
+) {
+  const container = document.getElementById(
+    'visitor-member-selector'
+  );
+
+  if (!container) {
+    return;
+  }
+
+  if (visitorScheduleMembers.length === 0) {
+    container.innerHTML = `
+      <div class="dashboard-empty">
+        ${t('visitors.noEligibleMembers')}
+      </div>
+    `;
+    updateVisitorAvailabilityNotice();
+    return;
+  }
+
+  if (editing) {
+    const originalSessionId = document.getElementById(
+      'visitor-original-session'
+    ).value;
+
+    container.innerHTML = `
+      <select
+        class="management-input"
+        id="visitor-form-member"
+      >
+        ${visitorScheduleMembers.map(member => `
+          <option
+            value="${escapeHtml(member.memberId)}"
+            ${member.memberId === selectedMemberId ? 'selected' : ''}
+            ${
+              visitorAssignmentTargetExists(
+                sessionId,
+                member.memberId,
+                originalSessionId,
+                selectedMemberId
+              )
+                ? 'disabled'
+                : ''
+            }
+          >
+            ${escapeHtml(buildVisitorMemberOptionText(
+              member,
+              sessionId
+            ))}
+          </option>
+        `).join('')}
+      </select>
+    `;
+
+    document
+      .getElementById('visitor-form-member')
+      .addEventListener('change', updateVisitorAvailabilityNotice);
+  } else {
+    container.innerHTML = `
+      <div class="visitor-member-list">
+        ${visitorScheduleMembers.map(member => {
+          const response = member.availability[sessionId] || '';
+          const alreadyAssigned = visitorAssignmentTargetExists(
+            sessionId,
+            member.memberId,
+            '',
+            ''
+          );
+          const warningClass = response === 'Unavailable'
+            ? 'problem'
+            : response === 'Unsure' || !response
+              ? 'attention'
+              : '';
+
+          return `
+            <label class="visitor-member-option ${warningClass}">
+              <input
+                type="checkbox"
+                name="visitor-member"
+                value="${escapeHtml(member.memberId)}"
+                ${alreadyAssigned ? 'disabled' : ''}
+              >
+              <span>
+                <strong>${escapeHtml(member.name)}</strong>
+                ${member.grade
+                  ? ` · ${escapeHtml(member.grade)}`
+                  : ''}
+                <small>
+                  ${escapeHtml(t(getVisitorAvailabilityKey(response)))}
+                  ${alreadyAssigned
+                    ? ` · ${t('visitors.alreadyAssigned')}`
+                    : ''}
+                </small>
+              </span>
+            </label>
+          `;
+        }).join('')}
+      </div>
+    `;
+
+    container
+      .querySelectorAll('input[name="visitor-member"]')
+      .forEach(input => {
+        input.addEventListener(
+          'change',
+          updateVisitorAvailabilityNotice
+        );
+      });
+  }
+
+  updateVisitorAvailabilityNotice();
+}
+
+function buildVisitorMemberOptionText(member, sessionId) {
+  const response = member.availability[sessionId] || '';
+  const details = [member.name];
+
+  if (member.grade) {
+    details.push(member.grade);
+  }
+
+  details.push(t(getVisitorAvailabilityKey(response)));
+
+  return details.join(' · ');
+}
+
+function updateVisitorAvailabilityNotice() {
+  const notice = document.getElementById(
+    'visitor-availability-notice'
+  );
+
+  if (!notice) {
+    return;
+  }
+
+  const sessionId = document.getElementById(
+    'visitor-form-session'
+  ).value;
+  const selectedIds = getSelectedVisitorMemberIds();
+  const groups = getVisitorAvailabilityGroups(
+    sessionId,
+    selectedIds
+  );
+  const messages = [];
+
+  if (groups.unavailable.length) {
+    messages.push(t('visitors.notice.unavailable', {
+      names: groups.unavailable.join(', ')
+    }));
+  }
+
+  if (groups.unsure.length) {
+    messages.push(t('visitors.notice.unsure', {
+      names: groups.unsure.join(', ')
+    }));
+  }
+
+  if (groups.noResponse.length) {
+    messages.push(t('visitors.notice.noResponse', {
+      names: groups.noResponse.join(', ')
+    }));
+  }
+
+  notice.textContent = messages.join(' ');
+  notice.classList.toggle(
+    'problem',
+    groups.unavailable.length > 0
+  );
+}
+
+function getSelectedVisitorMemberIds() {
+  const single = document.getElementById(
+    'visitor-form-member'
+  );
+
+  if (single) {
+    return single.value ? [single.value] : [];
+  }
+
+  return [...document.querySelectorAll(
+    'input[name="visitor-member"]:checked'
+  )].map(input => input.value);
+}
+
+function getVisitorAvailabilityGroups(sessionId, memberIds) {
+  const groups = {
+    unavailable: [],
+    unsure: [],
+    noResponse: []
+  };
+
+  memberIds.forEach(memberId => {
+    const member = visitorScheduleMembers.find(item =>
+      item.memberId === memberId
+    );
+
+    if (!member) {
+      return;
+    }
+
+    const response = member.availability[sessionId] || '';
+
+    if (response === 'Unavailable') {
+      groups.unavailable.push(member.name);
+    } else if (response === 'Unsure') {
+      groups.unsure.push(member.name);
+    } else if (!response) {
+      groups.noResponse.push(member.name);
+    }
+  });
+
+  return groups;
+}
+
+function submitVisitorAssignmentForm(allowUnavailable) {
+  if (visitorAssignmentSaveInProgress) {
+    return;
+  }
+
+  const payload = collectVisitorAssignmentForm();
+  const errorCode = validateVisitorAssignmentForm(payload);
+
+  if (errorCode) {
+    showVisitorAssignmentFormError(errorCode);
+    return;
+  }
+
+  const groups = getVisitorAvailabilityGroups(
+    payload.sessionId,
+    payload.memberIds
+  );
+
+  if (
+    !allowUnavailable &&
+    groups.unavailable.length > 0
+  ) {
+    if (!window.confirm(t('visitors.confirm.unavailable', {
+      names: groups.unavailable.join(', ')
+    }))) {
+      return;
+    }
+
+    allowUnavailable = true;
+  }
+
+  payload.allowUnavailable = allowUnavailable;
+  visitorAssignmentSaveInProgress = true;
+  setVisitorAssignmentSaveState(true);
+
+  const runner = google.script.run
+    .withSuccessHandler(result => {
+      handleVisitorAssignmentSaved(result);
+    })
+    .withFailureHandler(() => {
+      visitorAssignmentSaveInProgress = false;
+      setVisitorAssignmentSaveState(false);
+      showVisitorAssignmentFormError('saveFailed');
+    });
+
+  if (payload.originalSessionId) {
+    runner.updateVolunteerAssignment({
+      ...payload,
+      memberId: payload.memberIds[0]
+    });
+  } else {
+    runner.createVolunteerAssignments(payload);
+  }
+}
+
+function collectVisitorAssignmentForm() {
+  return {
+    originalSessionId: document.getElementById(
+      'visitor-original-session'
+    ).value,
+    originalMemberId: document.getElementById(
+      'visitor-original-member'
+    ).value,
+    sessionId: document.getElementById(
+      'visitor-form-session'
+    ).value,
+    memberIds: getSelectedVisitorMemberIds(),
+    activity: document.getElementById(
+      'visitor-form-activity'
+    ).value,
+    location: document.getElementById(
+      'visitor-form-location'
+    ).value,
+    departureTime: document.getElementById(
+      'visitor-form-departure'
+    ).value,
+    assignmentStatus: document.getElementById(
+      'visitor-form-status'
+    ).value,
+    notes: document.getElementById(
+      'visitor-form-notes'
+    ).value,
+    requestId: visitorAssignmentRequestId
+  };
+}
+
+function validateVisitorAssignmentForm(payload) {
+  if (!payload.sessionId) {
+    return 'sessionRequired';
+  }
+
+  if (payload.memberIds.length === 0) {
+    return 'memberRequired';
+  }
+
+  if (!visitorAssignmentStatuses.includes(
+    payload.assignmentStatus
+  )) {
+    return 'statusInvalid';
+  }
+
+  if (
+    payload.departureTime &&
+    !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(
+      payload.departureTime
+    )
+  ) {
+    return 'departureTimeInvalid';
+  }
+
+  const session = visitorScheduleSessions.find(item =>
+    item.sessionId === payload.sessionId
+  );
+
+  if (
+    session &&
+    payload.departureTime &&
+    session.endTime &&
+    payload.departureTime > session.endTime
+  ) {
+    return 'departureAfterEnd';
+  }
+
+  return '';
+}
+
+function handleVisitorAssignmentSaved(result) {
+  visitorAssignmentSaveInProgress = false;
+  setVisitorAssignmentSaveState(false);
+
+  if (!result || !result.success) {
+    if (
+      result &&
+      result.requiresConfirmation &&
+      result.errorCode === 'unavailableMembers' &&
+      window.confirm(t('visitors.confirm.unavailable', {
+        names: (result.memberNames || []).join(', ')
+      }))
+    ) {
+      submitVisitorAssignmentForm(true);
+      return;
+    }
+
+    showVisitorAssignmentFormError(
+      result && result.errorCode
+        ? result.errorCode
+        : 'saveFailed'
+    );
+    return;
+  }
+
+  visitorScheduleNotice = {
+    key: result.operation === 'created'
+      ? 'visitors.message.created'
+      : 'visitors.message.updated',
+    values: { count: result.count || 1 }
+  };
+  closeVisitorAssignmentForm();
+  loadVisitorScheduleManagementData();
+}
+
+function setVisitorAssignmentSaveState(saving) {
+  const button = document.getElementById(
+    'visitor-form-save'
+  );
+
+  if (!button) {
+    return;
+  }
+
+  button.disabled = saving;
+  button.textContent = t(
+    saving
+      ? 'visitors.form.saving'
+      : 'visitors.form.save'
+  );
+}
+
+function showVisitorAssignmentFormError(errorCode) {
+  const message = document.getElementById(
+    'visitor-form-message'
+  );
+
+  if (message) {
+    message.textContent = getVisitorScheduleErrorMessage(
+      errorCode
+    );
+  }
+}
+
+function requestVisitorAssignmentCancellation(
+  sessionId,
+  memberId
+) {
+  if (visitorAssignmentActionInProgress) {
+    return;
+  }
+
+  const assignment = findVisitorAssignment(
+    sessionId,
+    memberId
+  );
+
+  if (
+    !assignment ||
+    !window.confirm(t('visitors.confirm.cancel', {
+      name: assignment.memberName
+    }))
+  ) {
+    return;
+  }
+
+  performVisitorAssignmentCancellation(assignment);
+}
+
+function performVisitorAssignmentCancellation(assignment) {
+  visitorAssignmentActionInProgress = true;
+  renderVisitorAssignmentList();
+
+  google.script.run
+    .withSuccessHandler(result => {
+      visitorAssignmentActionInProgress = false;
+
+      if (!result || !result.success) {
+        showVisitorScheduleActionError(
+          result && result.errorCode
+            ? result.errorCode
+            : 'actionFailed'
+        );
+        renderVisitorAssignmentList();
+        return;
+      }
+
+      visitorScheduleNotice = {
+        key: 'visitors.message.cancelled'
+      };
+      loadVisitorScheduleManagementData();
+    })
+    .withFailureHandler(() => {
+      visitorAssignmentActionInProgress = false;
+      showVisitorScheduleActionError('actionFailed');
+      renderVisitorAssignmentList();
+    })
+    .cancelVolunteerAssignment({
+      sessionId: assignment.sessionId,
+      memberId: assignment.memberId,
+      requestId: createClientRequestId()
+    });
+}
+
+function requestVisitorAssignmentDeletion(
+  sessionId,
+  memberId
+) {
+  if (visitorAssignmentActionInProgress) {
+    return;
+  }
+
+  const assignment = findVisitorAssignment(
+    sessionId,
+    memberId
+  );
+
+  if (
+    !assignment ||
+    !window.confirm(t('visitors.confirm.delete', {
+      name: assignment.memberName
+    }))
+  ) {
+    return;
+  }
+
+  visitorAssignmentActionInProgress = true;
+  renderVisitorAssignmentList();
+
+  google.script.run
+    .withSuccessHandler(result => {
+      visitorAssignmentActionInProgress = false;
+
+      if (result && !result.success && result.canCancel) {
+        if (window.confirm(t(
+          'visitors.confirm.deleteBlockedCancel',
+          {
+            reason: getVisitorScheduleErrorMessage(
+              result.errorCode
+            )
+          }
+        ))) {
+          performVisitorAssignmentCancellation(assignment);
+        } else {
+          renderVisitorAssignmentList();
+        }
+
+        return;
+      }
+
+      if (!result || !result.success) {
+        showVisitorScheduleActionError(
+          result && result.errorCode
+            ? result.errorCode
+            : 'actionFailed'
+        );
+        renderVisitorAssignmentList();
+        return;
+      }
+
+      visitorScheduleNotice = {
+        key: 'visitors.message.deleted'
+      };
+      loadVisitorScheduleManagementData();
+    })
+    .withFailureHandler(() => {
+      visitorAssignmentActionInProgress = false;
+      showVisitorScheduleActionError('actionFailed');
+      renderVisitorAssignmentList();
+    })
+    .deleteVolunteerAssignment({
+      sessionId: assignment.sessionId,
+      memberId: assignment.memberId,
+      requestId: createClientRequestId()
+    });
+}
+
+function showVisitorScheduleActionError(errorCode) {
+  const message = document.getElementById(
+    'visitor-schedule-message'
+  );
+
+  if (message) {
+    message.classList.add('error-message');
+    message.textContent = getVisitorScheduleErrorMessage(
+      errorCode
+    );
+  }
+}
+
+function getVisitorScheduleErrorMessage(errorCode) {
+  const key = `visitors.error.${errorCode}`;
+  const message = t(key);
+
+  return message === key
+    ? t('visitors.error.unexpected')
+    : message;
+}
+
+function buildVisitorSessionOptions(selectedSessionId) {
+  return visitorScheduleSessions.map(session => `
+    <option
+      value="${escapeHtml(session.sessionId)}"
+      ${session.sessionId === selectedSessionId ? 'selected' : ''}
+    >
+      ${escapeHtml(formatDateOnly(session.dateValue))}
+      · ${escapeHtml(session.title)}
+    </option>
+  `).join('');
+}
+
+function buildVisitorStatusOptions(selectedStatus) {
+  return visitorAssignmentStatuses.map(status => `
+    <option
+      value="${escapeHtml(status)}"
+      ${status === selectedStatus ? 'selected' : ''}
+    >
+      ${escapeHtml(translateBusinessValue(
+        'assignmentStatus',
+        status
+      ))}
+    </option>
+  `).join('');
+}
+
+function getVisitorAvailabilityKey(response) {
+  const keys = {
+    Available: 'availability.status.available',
+    Unavailable: 'availability.status.unavailable',
+    Unsure: 'availability.status.unsure'
+  };
+
+  return keys[response] || 'availability.status.noResponse';
+}
+
+function findVisitorAssignment(sessionId, memberId) {
+  return visitorScheduleAssignments.find(assignment =>
+    assignment.sessionId === sessionId &&
+    assignment.memberId === memberId
+  ) || null;
+}
+
+function visitorAssignmentTargetExists(
+  sessionId,
+  memberId,
+  originalSessionId,
+  originalMemberId
+) {
+  if (
+    sessionId === originalSessionId &&
+    memberId === originalMemberId
+  ) {
+    return false;
+  }
+
+  return visitorScheduleAssignments.some(assignment =>
+    assignment.sessionId === sessionId &&
+    assignment.memberId === memberId
+  );
+}
+
+function renderVisitorScheduleManagementError() {
+  const content = document.getElementById('content');
+
+  content.className = '';
+  content.innerHTML = `
+    <h2 class="section-title">
+      ${t('visitors.title')}
+    </h2>
+
+    <section class="error">
+      ${t('visitors.error.loadFailed')}
+    </section>
+  `;
+}

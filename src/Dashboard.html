@@ -45,7 +45,11 @@ function renderDashboardData(data) {
           ${t('dashboard.noSessionToday')}
         </div>
       </section>
+
+      ${buildVisitorScheduleDashboardLink()}
     `;
+
+    initialiseVisitorScheduleDashboardLink();
 
     return;
   }
@@ -96,8 +100,12 @@ function renderDashboardData(data) {
       ${selector}
     </section>
 
+    ${buildVisitorScheduleDashboardLink()}
+
     <div id="dashboard-session-content"></div>
   `;
+
+  initialiseVisitorScheduleDashboardLink();
 
   if (sessions.length > 1) {
     const selectorElement =
@@ -139,6 +147,39 @@ function renderDashboardData(data) {
     loadDashboardSession(selectedSession.sessionId);
   } else {
     renderDashboardSession(data.selectedSession);
+  }
+}
+
+
+function buildVisitorScheduleDashboardLink() {
+  return `
+    <section class="card dashboard-management-link">
+      <div>
+        <h3>${t('dashboard.visitors.title')}</h3>
+        <p>${t('dashboard.visitors.description')}</p>
+      </div>
+
+      <button
+        type="button"
+        class="secondary-button"
+        id="open-visitor-schedules"
+      >
+        ${t('dashboard.visitors.open')}
+      </button>
+    </section>
+  `;
+}
+
+
+function initialiseVisitorScheduleDashboardLink() {
+  const button = document.getElementById(
+    'open-visitor-schedules'
+  );
+
+  if (button) {
+    button.addEventListener('click', () => {
+      selectView('volunteer');
+    });
   }
 }
 

@@ -46,7 +46,11 @@ function renderNavigation(permissions) {
     { id: 'availability', label: t('nav.availability') },
     {
       id: 'volunteer',
-      label: t('nav.volunteerSchedule')
+      label: t(
+        permissions.canManageVolunteers
+          ? 'nav.visitorSchedules'
+          : 'nav.volunteerSchedule'
+      )
     },
     { id: 'attendance', label: t('nav.checkIn') }
   ];
@@ -115,7 +119,14 @@ function selectView(view) {
       break;
 
     case 'volunteer':
-      renderVolunteer();
+      if (
+        portalData &&
+        portalData.permissions.canManageVolunteers
+      ) {
+        renderVisitorScheduleManagement();
+      } else {
+        renderVolunteer();
+      }
       break;
 
     case 'attendance':

@@ -175,6 +175,7 @@ Place frontend code in the appropriate HTML partial:
 - `Availability.html`
 - `Dashboard.html`
 - `Volunteer.html`
+- `VisitorScheduleManagement.html`
 - `Attendance.html`
 - `SessionManagement.html`
 - `MemberManagement.html`
