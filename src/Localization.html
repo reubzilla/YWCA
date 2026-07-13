@@ -31,6 +31,7 @@
         'nav.checkIn': 'Check In',
         'nav.dashboard': 'Dashboard',
         'nav.sessionsEvents': 'Sessions & Events',
+        'nav.members': 'Members',
         'volunteer.placeholder':
           'Personal volunteer assignments will appear here.',
         'attendance.placeholder':
@@ -185,6 +186,107 @@
           'The session has linked records and cannot be permanently deleted.',
         'sessions.error.unexpected':
           'An unexpected error occurred while managing sessions.',
+        'members.title': 'Members',
+        'members.intro':
+          'Manage club membership, roles and active status.',
+        'members.loading': 'Loading members…',
+        'members.listTitle': 'Club members',
+        'members.add': 'Add member',
+        'members.filter.search': 'Search',
+        'members.filter.searchPlaceholder':
+          'Search by name or email',
+        'members.filter.status': 'Status',
+        'members.filter.allStatuses': 'All statuses',
+        'members.filter.role': 'Role',
+        'members.filter.allRoles': 'All roles',
+        'members.filter.grade': 'Grade',
+        'members.filter.allGrades': 'All grades',
+        'members.filter.clear': 'Clear filters',
+        'members.empty': 'No members match these filters.',
+        'members.active': 'Active',
+        'members.inactive': 'Inactive',
+        'members.currentUser': 'You',
+        'members.memberId': 'Member ID: {id}',
+        'members.memberIdLabel': 'Member ID',
+        'members.date.notSet': 'Not set',
+        'members.grade.notSet': 'Not set',
+        'members.form.createTitle': 'Create member',
+        'members.form.editTitle': 'Edit member',
+        'members.form.name': 'Name',
+        'members.form.email': 'Email',
+        'members.form.grade': 'Grade',
+        'members.form.role': 'Role',
+        'members.form.active': 'Active member',
+        'members.form.joinDate': 'Join date',
+        'members.form.leaveDate': 'Leave date',
+        'members.form.leaveDateHelp':
+          'An inactive member should normally have a leave date.',
+        'members.form.save': 'Save member',
+        'members.form.saving': 'Saving…',
+        'members.form.close': 'Close form',
+        'members.action.edit': 'Edit',
+        'members.action.activate': 'Activate',
+        'members.action.deactivate': 'Deactivate',
+        'members.action.delete': 'Delete permanently',
+        'members.prompt.leaveDate':
+          'Enter the leave date as YYYY-MM-DD.',
+        'members.prompt.selfAccessConfirmation':
+          'This change will remove your own member-management access. Enter your current signed-in email address to confirm.',
+        'members.confirm.activate': 'Activate {name}?',
+        'members.confirm.deactivate':
+          'Deactivate {name} with a leave date of {date}? Historical records will be preserved.',
+        'members.confirm.delete':
+          'Permanently delete {name}? Deactivation is normally preferred. This cannot be undone.',
+        'members.confirm.linkedDeactivate':
+          'This member cannot be deleted because they have linked records (availability: {availability}, volunteer assignments: {volunteers}, attendance: {attendance}). Deactivate them instead?',
+        'members.confirm.missingLeaveDate':
+          'This inactive member has no leave date. Save anyway?',
+        'members.message.created': 'The member was created.',
+        'members.message.updated': 'The member was updated.',
+        'members.message.activated': 'The member was activated.',
+        'members.message.deactivated': 'The member was deactivated.',
+        'members.message.deleted': 'The member was permanently deleted.',
+        'members.error.loadFailed': 'Members could not be loaded.',
+        'members.error.saveFailed': 'The member could not be saved.',
+        'members.error.actionFailed':
+          'The requested member action could not be completed.',
+        'members.error.invalidSubmission':
+          'The member information is invalid.',
+        'members.error.memberIdRequired':
+          'The member could not be identified.',
+        'members.error.nameRequired': 'Name is required.',
+        'members.error.emailRequired': 'Email is required.',
+        'members.error.emailInvalid':
+          'Enter a valid email address.',
+        'members.error.roleInvalid': 'Select a valid role.',
+        'members.error.activeInvalid':
+          'Select whether the member is active.',
+        'members.error.joinDateInvalid':
+          'Enter a valid join date.',
+        'members.error.leaveDateInvalid':
+          'Enter a valid leave date in YYYY-MM-DD format.',
+        'members.error.leaveBeforeJoin':
+          'Leave date must not be earlier than join date.',
+        'members.error.leaveDateRecommended':
+          'An inactive member should normally have a leave date.',
+        'members.error.leaveDateRequired':
+          'A leave date is required when deactivating a member.',
+        'members.error.requestIdInvalid':
+          'The request could not be identified. Reopen the form and try again.',
+        'members.error.memberNotFound':
+          'The selected member could not be found.',
+        'members.error.duplicateMemberId':
+          'More than one member has this Member ID. Correct the spreadsheet before continuing.',
+        'members.error.duplicateEmail':
+          'Another member already uses this email address.',
+        'members.error.finalActiveTeacher':
+          'The final active Teacher account cannot lose Teacher access or be deactivated.',
+        'members.error.selfAccessConfirmationRequired':
+          'Your signed-in email address did not match. The change was not made.',
+        'members.error.linkedRecords':
+          'The member has linked records and cannot be permanently deleted.',
+        'members.error.unexpected':
+          'An unexpected error occurred while managing members.',
         'app.error.loadFailed':
           'The Club Portal could not be loaded.'
       }),
@@ -213,6 +315,7 @@
         'nav.checkIn': 'チェックイン',
         'nav.dashboard': 'ダッシュボード',
         'nav.sessionsEvents': '活動・イベント管理',
+        'nav.members': 'メンバー管理',
         'volunteer.placeholder':
           '個人の訪問担当予定はここに表示されます。',
         'attendance.placeholder':
@@ -367,6 +470,114 @@
           '関連データがあるため、この活動を完全に削除できません。',
         'sessions.error.unexpected':
           '活動の管理中に予期しないエラーが発生しました。',
+        'members.title': 'メンバー管理',
+        'members.intro':
+          'クラブの在籍情報、役割、有効状態を管理します。',
+        'members.loading': 'メンバーを読み込んでいます…',
+        'members.listTitle': 'クラブメンバー',
+        'members.add': 'メンバーを追加',
+        'members.filter.search': '検索',
+        'members.filter.searchPlaceholder':
+          '氏名またはメールで検索',
+        'members.filter.status': '状態',
+        'members.filter.allStatuses': 'すべての状態',
+        'members.filter.role': '役割',
+        'members.filter.allRoles': 'すべての役割',
+        'members.filter.grade': '学年',
+        'members.filter.allGrades': 'すべての学年',
+        'members.filter.clear': '絞り込みを解除',
+        'members.empty': '条件に一致するメンバーはいません。',
+        'members.active': '在籍中',
+        'members.inactive': '退会済み',
+        'members.currentUser': '自分',
+        'members.memberId': 'メンバーID：{id}',
+        'members.memberIdLabel': 'メンバーID',
+        'members.date.notSet': '未設定',
+        'members.grade.notSet': '未設定',
+        'members.form.createTitle': 'メンバーを作成',
+        'members.form.editTitle': 'メンバーを編集',
+        'members.form.name': '氏名',
+        'members.form.email': 'メール',
+        'members.form.grade': '学年',
+        'members.form.role': '役割',
+        'members.form.active': '在籍中のメンバー',
+        'members.form.joinDate': '入会日',
+        'members.form.leaveDate': '退会日',
+        'members.form.leaveDateHelp':
+          '退会済みのメンバーには通常、退会日を設定してください。',
+        'members.form.save': 'メンバーを保存',
+        'members.form.saving': '保存しています…',
+        'members.form.close': 'フォームを閉じる',
+        'members.action.edit': '編集',
+        'members.action.activate': '在籍中に戻す',
+        'members.action.deactivate': '退会にする',
+        'members.action.delete': '完全に削除',
+        'members.prompt.leaveDate':
+          '退会日をYYYY-MM-DD形式で入力してください。',
+        'members.prompt.selfAccessConfirmation':
+          'この変更を行うと、自分のメンバー管理権限が失われます。確認のため、現在ログインしているメールアドレスを入力してください。',
+        'members.confirm.activate':
+          '「{name}」を在籍中に戻しますか？',
+        'members.confirm.deactivate':
+          '「{name}」を{date}付で退会にしますか？過去の記録は保持されます。',
+        'members.confirm.delete':
+          '「{name}」を完全に削除しますか？通常は退会処理を推奨します。この操作は取り消せません。',
+        'members.confirm.linkedDeactivate':
+          'このメンバーには関連データがあるため削除できません（参加可否：{availability}件、訪問担当：{volunteers}件、出席：{attendance}件）。代わりに退会にしますか？',
+        'members.confirm.missingLeaveDate':
+          '退会済みですが退会日が設定されていません。このまま保存しますか？',
+        'members.message.created': 'メンバーを作成しました。',
+        'members.message.updated': 'メンバーを更新しました。',
+        'members.message.activated':
+          'メンバーを在籍中に戻しました。',
+        'members.message.deactivated':
+          'メンバーを退会にしました。',
+        'members.message.deleted':
+          'メンバーを完全に削除しました。',
+        'members.error.loadFailed':
+          'メンバーを読み込めませんでした。',
+        'members.error.saveFailed':
+          'メンバーを保存できませんでした。',
+        'members.error.actionFailed':
+          'メンバーの操作を完了できませんでした。',
+        'members.error.invalidSubmission':
+          'メンバー情報が正しくありません。',
+        'members.error.memberIdRequired':
+          'メンバーを特定できませんでした。',
+        'members.error.nameRequired': '氏名は必須です。',
+        'members.error.emailRequired': 'メールは必須です。',
+        'members.error.emailInvalid':
+          '正しいメールアドレスを入力してください。',
+        'members.error.roleInvalid':
+          '正しい役割を選択してください。',
+        'members.error.activeInvalid':
+          'メンバーを在籍中にするか選択してください。',
+        'members.error.joinDateInvalid':
+          '正しい入会日を入力してください。',
+        'members.error.leaveDateInvalid':
+          '退会日をYYYY-MM-DD形式で正しく入力してください。',
+        'members.error.leaveBeforeJoin':
+          '退会日は入会日より前に設定できません。',
+        'members.error.leaveDateRecommended':
+          '退会済みのメンバーには通常、退会日を設定してください。',
+        'members.error.leaveDateRequired':
+          'メンバーを退会にするには退会日が必要です。',
+        'members.error.requestIdInvalid':
+          'リクエストを特定できませんでした。フォームを開き直して再試行してください。',
+        'members.error.memberNotFound':
+          '選択したメンバーが見つかりませんでした。',
+        'members.error.duplicateMemberId':
+          '同じメンバーIDの行が複数あります。続行する前にスプレッドシートを修正してください。',
+        'members.error.duplicateEmail':
+          'このメールアドレスは別のメンバーが既に使用しています。',
+        'members.error.finalActiveTeacher':
+          '最後の在籍中の教員アカウントから教員権限を外したり、退会にしたりすることはできません。',
+        'members.error.selfAccessConfirmationRequired':
+          'ログイン中のメールアドレスと一致しません。変更は行われませんでした。',
+        'members.error.linkedRecords':
+          '関連データがあるため、このメンバーを完全に削除できません。',
+        'members.error.unexpected':
+          'メンバー管理中に予期しないエラーが発生しました。',
         'app.error.loadFailed':
           'クラブポータルを読み込めませんでした。'
       })

@@ -148,6 +148,19 @@ function formatDateTimeInput(value) {
     `T${values.hour}:${values.minute}`;
 }
 
+function createClientRequestId() {
+  if (
+    window.crypto &&
+    typeof window.crypto.randomUUID === 'function'
+  ) {
+    return window.crypto.randomUUID();
+  }
+
+  return `${Date.now()}_${
+    Math.random().toString(36).slice(2)
+  }`;
+}
+
     function renderPlaceholder(title, message) {
       const content =
         document.getElementById('content');

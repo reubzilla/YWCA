@@ -1,0 +1,1128 @@
+let managedMembers = [];
+let managedMemberRoles = [];
+let managedMemberGrades = [];
+let managedMemberTodayDateValue = '';
+let managedMemberRequestId = '';
+let memberSaveInProgress = false;
+let memberActionInProgress = false;
+let memberManagementNoticeKey = '';
+
+function renderMemberManagement() {
+  const content = document.getElementById('content');
+
+  content.className = '';
+  content.innerHTML = `
+    <h2 class="section-title">
+      ${t('members.title')}
+    </h2>
+
+    <section class="card view-loading">
+      ${t('members.loading')}
+    </section>
+  `;
+
+  loadMemberManagementData();
+}
+
+function loadMemberManagementData() {
+  google.script.run
+    .withSuccessHandler(renderMemberManagementData)
+    .withFailureHandler(renderMemberManagementError)
+    .getMemberManagementData();
+}
+
+function renderMemberManagementData(data) {
+  managedMembers = data.members || [];
+  managedMemberRoles = data.roles || [];
+  managedMemberGrades = data.grades || [];
+  managedMemberTodayDateValue = data.todayDateValue || '';
+
+  const content = document.getElementById('content');
+
+  content.innerHTML = `
+    <div class="management-heading-row">
+      <div>
+        <h2 class="section-title management-title">
+          ${t('members.title')}
+        </h2>
+        <p class="management-intro">
+          ${t('members.intro')}
+        </p>
+      </div>
+
+      <button
+        type="button"
+        class="primary-button"
+        id="add-member-button"
+      >
+        ${t('members.add')}
+      </button>
+    </div>
+
+    <div
+      id="member-management-message"
+      class="save-message"
+      role="status"
+    ></div>
+
+    <section class="card management-filter-card">
+      <div class="member-filter-grid">
+        <label class="member-search-field">
+          <span class="form-label">
+            ${t('members.filter.search')}
+          </span>
+          <input
+            type="search"
+            class="management-input"
+            id="member-filter-search"
+            placeholder="${t('members.filter.searchPlaceholder')}"
+          >
+        </label>
+
+        <label>
+          <span class="form-label">
+            ${t('members.filter.status')}
+          </span>
+          <select
+            class="management-input"
+            id="member-filter-status"
+          >
+            <option value="">
+              ${t('members.filter.allStatuses')}
+            </option>
+            <option value="active">
+              ${t('members.active')}
+            </option>
+            <option value="inactive">
+              ${t('members.inactive')}
+            </option>
+          </select>
+        </label>
+
+        <label>
+          <span class="form-label">
+            ${t('members.filter.role')}
+          </span>
+          <select
+            class="management-input"
+            id="member-filter-role"
+          >
+            <option value="">
+              ${t('members.filter.allRoles')}
+            </option>
+            ${buildManagedMemberRoleOptions('')}
+          </select>
+        </label>
+
+        <label>
+          <span class="form-label">
+            ${t('members.filter.grade')}
+          </span>
+          <select
+            class="management-input"
+            id="member-filter-grade"
+          >
+            <option value="">
+              ${t('members.filter.allGrades')}
+            </option>
+            ${managedMemberGrades.map(grade => `
+              <option value="${escapeHtml(grade)}">
+                ${escapeHtml(grade)}
+              </option>
+            `).join('')}
+          </select>
+        </label>
+      </div>
+
+      <button
+        type="button"
+        class="secondary-button"
+        id="clear-member-filters"
+      >
+        ${t('members.filter.clear')}
+      </button>
+    </section>
+
+    <div id="member-management-form"></div>
+
+    <h2 class="section-title">
+      ${t('members.listTitle')}
+    </h2>
+
+    <div id="managed-member-list"></div>
+  `;
+
+  document
+    .getElementById('add-member-button')
+    .addEventListener('click', () => {
+      openManagedMemberForm(null);
+    });
+
+  document
+    .getElementById('member-filter-search')
+    .addEventListener('input', renderManagedMemberList);
+
+  [
+    'member-filter-status',
+    'member-filter-role',
+    'member-filter-grade'
+  ].forEach(id => {
+    document
+      .getElementById(id)
+      .addEventListener('change', renderManagedMemberList);
+  });
+
+  document
+    .getElementById('clear-member-filters')
+    .addEventListener('click', clearManagedMemberFilters);
+
+  showMemberManagementNotice();
+  renderManagedMemberList();
+}
+
+function clearManagedMemberFilters() {
+  [
+    'member-filter-search',
+    'member-filter-status',
+    'member-filter-role',
+    'member-filter-grade'
+  ].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+
+  renderManagedMemberList();
+}
+
+function showMemberManagementNotice() {
+  if (!memberManagementNoticeKey) {
+    return;
+  }
+
+  const message = document.getElementById(
+    'member-management-message'
+  );
+
+  if (message) {
+    message.textContent = t(memberManagementNoticeKey);
+  }
+
+  memberManagementNoticeKey = '';
+}
+
+function renderManagedMemberList() {
+  const container = document.getElementById(
+    'managed-member-list'
+  );
+
+  if (!container) {
+    return;
+  }
+
+  const search = document.getElementById(
+    'member-filter-search'
+  ).value.trim().toLowerCase();
+  const status = document.getElementById(
+    'member-filter-status'
+  ).value;
+  const role = document.getElementById(
+    'member-filter-role'
+  ).value;
+  const grade = document.getElementById(
+    'member-filter-grade'
+  ).value;
+  const filteredMembers = managedMembers.filter(member => {
+    const matchesSearch = !search ||
+      member.name.toLowerCase().includes(search) ||
+      member.email.toLowerCase().includes(search);
+    const matchesStatus = !status ||
+      (status === 'active' && member.active) ||
+      (status === 'inactive' && !member.active);
+
+    return matchesSearch &&
+      matchesStatus &&
+      (!role || member.role === role) &&
+      (!grade || member.grade === grade);
+  });
+
+  if (filteredMembers.length === 0) {
+    container.innerHTML = `
+      <section class="card empty">
+        ${t('members.empty')}
+      </section>
+    `;
+    return;
+  }
+
+  container.innerHTML = filteredMembers.map(member =>
+    buildManagedMemberCard(member)
+  ).join('');
+
+  container
+    .querySelectorAll('[data-member-edit]')
+    .forEach(button => {
+      button.addEventListener('click', () => {
+        const member = findManagedMember(
+          button.dataset.memberEdit
+        );
+
+        if (member) {
+          openManagedMemberForm(member);
+        }
+      });
+    });
+
+  container
+    .querySelectorAll('[data-member-status]')
+    .forEach(button => {
+      button.addEventListener('click', () => {
+        requestManagedMemberStatusChange(
+          button.dataset.memberStatus
+        );
+      });
+    });
+
+  container
+    .querySelectorAll('[data-member-delete]')
+    .forEach(button => {
+      button.addEventListener('click', () => {
+        requestManagedMemberDeletion(
+          button.dataset.memberDelete
+        );
+      });
+    });
+}
+
+function buildManagedMemberCard(member) {
+  const joinDate = member.joinDateValue
+    ? formatDateOnly(member.joinDateValue)
+    : t('members.date.notSet');
+  const leaveDate = member.leaveDateValue
+    ? formatDateOnly(member.leaveDateValue)
+    : t('members.date.notSet');
+
+  return `
+    <article class="card managed-member-card">
+      <div class="managed-member-header">
+        <div>
+          <h3 class="member-management-name">
+            ${escapeHtml(member.name)}
+            ${member.isCurrentUser
+              ? `<span class="current-user-marker">${
+                  t('members.currentUser')
+                }</span>`
+              : ''}
+          </h3>
+          <p class="managed-member-email">
+            ${escapeHtml(member.email)}
+          </p>
+        </div>
+
+        <span class="management-status ${
+          member.active ? 'active' : 'inactive'
+        }">
+          ${t(
+            member.active
+              ? 'members.active'
+              : 'members.inactive'
+          )}
+        </span>
+      </div>
+
+      <dl class="member-detail-grid">
+        <div>
+          <dt>${t('members.memberIdLabel')}</dt>
+          <dd>${escapeHtml(member.memberId)}</dd>
+        </div>
+        <div>
+          <dt>${t('members.form.role')}</dt>
+          <dd>${escapeHtml(translateBusinessValue(
+            'role',
+            member.role
+          ))}</dd>
+        </div>
+        <div>
+          <dt>${t('members.form.grade')}</dt>
+          <dd>${escapeHtml(
+            member.grade || t('members.grade.notSet')
+          )}</dd>
+        </div>
+        <div>
+          <dt>${t('members.form.joinDate')}</dt>
+          <dd>${escapeHtml(joinDate)}</dd>
+        </div>
+        <div>
+          <dt>${t('members.form.leaveDate')}</dt>
+          <dd>${escapeHtml(leaveDate)}</dd>
+        </div>
+      </dl>
+
+      <div class="managed-member-actions">
+        <button
+          type="button"
+          class="secondary-button"
+          data-member-edit="${escapeHtml(member.memberId)}"
+          ${memberActionInProgress ? 'disabled' : ''}
+        >
+          ${t('members.action.edit')}
+        </button>
+
+        <button
+          type="button"
+          class="secondary-button"
+          data-member-status="${escapeHtml(member.memberId)}"
+          ${memberActionInProgress ? 'disabled' : ''}
+        >
+          ${t(
+            member.active
+              ? 'members.action.deactivate'
+              : 'members.action.activate'
+          )}
+        </button>
+
+        <button
+          type="button"
+          class="danger-button"
+          data-member-delete="${escapeHtml(member.memberId)}"
+          ${memberActionInProgress ? 'disabled' : ''}
+        >
+          ${t('members.action.delete')}
+        </button>
+      </div>
+    </article>
+  `;
+}
+
+function openManagedMemberForm(member) {
+  const container = document.getElementById(
+    'member-management-form'
+  );
+
+  if (!container) {
+    return;
+  }
+
+  const editing = Boolean(member);
+  const selectedRole = editing
+    ? member.role
+    : 'Student';
+
+  managedMemberRequestId = createClientRequestId();
+
+  container.innerHTML = `
+    <section class="card management-form-card">
+      <h2 class="section-title management-form-title">
+        ${t(
+          editing
+            ? 'members.form.editTitle'
+            : 'members.form.createTitle'
+        )}
+      </h2>
+
+      <form id="managed-member-form" novalidate>
+        <input
+          type="hidden"
+          id="managed-member-id"
+          value="${escapeHtml(
+            editing ? member.memberId : ''
+          )}"
+        >
+        <input
+          type="hidden"
+          id="managed-member-original-email"
+          value="${escapeHtml(editing ? member.email : '')}"
+        >
+        <input
+          type="hidden"
+          id="managed-member-is-current-user"
+          value="${editing && member.isCurrentUser ? 'true' : 'false'}"
+        >
+
+        ${editing
+          ? `
+            <p class="managed-session-id">
+              ${t('members.memberId', {
+                id: escapeHtml(member.memberId)
+              })}
+            </p>
+          `
+          : ''}
+
+        <div class="management-form-grid">
+          <label class="management-title-field">
+            <span class="form-label">
+              ${t('members.form.name')}
+            </span>
+            <input
+              type="text"
+              class="management-input"
+              id="managed-member-name"
+              value="${escapeHtml(editing ? member.name : '')}"
+              required
+            >
+          </label>
+
+          <label class="management-title-field">
+            <span class="form-label">
+              ${t('members.form.email')}
+            </span>
+            <input
+              type="email"
+              class="management-input"
+              id="managed-member-email"
+              value="${escapeHtml(editing ? member.email : '')}"
+              required
+            >
+          </label>
+
+          <label>
+            <span class="form-label">
+              ${t('members.form.grade')}
+            </span>
+            <input
+              type="text"
+              class="management-input"
+              id="managed-member-grade"
+              value="${escapeHtml(editing ? member.grade : '')}"
+            >
+          </label>
+
+          <label>
+            <span class="form-label">
+              ${t('members.form.role')}
+            </span>
+            <select
+              class="management-input"
+              id="managed-member-role"
+            >
+              ${buildManagedMemberRoleOptions(selectedRole)}
+            </select>
+          </label>
+
+          <label>
+            <span class="form-label">
+              ${t('members.form.joinDate')}
+            </span>
+            <input
+              type="date"
+              class="management-input"
+              id="managed-member-join-date"
+              value="${escapeHtml(
+                editing ? member.joinDateValue : ''
+              )}"
+            >
+          </label>
+
+          <label>
+            <span class="form-label">
+              ${t('members.form.leaveDate')}
+            </span>
+            <input
+              type="date"
+              class="management-input"
+              id="managed-member-leave-date"
+              value="${escapeHtml(
+                editing ? member.leaveDateValue : ''
+              )}"
+            >
+            <span class="form-help">
+              ${t('members.form.leaveDateHelp')}
+            </span>
+          </label>
+        </div>
+
+        <label class="management-checkbox">
+          <input
+            type="checkbox"
+            id="managed-member-active"
+            ${!editing || member.active ? 'checked' : ''}
+          >
+          <span>${t('members.form.active')}</span>
+        </label>
+
+        <div
+          id="managed-member-form-message"
+          class="save-message error-message"
+          role="alert"
+        ></div>
+
+        <div class="form-actions">
+          <button
+            type="submit"
+            class="primary-button"
+            id="managed-member-save"
+          >
+            ${t('members.form.save')}
+          </button>
+
+          <button
+            type="button"
+            class="secondary-button"
+            id="managed-member-close"
+          >
+            ${t('members.form.close')}
+          </button>
+        </div>
+      </form>
+    </section>
+  `;
+
+  document
+    .getElementById('managed-member-form')
+    .addEventListener('submit', event => {
+      event.preventDefault();
+      submitManagedMemberForm(false, '');
+    });
+
+  document
+    .getElementById('managed-member-close')
+    .addEventListener('click', closeManagedMemberForm);
+
+  container.scrollIntoView({
+    behavior: 'smooth',
+    block: 'start'
+  });
+}
+
+function closeManagedMemberForm() {
+  const container = document.getElementById(
+    'member-management-form'
+  );
+
+  if (container) {
+    container.innerHTML = '';
+  }
+
+  managedMemberRequestId = '';
+  memberSaveInProgress = false;
+}
+
+function buildManagedMemberRoleOptions(selectedRole) {
+  return managedMemberRoles.map(role => `
+    <option
+      value="${escapeHtml(role)}"
+      ${role === selectedRole ? 'selected' : ''}
+    >
+      ${escapeHtml(translateBusinessValue('role', role))}
+    </option>
+  `).join('');
+}
+
+function submitManagedMemberForm(
+  allowMissingLeaveDate,
+  selfAccessConfirmation
+) {
+  if (memberSaveInProgress) {
+    return;
+  }
+
+  const payload = collectManagedMemberForm();
+  const errorCode = validateManagedMemberForm(payload);
+
+  if (errorCode) {
+    showManagedMemberFormError(errorCode);
+    return;
+  }
+
+  if (
+    !payload.active &&
+    !payload.leaveDateValue &&
+    !allowMissingLeaveDate
+  ) {
+    if (!window.confirm(
+      t('members.confirm.missingLeaveDate')
+    )) {
+      return;
+    }
+
+    allowMissingLeaveDate = true;
+  }
+
+  if (
+    !selfAccessConfirmation &&
+    managedMemberFormRemovesOwnAccess(payload)
+  ) {
+    selfAccessConfirmation = requestSelfAccessConfirmation();
+
+    if (!selfAccessConfirmation) {
+      return;
+    }
+  }
+
+  payload.allowMissingLeaveDate = allowMissingLeaveDate;
+  payload.selfAccessConfirmation = selfAccessConfirmation;
+  memberSaveInProgress = true;
+  setManagedMemberSaveState(true);
+
+  const runner = google.script.run
+    .withSuccessHandler(result => {
+      handleManagedMemberSaved(
+        result,
+        allowMissingLeaveDate,
+        selfAccessConfirmation
+      );
+    })
+    .withFailureHandler(() => {
+      memberSaveInProgress = false;
+      setManagedMemberSaveState(false);
+      showManagedMemberFormError('saveFailed');
+    });
+
+  if (payload.memberId) {
+    runner.updateMember(payload);
+  } else {
+    runner.createMember(payload);
+  }
+}
+
+function collectManagedMemberForm() {
+  return {
+    memberId: document.getElementById(
+      'managed-member-id'
+    ).value,
+    name: document.getElementById(
+      'managed-member-name'
+    ).value,
+    email: document.getElementById(
+      'managed-member-email'
+    ).value.trim().toLowerCase(),
+    grade: document.getElementById(
+      'managed-member-grade'
+    ).value,
+    role: document.getElementById(
+      'managed-member-role'
+    ).value,
+    active: document.getElementById(
+      'managed-member-active'
+    ).checked,
+    joinDateValue: document.getElementById(
+      'managed-member-join-date'
+    ).value,
+    leaveDateValue: document.getElementById(
+      'managed-member-leave-date'
+    ).value,
+    requestId: managedMemberRequestId
+  };
+}
+
+function validateManagedMemberForm(payload) {
+  if (!payload.name.trim()) {
+    return 'nameRequired';
+  }
+
+  if (!payload.email) {
+    return 'emailRequired';
+  }
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email)) {
+    return 'emailInvalid';
+  }
+
+  if (!managedMemberRoles.includes(payload.role)) {
+    return 'roleInvalid';
+  }
+
+  if (
+    payload.joinDateValue &&
+    !parseDateOnlyValue(payload.joinDateValue)
+  ) {
+    return 'joinDateInvalid';
+  }
+
+  if (
+    payload.leaveDateValue &&
+    !parseDateOnlyValue(payload.leaveDateValue)
+  ) {
+    return 'leaveDateInvalid';
+  }
+
+  if (
+    payload.joinDateValue &&
+    payload.leaveDateValue &&
+    payload.leaveDateValue < payload.joinDateValue
+  ) {
+    return 'leaveBeforeJoin';
+  }
+
+  return '';
+}
+
+function managedMemberFormRemovesOwnAccess(payload) {
+  const isCurrentUser = document.getElementById(
+    'managed-member-is-current-user'
+  ).value === 'true';
+  const originalEmail = document.getElementById(
+    'managed-member-original-email'
+  ).value;
+
+  return isCurrentUser && (
+    !payload.active ||
+    payload.role !== 'Teacher' ||
+    payload.email !== originalEmail
+  );
+}
+
+function handleManagedMemberSaved(
+  result,
+  allowMissingLeaveDate,
+  selfAccessConfirmation
+) {
+  memberSaveInProgress = false;
+  setManagedMemberSaveState(false);
+
+  if (!result || !result.success) {
+    if (
+      result &&
+      result.requiresConfirmation &&
+      result.errorCode === 'leaveDateRecommended' &&
+      window.confirm(t('members.confirm.missingLeaveDate'))
+    ) {
+      submitManagedMemberForm(true, selfAccessConfirmation);
+      return;
+    }
+
+    if (result && result.requiresSelfConfirmation) {
+      const confirmation = requestSelfAccessConfirmation();
+
+      if (confirmation) {
+        submitManagedMemberForm(
+          allowMissingLeaveDate,
+          confirmation
+        );
+      }
+
+      return;
+    }
+
+    showManagedMemberFormError(
+      result && result.errorCode
+        ? result.errorCode
+        : 'saveFailed'
+    );
+    return;
+  }
+
+  memberManagementNoticeKey =
+    result.operation === 'created'
+      ? 'members.message.created'
+      : 'members.message.updated';
+
+  closeManagedMemberForm();
+  loadMemberManagementData();
+}
+
+function setManagedMemberSaveState(saving) {
+  const button = document.getElementById(
+    'managed-member-save'
+  );
+
+  if (!button) {
+    return;
+  }
+
+  button.disabled = saving;
+  button.textContent = t(
+    saving
+      ? 'members.form.saving'
+      : 'members.form.save'
+  );
+}
+
+function showManagedMemberFormError(errorCode) {
+  const message = document.getElementById(
+    'managed-member-form-message'
+  );
+
+  if (message) {
+    message.textContent = getMemberManagementErrorMessage(
+      errorCode
+    );
+  }
+}
+
+function requestManagedMemberStatusChange(memberId) {
+  if (memberActionInProgress) {
+    return;
+  }
+
+  const member = findManagedMember(memberId);
+
+  if (!member) {
+    return;
+  }
+
+  if (member.active) {
+    const leaveDateValue = window.prompt(
+      t('members.prompt.leaveDate'),
+      managedMemberTodayDateValue
+    );
+
+    if (leaveDateValue === null) {
+      return;
+    }
+
+    if (!parseDateOnlyValue(leaveDateValue)) {
+      showMemberManagementActionError('leaveDateInvalid');
+      return;
+    }
+
+    if (!window.confirm(t('members.confirm.deactivate', {
+      name: member.name,
+      date: formatDateOnly(leaveDateValue)
+    }))) {
+      return;
+    }
+
+    performManagedMemberStatusChange(
+      member,
+      false,
+      leaveDateValue,
+      ''
+    );
+    return;
+  }
+
+  if (!window.confirm(t('members.confirm.activate', {
+    name: member.name
+  }))) {
+    return;
+  }
+
+  performManagedMemberStatusChange(member, true, '', '');
+}
+
+function performManagedMemberStatusChange(
+  member,
+  active,
+  leaveDateValue,
+  selfAccessConfirmation
+) {
+  if (!selfAccessConfirmation && member.isCurrentUser && !active) {
+    selfAccessConfirmation = requestSelfAccessConfirmation();
+
+    if (!selfAccessConfirmation) {
+      return;
+    }
+  }
+
+  memberActionInProgress = true;
+  renderManagedMemberList();
+
+  google.script.run
+    .withSuccessHandler(result => {
+      memberActionInProgress = false;
+
+      if (result && result.requiresSelfConfirmation) {
+        const confirmation = requestSelfAccessConfirmation();
+
+        if (confirmation) {
+          performManagedMemberStatusChange(
+            member,
+            active,
+            leaveDateValue,
+            confirmation
+          );
+        } else {
+          renderManagedMemberList();
+        }
+
+        return;
+      }
+
+      if (!result || !result.success) {
+        showMemberManagementActionError(
+          result && result.errorCode
+            ? result.errorCode
+            : 'actionFailed'
+        );
+        renderManagedMemberList();
+        return;
+      }
+
+      memberManagementNoticeKey = active
+        ? 'members.message.activated'
+        : 'members.message.deactivated';
+      loadMemberManagementData();
+    })
+    .withFailureHandler(() => {
+      memberActionInProgress = false;
+      showMemberManagementActionError('actionFailed');
+      renderManagedMemberList();
+    })
+    .setMemberActiveStatus({
+      memberId: member.memberId,
+      active: active,
+      leaveDateValue: leaveDateValue,
+      requestId: createClientRequestId(),
+      selfAccessConfirmation: selfAccessConfirmation
+    });
+}
+
+function requestManagedMemberDeletion(memberId) {
+  if (memberActionInProgress) {
+    return;
+  }
+
+  const member = findManagedMember(memberId);
+
+  if (
+    !member ||
+    !window.confirm(t('members.confirm.delete', {
+      name: member.name
+    }))
+  ) {
+    return;
+  }
+
+  performManagedMemberDeletion(member, '');
+}
+
+function performManagedMemberDeletion(
+  member,
+  selfAccessConfirmation
+) {
+  if (!selfAccessConfirmation && member.isCurrentUser) {
+    selfAccessConfirmation = requestSelfAccessConfirmation();
+
+    if (!selfAccessConfirmation) {
+      return;
+    }
+  }
+
+  memberActionInProgress = true;
+  renderManagedMemberList();
+
+  google.script.run
+    .withSuccessHandler(result => {
+      memberActionInProgress = false;
+
+      if (result && result.requiresSelfConfirmation) {
+        const confirmation = requestSelfAccessConfirmation();
+
+        if (confirmation) {
+          performManagedMemberDeletion(member, confirmation);
+        } else {
+          renderManagedMemberList();
+        }
+
+        return;
+      }
+
+      if (
+        result &&
+        !result.success &&
+        result.errorCode === 'linkedRecords'
+      ) {
+        const linked = result.linkedRecords || {};
+
+        if (window.confirm(t('members.confirm.linkedDeactivate', {
+          availability: linked.availability || 0,
+          volunteers: linked.volunteers || 0,
+          attendance: linked.attendance || 0
+        }))) {
+          const leaveDateValue = window.prompt(
+            t('members.prompt.leaveDate'),
+            managedMemberTodayDateValue
+          );
+
+          if (
+            leaveDateValue !== null &&
+            parseDateOnlyValue(leaveDateValue)
+          ) {
+            performManagedMemberStatusChange(
+              member,
+              false,
+              leaveDateValue,
+              selfAccessConfirmation
+            );
+          } else if (leaveDateValue !== null) {
+            showMemberManagementActionError(
+              'leaveDateInvalid'
+            );
+            renderManagedMemberList();
+          } else {
+            renderManagedMemberList();
+          }
+        } else {
+          renderManagedMemberList();
+        }
+
+        return;
+      }
+
+      if (!result || !result.success) {
+        showMemberManagementActionError(
+          result && result.errorCode
+            ? result.errorCode
+            : 'actionFailed'
+        );
+        renderManagedMemberList();
+        return;
+      }
+
+      memberManagementNoticeKey = 'members.message.deleted';
+      loadMemberManagementData();
+    })
+    .withFailureHandler(() => {
+      memberActionInProgress = false;
+      showMemberManagementActionError('actionFailed');
+      renderManagedMemberList();
+    })
+    .deleteMember({
+      memberId: member.memberId,
+      requestId: createClientRequestId(),
+      selfAccessConfirmation: selfAccessConfirmation
+    });
+}
+
+function requestSelfAccessConfirmation() {
+  const confirmation = window.prompt(
+    t('members.prompt.selfAccessConfirmation')
+  );
+
+  return confirmation === null
+    ? ''
+    : confirmation.trim().toLowerCase();
+}
+
+function showMemberManagementActionError(errorCode) {
+  const message = document.getElementById(
+    'member-management-message'
+  );
+
+  if (message) {
+    message.classList.add('error-message');
+    message.textContent = getMemberManagementErrorMessage(
+      errorCode
+    );
+  }
+}
+
+function getMemberManagementErrorMessage(errorCode) {
+  const key = `members.error.${errorCode}`;
+  const message = t(key);
+
+  return message === key
+    ? t('members.error.unexpected')
+    : message;
+}
+
+function findManagedMember(memberId) {
+  return managedMembers.find(member =>
+    member.memberId === memberId
+  ) || null;
+}
+
+function renderMemberManagementError() {
+  const content = document.getElementById('content');
+
+  content.className = '';
+  content.innerHTML = `
+    <h2 class="section-title">
+      ${t('members.title')}
+    </h2>
+
+    <section class="error">
+      ${t('members.error.loadFailed')}
+    </section>
+  `;
+}

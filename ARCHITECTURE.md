@@ -38,6 +38,8 @@ This document describes the code currently in the repository. Sections explicitl
     ├── Sessions.gs      Same-day cross-sheet aggregation and summaries
     ├── ManageSessions.gs Teacher-only session and event management
     ├── SessionManagement.html Teacher session-management view
+    ├── ManageMembers.gs Teacher-only member management
+    ├── MemberManagement.html Teacher member-management view
     └── Today.gs         Public dashboard API and authorization guard
 ```
 
@@ -51,7 +53,7 @@ This requires an Apps Script HTML file named `Index`. `src/Index.html` matches t
 
 ## HTML partial and include mechanism
 
-`include_(filename)` in `Code.gs` reads the raw contents of a trusted Apps Script HTML template for inclusion in the evaluated `Index` template. `Index.html` includes `Styles` inside its `<style>` element. Its application `<script>` then includes `BrowserHelpers`, `Localization`, `Home`, `Availability`, `Dashboard`, `Volunteer`, `Attendance`, `SessionManagement`, and `App` in that order.
+`include_(filename)` in `Code.gs` reads the raw contents of a trusted Apps Script HTML template for inclusion in the evaluated `Index` template. `Index.html` includes `Styles` inside its `<style>` element. Its application `<script>` then includes `BrowserHelpers`, `Localization`, `Home`, `Availability`, `Dashboard`, `Volunteer`, `Attendance`, `SessionManagement`, `MemberManagement`, and `App` in that order.
 
 Browser helpers load before localisation because localisation rendering uses shared HTML escaping. View functions load before `App.html`, whose startup code executes only after every renderer has been declared. `Index.html` contains only the document shell and these ordered includes. CSS is in `Styles.html`, the single translation dictionary and translation helpers are in `Localization.html`, shared browser utilities are in `BrowserHelpers.html`, and each view has its own partial.
 
@@ -80,7 +82,7 @@ Authentication depends on the Apps Script deployment and Google Workspace policy
 
 The frontend uses `canViewDashboard` to decide whether to show dashboard navigation. Server-side `requireDashboardAccess_()` independently protects both public dashboard functions.
 
-`saveAvailability()` authenticates the member server-side, but does not explicitly consult `canSubmitAvailability`; that permission is currently true for every active member. Every public session-management endpoint calls `requireSessionTeacherAccess_()`, which authenticates the member and requires `canManageSessions`. Club Leaders can use the operational dashboard but cannot read or mutate session-management data.
+`saveAvailability()` authenticates the member server-side, but does not explicitly consult `canSubmitAvailability`; that permission is currently true for every active member. Every public session-management endpoint calls `requireSessionTeacherAccess_()`, which authenticates the member and requires `canManageSessions`. Every public member-management endpoint calls `requireMemberTeacherAccess_()`, which authenticates the member and requires `canManageMembers`. Club Leaders can use the operational dashboard but cannot read or mutate session- or member-management data.
 
 ## Server-to-client data flow
 
@@ -159,6 +161,18 @@ Creates generate readable IDs while holding a script lock. A two-digit suffix is
 
 Cancellation preserves the Sessions row, changes `Session Type` to `Cancelled`, and sets `Active` to false. Permanent deletion runs under a script lock and counts matching Session IDs in Availability, Volunteer Assignments, and Attendance immediately before deletion. If linked rows exist, deletion returns their counts and the frontend offers cancellation instead.
 
+## Member management flow
+
+The Teacher-only `MemberManagement.html` view is separate from the operational Today dashboard. It lists active and inactive Members rows and filters them in the browser by name/email search, active status, role, and grade. Join and Leave dates are returned as `YYYY-MM-DD` values and formatted through the shared browser date helper.
+
+`ManageMembers.gs` owns member-management business logic. Every public read and write first requires an active Teacher. Creates and updates validate the complete form again on the server, normalize emails to lowercase, enforce unique email addresses, preserve exact English role values, and reject a Leave Date earlier than the Join Date. Inactive records without a Leave Date require an explicit warning confirmation when saved through the full edit form.
+
+Creates generate the next `M001`-style Member ID while holding a script lock. All mutations use the same lock and request-ID cache protection. Updates retain the existing Member ID and preserve any unrecognized extra sheet columns.
+
+Deactivation is the normal removal path and requires a selected Leave Date; activation clears the previous Leave Date. A Teacher cannot remove the final active Teacher account. If a Teacher changes their own email, changes their own role away from `Teacher`, deactivates themselves, or deletes their own row, the server requires their current signed-in email as strong confirmation.
+
+Permanent deletion is a separate action. While holding the lock, the server counts Availability, Volunteer Assignment, and Attendance rows matching either the Member ID or normalized student email. Any match blocks deletion and the frontend offers deactivation instead.
+
 ## Localisation approach
 
 English is the canonical source language. `Localization.html` contains one `TRANSLATIONS` dictionary with English and Japanese catalogues and a `t()` interpolation helper used by client-rendered labels and messages. Japanese is selected by default. The header language selector stores a valid `ja` or `en` preference in `localStorage`, updates the document language, and rerenders the active view. Shared browser helpers format machine-readable dates as `ja-JP` or `en-GB` using `Asia/Tokyo`. Server-generated errors and notification text remain raw English or spreadsheet-derived data.
@@ -185,6 +199,11 @@ The HTML frontend calls:
 | `updateSession(submission)` | Yes | Requires Teacher access; validates and updates one unique Session ID under lock |
 | `cancelSession(sessionId)` | Yes | Requires Teacher access and marks the session Cancelled/inactive under lock |
 | `deleteSession(sessionId)` | Yes | Requires Teacher access and deletes only after linked-record checks under lock |
+| `getMemberManagementData()` | Yes | Requires Teacher access and returns the complete Members administration dataset |
+| `createMember(submission)` | Yes | Requires Teacher access; validates and creates a locked, server-ID member |
+| `updateMember(submission)` | Yes | Requires Teacher access; validates and updates one unique Member ID under lock |
+| `setMemberActiveStatus(submission)` | Yes | Requires Teacher access; activates or deactivates a member under lock |
+| `deleteMember(submission)` | Yes | Requires Teacher access and deletes only after Teacher and linked-record protections |
 
 `doGet()` is the public HTTP entry point but is not called through `google.script.run`.
 
@@ -203,6 +222,10 @@ Current server-enforced boundaries include:
 - every session-management read and write repeats Teacher authorization server-side;
 - session creates, updates, cancellations, and deletions use `LockService`;
 - permanent deletion is blocked while linked Availability, Volunteer Assignment, or Attendance rows exist;
+- every member-management read and write repeats Teacher authorization server-side;
+- member-management writes use `LockService`, enforce unique normalized email addresses, and retain server-owned Member IDs;
+- the final active Teacher cannot be deactivated, demoted, or deleted, and self-access removal requires signed-in-email confirmation;
+- permanent member deletion is blocked while linked Availability, Volunteer Assignment, or Attendance rows match the Member ID or email;
 - spreadsheet-derived text is normally escaped before insertion into generated HTML;
 - spreadsheet and script identifiers are not sent to the client by current code.
 

@@ -614,7 +614,8 @@
   line-height: 1.5;
 }
 
-#session-management-message {
+#session-management-message,
+#member-management-message {
   min-height: 20px;
   margin-bottom: 12px;
 }
@@ -727,6 +728,75 @@
   opacity: 0.55;
 }
 
+.member-filter-grid {
+  display: grid;
+  grid-template-columns: 2fr repeat(3, minmax(120px, 1fr));
+  gap: 14px;
+  flex: 1;
+}
+
+.managed-member-card {
+  border-left: 5px solid var(--primary);
+}
+
+.managed-member-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.member-management-name {
+  margin: 0;
+  color: var(--primary);
+}
+
+.current-user-marker {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 2px 7px;
+  border-radius: 12px;
+  background: var(--accent);
+  color: var(--primary);
+  font-size: 12px;
+  vertical-align: middle;
+}
+
+.managed-member-email {
+  margin: 5px 0 0;
+  color: var(--secondary);
+  overflow-wrap: anywhere;
+}
+
+.member-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 13px;
+  margin: 18px 0 0;
+}
+
+.member-detail-grid div {
+  min-width: 0;
+}
+
+.member-detail-grid dt {
+  color: var(--secondary);
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.member-detail-grid dd {
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.managed-member-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 18px;
+}
+
 @media (max-width: 600px) {
   .summary-grid {
     grid-template-columns: repeat(2, 1fr);
@@ -748,7 +818,9 @@
   }
 
   .management-filter-grid,
-  .management-form-grid {
+  .management-form-grid,
+  .member-filter-grid,
+  .member-detail-grid {
     grid-template-columns: 1fr;
   }
 
@@ -756,12 +828,14 @@
     grid-column: auto;
   }
 
-  .managed-session-header {
+  .managed-session-header,
+  .managed-member-header {
     align-items: flex-start;
     flex-direction: column;
   }
 
   .managed-session-actions > button,
+  .managed-member-actions > button,
   .management-heading-row > .primary-button {
     width: 100%;
   }

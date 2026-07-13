@@ -371,7 +371,7 @@ function openManagedSessionForm(session) {
     : 'Regular';
 
   managedSessionRequestId =
-    createSessionManagementRequestId();
+    createClientRequestId();
 
   container.innerHTML = `
     <section class="card management-form-card">
@@ -932,19 +932,6 @@ function findManagedSession(sessionId) {
   return managedSessions.find(session =>
     session.sessionId === sessionId
   ) || null;
-}
-
-function createSessionManagementRequestId() {
-  if (
-    window.crypto &&
-    typeof window.crypto.randomUUID === 'function'
-  ) {
-    return window.crypto.randomUUID();
-  }
-
-  return `${Date.now()}_${
-    Math.random().toString(36).slice(2)
-  }`;
 }
 
 function renderSessionManagementError() {
