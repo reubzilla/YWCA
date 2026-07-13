@@ -36,6 +36,8 @@ This document describes the code currently in the repository. Sections explicitl
     ├── Notifications.gs Date, time, and Boolean utilities
     ├── Portal.gs        Availability read/write API
     ├── Sessions.gs      Same-day cross-sheet aggregation and summaries
+    ├── ManageSessions.gs Teacher-only session and event management
+    ├── SessionManagement.html Teacher session-management view
     └── Today.gs         Public dashboard API and authorization guard
 ```
 
@@ -49,7 +51,7 @@ This requires an Apps Script HTML file named `Index`. `src/Index.html` matches t
 
 ## HTML partial and include mechanism
 
-`include_(filename)` in `Code.gs` reads the raw contents of a trusted Apps Script HTML template for inclusion in the evaluated `Index` template. `Index.html` includes `Styles` inside its `<style>` element. Its application `<script>` then includes `BrowserHelpers`, `Localization`, `Home`, `Availability`, `Dashboard`, `Volunteer`, `Attendance`, and `App` in that order.
+`include_(filename)` in `Code.gs` reads the raw contents of a trusted Apps Script HTML template for inclusion in the evaluated `Index` template. `Index.html` includes `Styles` inside its `<style>` element. Its application `<script>` then includes `BrowserHelpers`, `Localization`, `Home`, `Availability`, `Dashboard`, `Volunteer`, `Attendance`, `SessionManagement`, and `App` in that order.
 
 Browser helpers load before localisation because localisation rendering uses shared HTML escaping. View functions load before `App.html`, whose startup code executes only after every renderer has been declared. `Index.html` contains only the document shell and these ordered includes. CSS is in `Styles.html`, the single translation dictionary and translation helpers are in `Localization.html`, shared browser utilities are in `BrowserHelpers.html`, and each view has its own partial.
 
@@ -78,7 +80,7 @@ Authentication depends on the Apps Script deployment and Google Workspace policy
 
 The frontend uses `canViewDashboard` to decide whether to show dashboard navigation. Server-side `requireDashboardAccess_()` independently protects both public dashboard functions.
 
-`saveAvailability()` authenticates the member server-side, but does not explicitly consult `canSubmitAvailability`; that permission is currently true for every active member. Other declared management permissions do not yet protect any implemented management endpoints because those endpoints do not exist.
+`saveAvailability()` authenticates the member server-side, but does not explicitly consult `canSubmitAvailability`; that permission is currently true for every active member. Every public session-management endpoint calls `requireSessionTeacherAccess_()`, which authenticates the member and requires `canManageSessions`. Club Leaders can use the operational dashboard but cannot read or mutate session-management data.
 
 ## Server-to-client data flow
 
@@ -147,6 +149,16 @@ The flow is:
 
 Attendance is read-only in the current dashboard. Manual and QR attendance operations are not implemented.
 
+## Sessions and Events management flow
+
+The Teacher-only `SessionManagement.html` view is separate from the operational Today dashboard. It lists Sessions rows, applies browser-side date and type filters, and uses the shared localisation and date-formatting helpers.
+
+`ManageSessions.gs` owns session-management business logic. Creates and updates validate the complete form on the server. Session types remain the English values `Regular`, `Event`, and `Cancelled`. End time cannot precede start time. A response deadline after the session begins requires an explicit confirmation flag that the server verifies.
+
+Creates generate readable IDs while holding a script lock. A two-digit suffix is added when the date and type base already exists. Create and update request IDs are cached under the authenticated Teacher while locked to prevent repeated submissions.
+
+Cancellation preserves the Sessions row, changes `Session Type` to `Cancelled`, and sets `Active` to false. Permanent deletion runs under a script lock and counts matching Session IDs in Availability, Volunteer Assignments, and Attendance immediately before deletion. If linked rows exist, deletion returns their counts and the frontend offers cancellation instead.
+
 ## Localisation approach
 
 English is the canonical source language. `Localization.html` contains one `TRANSLATIONS` dictionary with English and Japanese catalogues and a `t()` interpolation helper used by client-rendered labels and messages. Japanese is selected by default. The header language selector stores a valid `ja` or `en` preference in `localStorage`, updates the document language, and rerenders the active view. Shared browser helpers format machine-readable dates as `ja-JP` or `en-GB` using `Asia/Tokyo`. Server-generated errors and notification text remain raw English or spreadsheet-derived data.
@@ -168,6 +180,11 @@ The HTML frontend calls:
 | `saveAvailability(submission)` | Yes | Authenticates the member and creates or updates that member's response |
 | `getDashboardData()` | Yes | Requires Club Leader or Teacher dashboard access |
 | `getDashboardSession(sessionId)` | Yes | Requires Club Leader or Teacher dashboard access |
+| `getSessionManagementData()` | Yes | Requires Teacher access and returns Sessions rows for management |
+| `createSession(submission)` | Yes | Requires Teacher access; validates and creates a locked, server-ID session |
+| `updateSession(submission)` | Yes | Requires Teacher access; validates and updates one unique Session ID under lock |
+| `cancelSession(sessionId)` | Yes | Requires Teacher access and marks the session Cancelled/inactive under lock |
+| `deleteSession(sessionId)` | Yes | Requires Teacher access and deletes only after linked-record checks under lock |
 
 `doGet()` is the public HTTP entry point but is not called through `google.script.run`.
 
@@ -183,6 +200,9 @@ Current server-enforced boundaries include:
 - dashboard APIs repeat authorization on the server;
 - availability input is validated server-side;
 - availability writes use `LockService`;
+- every session-management read and write repeats Teacher authorization server-side;
+- session creates, updates, cancellations, and deletions use `LockService`;
+- permanent deletion is blocked while linked Availability, Volunteer Assignment, or Attendance rows exist;
 - spreadsheet-derived text is normally escaped before insertion into generated HTML;
 - spreadsheet and script identifiers are not sent to the client by current code.
 

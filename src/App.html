@@ -58,6 +58,13 @@ function renderNavigation(permissions) {
     });
   }
 
+  if (permissions.canManageSessions) {
+    items.push({
+      id: 'sessions',
+      label: t('nav.sessionsEvents')
+    });
+  }
+
   navigation.innerHTML = items.map(item => `
     <button
       class="nav-button ${item.id === currentView ? 'active' : ''}"
@@ -110,6 +117,10 @@ function selectView(view) {
 
     case 'dashboard':
       renderDashboard();
+      break;
+
+    case 'sessions':
+      renderSessionManagement();
       break;
   }
 }

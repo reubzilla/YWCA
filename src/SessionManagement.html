@@ -1,0 +1,964 @@
+let managedSessions = [];
+let managedSessionTypes = [];
+let managedSessionRequestId = '';
+let sessionSaveInProgress = false;
+let sessionActionInProgress = false;
+let sessionManagementNoticeKey = '';
+
+function renderSessionManagement() {
+  const content =
+    document.getElementById('content');
+
+  content.className = '';
+  content.innerHTML = `
+    <h2 class="section-title">
+      ${t('sessions.title')}
+    </h2>
+
+    <section class="card view-loading">
+      ${t('sessions.loading')}
+    </section>
+  `;
+
+  loadSessionManagementData();
+}
+
+function loadSessionManagementData() {
+  google.script.run
+    .withSuccessHandler(renderSessionManagementData)
+    .withFailureHandler(renderSessionManagementError)
+    .getSessionManagementData();
+}
+
+function renderSessionManagementData(data) {
+  managedSessions = data.sessions || [];
+  managedSessionTypes = data.sessionTypes || [];
+
+  const content =
+    document.getElementById('content');
+
+  content.innerHTML = `
+    <div class="management-heading-row">
+      <div>
+        <h2 class="section-title management-title">
+          ${t('sessions.title')}
+        </h2>
+        <p class="management-intro">
+          ${t('sessions.intro')}
+        </p>
+      </div>
+
+      <button
+        type="button"
+        class="primary-button"
+        id="add-session-button"
+      >
+        ${t('sessions.add')}
+      </button>
+    </div>
+
+    <div
+      id="session-management-message"
+      class="save-message"
+      role="status"
+      aria-live="polite"
+    ></div>
+
+    <section class="card management-filter-card">
+      <div class="management-filter-grid">
+        <label>
+          <span class="form-label">
+            ${t('sessions.filter.fromDate')}
+          </span>
+          <input
+            type="date"
+            class="management-input"
+            id="session-filter-from"
+          >
+        </label>
+
+        <label>
+          <span class="form-label">
+            ${t('sessions.filter.toDate')}
+          </span>
+          <input
+            type="date"
+            class="management-input"
+            id="session-filter-to"
+          >
+        </label>
+
+        <label>
+          <span class="form-label">
+            ${t('sessions.filter.type')}
+          </span>
+          <select
+            class="management-input"
+            id="session-filter-type"
+          >
+            <option value="">
+              ${t('sessions.filter.allTypes')}
+            </option>
+            ${buildManagedSessionTypeOptions('')}
+          </select>
+        </label>
+      </div>
+
+      <button
+        type="button"
+        class="secondary-button"
+        id="clear-session-filters"
+      >
+        ${t('sessions.filter.clear')}
+      </button>
+    </section>
+
+    <div id="session-management-form"></div>
+
+    <h2 class="section-title">
+      ${t('sessions.listTitle')}
+    </h2>
+
+    <div id="managed-session-list"></div>
+  `;
+
+  document
+    .getElementById('add-session-button')
+    .addEventListener('click', () => {
+      openManagedSessionForm(null);
+    });
+
+  [
+    'session-filter-from',
+    'session-filter-to',
+    'session-filter-type'
+  ].forEach(id => {
+    document
+      .getElementById(id)
+      .addEventListener(
+        'change',
+        renderManagedSessionList
+      );
+  });
+
+  document
+    .getElementById('clear-session-filters')
+    .addEventListener('click', () => {
+      document.getElementById(
+        'session-filter-from'
+      ).value = '';
+      document.getElementById(
+        'session-filter-to'
+      ).value = '';
+      document.getElementById(
+        'session-filter-type'
+      ).value = '';
+      renderManagedSessionList();
+    });
+
+  showSessionManagementNotice();
+  renderManagedSessionList();
+}
+
+function showSessionManagementNotice() {
+  if (!sessionManagementNoticeKey) {
+    return;
+  }
+
+  const message = document.getElementById(
+    'session-management-message'
+  );
+
+  if (message) {
+    message.textContent = t(sessionManagementNoticeKey);
+  }
+
+  sessionManagementNoticeKey = '';
+}
+
+function renderManagedSessionList() {
+  const container = document.getElementById(
+    'managed-session-list'
+  );
+
+  if (!container) {
+    return;
+  }
+
+  const fromDate = document.getElementById(
+    'session-filter-from'
+  ).value;
+  const toDate = document.getElementById(
+    'session-filter-to'
+  ).value;
+  const sessionType = document.getElementById(
+    'session-filter-type'
+  ).value;
+
+  const filteredSessions = managedSessions.filter(session =>
+    (!fromDate || session.dateValue >= fromDate) &&
+    (!toDate || session.dateValue <= toDate) &&
+    (!sessionType || session.sessionType === sessionType)
+  );
+
+  if (filteredSessions.length === 0) {
+    container.innerHTML = `
+      <section class="card empty">
+        ${t('sessions.empty')}
+      </section>
+    `;
+    return;
+  }
+
+  container.innerHTML = filteredSessions.map(session =>
+    buildManagedSessionCard(session)
+  ).join('');
+
+  container
+    .querySelectorAll('[data-session-edit]')
+    .forEach(button => {
+      button.addEventListener('click', () => {
+        const session = findManagedSession(
+          button.dataset.sessionEdit
+        );
+
+        if (session) {
+          openManagedSessionForm(session);
+        }
+      });
+    });
+
+  container
+    .querySelectorAll('[data-session-cancel]')
+    .forEach(button => {
+      button.addEventListener('click', () => {
+        requestManagedSessionCancellation(
+          button.dataset.sessionCancel
+        );
+      });
+    });
+
+  container
+    .querySelectorAll('[data-session-delete]')
+    .forEach(button => {
+      button.addEventListener('click', () => {
+        requestManagedSessionDeletion(
+          button.dataset.sessionDelete
+        );
+      });
+    });
+}
+
+function buildManagedSessionCard(session) {
+  const timeText = buildTimeText(
+    session.startTime,
+    session.endTime
+  );
+  const deadline = session.responseDeadline
+    ? formatDateTime(session.responseDeadline)
+    : '';
+  const isCancelled =
+    session.sessionType === 'Cancelled';
+
+  return `
+    <article class="card managed-session-card">
+      <div class="managed-session-header">
+        <div>
+          <div class="session-date">
+            ${escapeHtml(formatDateOnly(
+              session.dateValue || session.date
+            ))}
+          </div>
+          <h3 class="session-title">
+            ${escapeHtml(session.title)}
+          </h3>
+        </div>
+
+        <span class="management-status ${
+          session.active ? 'active' : 'inactive'
+        }">
+          ${t(
+            session.active
+              ? 'sessions.active'
+              : 'sessions.inactive'
+          )}
+        </span>
+      </div>
+
+      <p class="session-details">
+        ${escapeHtml(translateBusinessValue(
+          'sessionType',
+          session.sessionType
+        ))}
+        ·
+        ${timeText
+          ? escapeHtml(timeText)
+          : t('sessions.noTime')}
+      </p>
+
+      <p class="managed-session-id">
+        ${t('sessions.sessionId', {
+          id: escapeHtml(session.sessionId)
+        })}
+      </p>
+
+      ${deadline
+        ? `
+          <p class="session-details managed-deadline">
+            ${t('sessions.responseDeadline', {
+              deadline: escapeHtml(deadline)
+            })}
+          </p>
+        `
+        : ''}
+
+      ${session.notes
+        ? `
+          <div class="notes">
+            ${escapeHtml(session.notes)}
+          </div>
+        `
+        : ''}
+
+      <div class="managed-session-actions">
+        <button
+          type="button"
+          class="secondary-button"
+          data-session-edit="${escapeHtml(session.sessionId)}"
+          ${sessionActionInProgress ? 'disabled' : ''}
+        >
+          ${t('sessions.action.edit')}
+        </button>
+
+        ${!isCancelled
+          ? `
+            <button
+              type="button"
+              class="secondary-button"
+              data-session-cancel="${escapeHtml(session.sessionId)}"
+              ${sessionActionInProgress ? 'disabled' : ''}
+            >
+              ${t('sessions.action.cancel')}
+            </button>
+          `
+          : ''}
+
+        <button
+          type="button"
+          class="danger-button"
+          data-session-delete="${escapeHtml(session.sessionId)}"
+          ${sessionActionInProgress ? 'disabled' : ''}
+        >
+          ${t('sessions.action.delete')}
+        </button>
+      </div>
+    </article>
+  `;
+}
+
+function openManagedSessionForm(session) {
+  const container = document.getElementById(
+    'session-management-form'
+  );
+
+  if (!container) {
+    return;
+  }
+
+  const editing = Boolean(session);
+  const selectedType = editing
+    ? session.sessionType
+    : 'Regular';
+
+  managedSessionRequestId =
+    createSessionManagementRequestId();
+
+  container.innerHTML = `
+    <section class="card management-form-card">
+      <h2 class="section-title management-form-title">
+        ${t(
+          editing
+            ? 'sessions.form.editTitle'
+            : 'sessions.form.createTitle'
+        )}
+      </h2>
+
+      <form id="managed-session-form" novalidate>
+        <input
+          type="hidden"
+          id="managed-session-id"
+          value="${escapeHtml(
+            editing ? session.sessionId : ''
+          )}"
+        >
+
+        ${editing
+          ? `
+            <p class="managed-session-id">
+              ${t('sessions.sessionId', {
+                id: escapeHtml(session.sessionId)
+              })}
+            </p>
+          `
+          : ''}
+
+        <div class="management-form-grid">
+          <label>
+            <span class="form-label">
+              ${t('sessions.form.date')}
+            </span>
+            <input
+              type="date"
+              class="management-input"
+              id="managed-session-date"
+              value="${escapeHtml(
+                editing ? session.dateValue : ''
+              )}"
+              required
+            >
+          </label>
+
+          <label class="management-title-field">
+            <span class="form-label">
+              ${t('sessions.form.title')}
+            </span>
+            <input
+              type="text"
+              class="management-input"
+              id="managed-session-title"
+              value="${escapeHtml(
+                editing ? session.title : ''
+              )}"
+              required
+            >
+          </label>
+
+          <label>
+            <span class="form-label">
+              ${t('sessions.form.sessionType')}
+            </span>
+            <select
+              class="management-input"
+              id="managed-session-type"
+            >
+              ${buildManagedSessionTypeOptions(selectedType)}
+            </select>
+          </label>
+
+          <label>
+            <span class="form-label">
+              ${t('sessions.form.startTime')}
+            </span>
+            <input
+              type="time"
+              class="management-input"
+              id="managed-session-start"
+              value="${escapeHtml(
+                editing ? session.startTime : ''
+              )}"
+            >
+          </label>
+
+          <label>
+            <span class="form-label">
+              ${t('sessions.form.endTime')}
+            </span>
+            <input
+              type="time"
+              class="management-input"
+              id="managed-session-end"
+              value="${escapeHtml(
+                editing ? session.endTime : ''
+              )}"
+            >
+          </label>
+
+          <label>
+            <span class="form-label">
+              ${t('sessions.form.responseDeadline')}
+            </span>
+            <input
+              type="datetime-local"
+              class="management-input"
+              id="managed-session-deadline"
+              value="${escapeHtml(
+                editing
+                  ? formatDateTimeInput(
+                      session.responseDeadline
+                    )
+                  : ''
+              )}"
+            >
+            <span class="form-help">
+              ${t('sessions.form.responseDeadlineHelp')}
+            </span>
+          </label>
+        </div>
+
+        <label class="management-checkbox">
+          <input
+            type="checkbox"
+            id="managed-session-active"
+            ${!editing || session.active ? 'checked' : ''}
+          >
+          <span>${t('sessions.form.active')}</span>
+        </label>
+
+        <label>
+          <span class="form-label">
+            ${t('sessions.form.notes')}
+          </span>
+          <textarea
+            class="note-input"
+            id="managed-session-notes"
+          >${escapeHtml(editing ? session.notes : '')}</textarea>
+        </label>
+
+        <div
+          id="managed-session-form-message"
+          class="save-message error-message"
+          role="alert"
+        ></div>
+
+        <div class="form-actions">
+          <button
+            type="submit"
+            class="primary-button"
+            id="managed-session-save"
+          >
+            ${t('sessions.form.save')}
+          </button>
+
+          <button
+            type="button"
+            class="secondary-button"
+            id="managed-session-close"
+          >
+            ${t('sessions.form.close')}
+          </button>
+        </div>
+      </form>
+    </section>
+  `;
+
+  document
+    .getElementById('managed-session-form')
+    .addEventListener('submit', event => {
+      event.preventDefault();
+      submitManagedSessionForm(false);
+    });
+
+  document
+    .getElementById('managed-session-close')
+    .addEventListener('click', closeManagedSessionForm);
+
+  container.scrollIntoView({
+    behavior: 'smooth',
+    block: 'start'
+  });
+}
+
+function closeManagedSessionForm() {
+  const container = document.getElementById(
+    'session-management-form'
+  );
+
+  if (container) {
+    container.innerHTML = '';
+  }
+
+  managedSessionRequestId = '';
+  sessionSaveInProgress = false;
+}
+
+function buildManagedSessionTypeOptions(selectedType) {
+  return managedSessionTypes.map(type => `
+    <option
+      value="${escapeHtml(type)}"
+      ${type === selectedType ? 'selected' : ''}
+    >
+      ${escapeHtml(translateBusinessValue(
+        'sessionType',
+        type
+      ))}
+    </option>
+  `).join('');
+}
+
+function submitManagedSessionForm(allowLateDeadline) {
+  if (sessionSaveInProgress) {
+    return;
+  }
+
+  const payload = collectManagedSessionForm();
+  const errorCode = validateManagedSessionForm(payload);
+
+  if (errorCode) {
+    showManagedSessionFormError(errorCode);
+    return;
+  }
+
+  if (
+    !allowLateDeadline &&
+    isManagedDeadlineAfterStart(payload) &&
+    !window.confirm(t('sessions.confirm.lateDeadline'))
+  ) {
+    return;
+  }
+
+  payload.allowLateDeadline =
+    allowLateDeadline ||
+    isManagedDeadlineAfterStart(payload);
+
+  sessionSaveInProgress = true;
+  setManagedSessionSaveState(true);
+
+  const runner = google.script.run
+    .withSuccessHandler(handleManagedSessionSaved)
+    .withFailureHandler(() => {
+      sessionSaveInProgress = false;
+      setManagedSessionSaveState(false);
+      showManagedSessionFormError('saveFailed');
+    });
+
+  if (payload.sessionId) {
+    runner.updateSession(payload);
+  } else {
+    runner.createSession(payload);
+  }
+}
+
+function collectManagedSessionForm() {
+  return {
+    sessionId: document.getElementById(
+      'managed-session-id'
+    ).value,
+    dateValue: document.getElementById(
+      'managed-session-date'
+    ).value,
+    title: document.getElementById(
+      'managed-session-title'
+    ).value,
+    sessionType: document.getElementById(
+      'managed-session-type'
+    ).value,
+    startTime: document.getElementById(
+      'managed-session-start'
+    ).value,
+    endTime: document.getElementById(
+      'managed-session-end'
+    ).value,
+    responseDeadline: document.getElementById(
+      'managed-session-deadline'
+    ).value,
+    active: document.getElementById(
+      'managed-session-active'
+    ).checked,
+    notes: document.getElementById(
+      'managed-session-notes'
+    ).value,
+    requestId: managedSessionRequestId
+  };
+}
+
+function validateManagedSessionForm(payload) {
+  if (!payload.title.trim()) {
+    return 'titleRequired';
+  }
+
+  if (!payload.dateValue) {
+    return 'dateRequired';
+  }
+
+  if (!parseDateOnlyValue(payload.dateValue)) {
+    return 'dateInvalid';
+  }
+
+  if (!managedSessionTypes.includes(payload.sessionType)) {
+    return 'sessionTypeInvalid';
+  }
+
+  if (
+    payload.startTime &&
+    !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(
+      payload.startTime
+    )
+  ) {
+    return 'startTimeInvalid';
+  }
+
+  if (
+    payload.endTime &&
+    !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(
+      payload.endTime
+    )
+  ) {
+    return 'endTimeInvalid';
+  }
+
+  if (
+    payload.startTime &&
+    payload.endTime &&
+    payload.endTime < payload.startTime
+  ) {
+    return 'endBeforeStart';
+  }
+
+  if (
+    payload.responseDeadline &&
+    !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(
+      payload.responseDeadline
+    )
+  ) {
+    return 'deadlineInvalid';
+  }
+
+  return '';
+}
+
+function isManagedDeadlineAfterStart(payload) {
+  if (!payload.responseDeadline || !payload.startTime) {
+    return false;
+  }
+
+  const deadline = new Date(
+    `${payload.responseDeadline}:00+09:00`
+  );
+  const start = new Date(
+    `${payload.dateValue}T${payload.startTime}:00+09:00`
+  );
+
+  return deadline.getTime() > start.getTime();
+}
+
+function handleManagedSessionSaved(result) {
+  sessionSaveInProgress = false;
+  setManagedSessionSaveState(false);
+
+  if (!result || !result.success) {
+    if (
+      result &&
+      result.requiresConfirmation &&
+      result.errorCode === 'deadlineAfterStart' &&
+      window.confirm(t('sessions.confirm.lateDeadline'))
+    ) {
+      submitManagedSessionForm(true);
+      return;
+    }
+
+    showManagedSessionFormError(
+      result && result.errorCode
+        ? result.errorCode
+        : 'saveFailed'
+    );
+    return;
+  }
+
+  sessionManagementNoticeKey =
+    result.operation === 'created'
+      ? 'sessions.message.created'
+      : 'sessions.message.updated';
+
+  closeManagedSessionForm();
+  loadSessionManagementData();
+}
+
+function setManagedSessionSaveState(saving) {
+  const button = document.getElementById(
+    'managed-session-save'
+  );
+
+  if (!button) {
+    return;
+  }
+
+  button.disabled = saving;
+  button.textContent = t(
+    saving
+      ? 'sessions.form.saving'
+      : 'sessions.form.save'
+  );
+}
+
+function showManagedSessionFormError(errorCode) {
+  const message = document.getElementById(
+    'managed-session-form-message'
+  );
+
+  if (message) {
+    message.textContent =
+      getSessionManagementErrorMessage(errorCode);
+  }
+}
+
+function requestManagedSessionCancellation(sessionId) {
+  if (sessionActionInProgress) {
+    return;
+  }
+
+  const session = findManagedSession(sessionId);
+
+  if (
+    !session ||
+    !window.confirm(t('sessions.confirm.cancel', {
+      title: session.title
+    }))
+  ) {
+    return;
+  }
+
+  performManagedSessionCancellation(sessionId);
+}
+
+function performManagedSessionCancellation(sessionId) {
+  sessionActionInProgress = true;
+  renderManagedSessionList();
+
+  google.script.run
+    .withSuccessHandler(result => {
+      sessionActionInProgress = false;
+
+      if (!result || !result.success) {
+        showSessionManagementActionError(
+          result && result.errorCode
+            ? result.errorCode
+            : 'actionFailed'
+        );
+        renderManagedSessionList();
+        return;
+      }
+
+      sessionManagementNoticeKey =
+        'sessions.message.cancelled';
+      loadSessionManagementData();
+    })
+    .withFailureHandler(() => {
+      sessionActionInProgress = false;
+      showSessionManagementActionError('actionFailed');
+      renderManagedSessionList();
+    })
+    .cancelSession(sessionId);
+}
+
+function requestManagedSessionDeletion(sessionId) {
+  if (sessionActionInProgress) {
+    return;
+  }
+
+  const session = findManagedSession(sessionId);
+
+  if (
+    !session ||
+    !window.confirm(t('sessions.confirm.delete', {
+      title: session.title
+    }))
+  ) {
+    return;
+  }
+
+  sessionActionInProgress = true;
+  renderManagedSessionList();
+
+  google.script.run
+    .withSuccessHandler(result => {
+      sessionActionInProgress = false;
+
+      if (
+        result &&
+        !result.success &&
+        result.errorCode === 'linkedRecords'
+      ) {
+        const linked = result.linkedRecords || {};
+
+        if (window.confirm(
+          t('sessions.confirm.linkedCancel', {
+            availability: linked.availability || 0,
+            volunteers: linked.volunteers || 0,
+            attendance: linked.attendance || 0
+          })
+        )) {
+          performManagedSessionCancellation(sessionId);
+        } else {
+          renderManagedSessionList();
+        }
+
+        return;
+      }
+
+      if (!result || !result.success) {
+        showSessionManagementActionError(
+          result && result.errorCode
+            ? result.errorCode
+            : 'actionFailed'
+        );
+        renderManagedSessionList();
+        return;
+      }
+
+      sessionManagementNoticeKey =
+        'sessions.message.deleted';
+      loadSessionManagementData();
+    })
+    .withFailureHandler(() => {
+      sessionActionInProgress = false;
+      showSessionManagementActionError('actionFailed');
+      renderManagedSessionList();
+    })
+    .deleteSession(sessionId);
+}
+
+function showSessionManagementActionError(errorCode) {
+  const message = document.getElementById(
+    'session-management-message'
+  );
+
+  if (message) {
+    message.classList.add('error-message');
+    message.textContent =
+      getSessionManagementErrorMessage(errorCode);
+  }
+}
+
+function getSessionManagementErrorMessage(errorCode) {
+  const key = `sessions.error.${errorCode}`;
+  const message = t(key);
+
+  return message === key
+    ? t('sessions.error.unexpected')
+    : message;
+}
+
+function findManagedSession(sessionId) {
+  return managedSessions.find(session =>
+    session.sessionId === sessionId
+  ) || null;
+}
+
+function createSessionManagementRequestId() {
+  if (
+    window.crypto &&
+    typeof window.crypto.randomUUID === 'function'
+  ) {
+    return window.crypto.randomUUID();
+  }
+
+  return `${Date.now()}_${
+    Math.random().toString(36).slice(2)
+  }`;
+}
+
+function renderSessionManagementError() {
+  const content =
+    document.getElementById('content');
+
+  content.className = '';
+  content.innerHTML = `
+    <h2 class="section-title">
+      ${t('sessions.title')}
+    </h2>
+
+    <section class="error">
+      ${t('sessions.error.loadFailed')}
+    </section>
+  `;
+}

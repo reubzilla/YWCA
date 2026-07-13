@@ -37,7 +37,7 @@ The availability interface and save operation exist. Personal volunteer scheduli
 
 Club Leaders and Teachers can open a same-day management dashboard. It combines active students and Club Leaders with their availability, volunteer assignment, and attendance records. It displays totals, categorized member lists, volunteer conflicts, and an attendance summary.
 
-Day-to-day attendance editing and volunteer management are intended but not implemented. Teacher-only session, member, role, and settings management are also not implemented.
+Day-to-day attendance editing and volunteer management are intended but not implemented. Teachers can manage sessions and events. Teacher-only member, role, and settings management is not implemented.
 
 ## Current working features
 
@@ -54,6 +54,7 @@ The following code paths are present:
 - upcoming missing-response and volunteer-assignment notification generation;
 - same-day session aggregation across members, availability, volunteer assignments, and attendance;
 - a role-protected management dashboard with summaries and conflict detection;
+- Teacher-only session and event creation, editing, cancellation, filtering, and integrity-protected deletion;
 - language-neutral date payloads with Japanese and British English browser formatting;
 - responsive, framework-free HTML, CSS, and browser JavaScript.
 
@@ -65,7 +66,7 @@ The initial portal payload is provided by `getPortalData()`, which returns the a
 - Student, QR, and manual attendance check-in are not implemented.
 - Attendance can be read for the dashboard but cannot be recorded through the application.
 - Volunteer assignments can be read but cannot be managed through the application.
-- Session, member, role, and settings management are not implemented.
+- Member, role, and settings management are not implemented.
 - Response deadlines are displayed but not enforced by `saveAvailability()`.
 - English is the canonical frontend source language. A single English/Japanese dictionary supplies client labels, Japanese is the default, and the language selector stores the user's preference in `localStorage`.
 - The frontend is split into HTML partials for styles, localisation, shared browser utilities, application routing, and each view; `Index.html` contains only the document shell and ordered includes.
@@ -79,7 +80,7 @@ The repository instructions establish the following intended direction. These it
 - same-day student check-in;
 - manual and QR attendance workflows;
 - Club Leader and Teacher volunteer and attendance management;
-- Teacher management of sessions, members, roles, and settings;
+- Teacher management of members, roles, and settings;
 - a clearly defined Today's Engine abstraction shared by dashboard features.
 
 ## Google Sheets schemas

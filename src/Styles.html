@@ -595,6 +595,138 @@
   opacity: 0.55;
 }
 
+.management-heading-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 18px;
+  margin: 25px 0 16px;
+}
+
+.management-title,
+.management-form-title {
+  margin-top: 0;
+}
+
+.management-intro {
+  margin: 6px 0 0;
+  color: var(--secondary);
+  line-height: 1.5;
+}
+
+#session-management-message {
+  min-height: 20px;
+  margin-bottom: 12px;
+}
+
+.management-filter-card {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.management-filter-grid,
+.management-form-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  flex: 1;
+}
+
+.management-input {
+  width: 100%;
+  min-height: 42px;
+  padding: 9px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: white;
+  font: inherit;
+}
+
+.management-input:focus {
+  border-color: var(--primary);
+  outline: 3px solid rgba(49, 95, 129, 0.15);
+}
+
+.management-title-field {
+  grid-column: span 2;
+}
+
+.management-form-card {
+  border-color: var(--primary);
+}
+
+.management-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 18px;
+  font-weight: bold;
+}
+
+.managed-session-card {
+  border-left: 5px solid var(--primary);
+}
+
+.managed-session-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.management-status {
+  flex: 0 0 auto;
+  padding: 5px 9px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.management-status.active {
+  background: #e6f4ea;
+  color: #137333;
+}
+
+.management-status.inactive {
+  background: #eef0f2;
+  color: var(--secondary);
+}
+
+.managed-session-id {
+  margin: 9px 0 0;
+  color: var(--secondary);
+  font-size: 12px;
+}
+
+.managed-deadline {
+  margin-top: 8px;
+}
+
+.managed-session-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.danger-button {
+  padding: 9px 14px;
+  border: 1px solid #a50e0e;
+  border-radius: 8px;
+  background: white;
+  color: #a50e0e;
+  cursor: pointer;
+  font: inherit;
+  font-weight: bold;
+}
+
+.danger-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 @media (max-width: 600px) {
   .summary-grid {
     grid-template-columns: repeat(2, 1fr);
@@ -607,5 +739,30 @@
 
   .summary-number {
     font-size: 27px;
+  }
+
+  .management-heading-row,
+  .management-filter-card {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .management-filter-grid,
+  .management-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .management-title-field {
+    grid-column: auto;
+  }
+
+  .managed-session-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .managed-session-actions > button,
+  .management-heading-row > .primary-button {
+    width: 100%;
   }
 }

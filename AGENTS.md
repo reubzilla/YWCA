@@ -176,6 +176,7 @@ Place frontend code in the appropriate HTML partial:
 - `Dashboard.html`
 - `Volunteer.html`
 - `Attendance.html`
+- `SessionManagement.html`
 - `App.html`
 
 Before adding a new frontend function, identify which module owns it.

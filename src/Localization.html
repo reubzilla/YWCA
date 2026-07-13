@@ -30,6 +30,7 @@
         'nav.volunteerSchedule': 'Volunteer Schedule',
         'nav.checkIn': 'Check In',
         'nav.dashboard': 'Dashboard',
+        'nav.sessionsEvents': 'Sessions & Events',
         'volunteer.placeholder':
           'Personal volunteer assignments will appear here.',
         'attendance.placeholder':
@@ -101,6 +102,89 @@
           'The following students are assigned to volunteer but have marked themselves unavailable:',
         'dashboard.error.loadFailed':
           'The dashboard could not be loaded.',
+        'sessions.title': 'Sessions & Events',
+        'sessions.intro':
+          'Create and manage regular club sessions and special events.',
+        'sessions.loading': 'Loading sessions and events…',
+        'sessions.listTitle': 'Upcoming and recent sessions',
+        'sessions.add': 'Add session',
+        'sessions.filter.fromDate': 'From date',
+        'sessions.filter.toDate': 'To date',
+        'sessions.filter.type': 'Session type',
+        'sessions.filter.allTypes': 'All types',
+        'sessions.filter.clear': 'Clear filters',
+        'sessions.empty': 'No sessions match these filters.',
+        'sessions.sessionId': 'Session ID: {id}',
+        'sessions.active': 'Active',
+        'sessions.inactive': 'Inactive',
+        'sessions.responseDeadline': 'Response deadline: {deadline}',
+        'sessions.noTime': 'Time not specified',
+        'sessions.form.createTitle': 'Create session',
+        'sessions.form.editTitle': 'Edit session',
+        'sessions.form.date': 'Date',
+        'sessions.form.title': 'Title',
+        'sessions.form.sessionType': 'Session type',
+        'sessions.form.startTime': 'Start time',
+        'sessions.form.endTime': 'End time',
+        'sessions.form.responseDeadline': 'Response deadline',
+        'sessions.form.responseDeadlineHelp':
+          'The deadline should normally be before the session begins.',
+        'sessions.form.active': 'Active session',
+        'sessions.form.notes': 'Notes',
+        'sessions.form.save': 'Save session',
+        'sessions.form.saving': 'Saving…',
+        'sessions.form.close': 'Close form',
+        'sessions.action.edit': 'Edit',
+        'sessions.action.cancel': 'Cancel session',
+        'sessions.action.delete': 'Delete permanently',
+        'sessions.action.working': 'Working…',
+        'sessions.confirm.cancel':
+          'Cancel “{title}”? The session will remain in the spreadsheet.',
+        'sessions.confirm.delete':
+          'Permanently delete “{title}”? This cannot be undone.',
+        'sessions.confirm.linkedCancel':
+          'This session cannot be deleted because it has linked records (availability: {availability}, volunteer assignments: {volunteers}, attendance: {attendance}). Cancel it instead?',
+        'sessions.confirm.lateDeadline':
+          'The response deadline is after the session begins. Save it anyway?',
+        'sessions.message.created': 'The session was created.',
+        'sessions.message.updated': 'The session was updated.',
+        'sessions.message.cancelled': 'The session was cancelled.',
+        'sessions.message.deleted': 'The session was permanently deleted.',
+        'sessions.error.loadFailed':
+          'Sessions and events could not be loaded.',
+        'sessions.error.saveFailed': 'The session could not be saved.',
+        'sessions.error.actionFailed':
+          'The requested session action could not be completed.',
+        'sessions.error.invalidSubmission':
+          'The session information is invalid.',
+        'sessions.error.sessionIdRequired':
+          'The session could not be identified.',
+        'sessions.error.titleRequired': 'Title is required.',
+        'sessions.error.dateRequired': 'Date is required.',
+        'sessions.error.dateInvalid': 'Enter a valid date.',
+        'sessions.error.sessionTypeInvalid':
+          'Select a valid session type.',
+        'sessions.error.startTimeInvalid':
+          'Enter a valid start time.',
+        'sessions.error.endTimeInvalid': 'Enter a valid end time.',
+        'sessions.error.endBeforeStart':
+          'End time must not be earlier than start time.',
+        'sessions.error.deadlineInvalid':
+          'Enter a valid response deadline.',
+        'sessions.error.deadlineAfterStart':
+          'The response deadline is after the session begins.',
+        'sessions.error.activeInvalid':
+          'Select whether the session is active.',
+        'sessions.error.requestIdInvalid':
+          'The save request could not be identified. Reopen the form and try again.',
+        'sessions.error.sessionNotFound':
+          'The selected session could not be found.',
+        'sessions.error.duplicateSessionId':
+          'More than one session has this Session ID. Correct the spreadsheet before continuing.',
+        'sessions.error.linkedRecords':
+          'The session has linked records and cannot be permanently deleted.',
+        'sessions.error.unexpected':
+          'An unexpected error occurred while managing sessions.',
         'app.error.loadFailed':
           'The Club Portal could not be loaded.'
       }),
@@ -128,6 +212,7 @@
         'nav.volunteerSchedule': '訪問スケジュール',
         'nav.checkIn': 'チェックイン',
         'nav.dashboard': 'ダッシュボード',
+        'nav.sessionsEvents': '活動・イベント管理',
         'volunteer.placeholder':
           '個人の訪問担当予定はここに表示されます。',
         'attendance.placeholder':
@@ -198,6 +283,90 @@
           '訪問担当に割り当てられていますが、参加不可と回答している生徒：',
         'dashboard.error.loadFailed':
           'ダッシュボードを読み込めませんでした。',
+        'sessions.title': '活動・イベント管理',
+        'sessions.intro':
+          '通常のクラブ活動と特別イベントを作成・管理します。',
+        'sessions.loading': '活動・イベントを読み込んでいます…',
+        'sessions.listTitle': '今後および最近の活動',
+        'sessions.add': '活動を追加',
+        'sessions.filter.fromDate': '開始日',
+        'sessions.filter.toDate': '終了日',
+        'sessions.filter.type': '活動区分',
+        'sessions.filter.allTypes': 'すべての区分',
+        'sessions.filter.clear': '絞り込みを解除',
+        'sessions.empty': '条件に一致する活動はありません。',
+        'sessions.sessionId': '活動ID：{id}',
+        'sessions.active': '有効',
+        'sessions.inactive': '無効',
+        'sessions.responseDeadline': '回答期限：{deadline}',
+        'sessions.noTime': '時間は指定されていません',
+        'sessions.form.createTitle': '活動を作成',
+        'sessions.form.editTitle': '活動を編集',
+        'sessions.form.date': '日付',
+        'sessions.form.title': 'タイトル',
+        'sessions.form.sessionType': '活動区分',
+        'sessions.form.startTime': '開始時刻',
+        'sessions.form.endTime': '終了時刻',
+        'sessions.form.responseDeadline': '回答期限',
+        'sessions.form.responseDeadlineHelp':
+          '回答期限は通常、活動開始前に設定してください。',
+        'sessions.form.active': '有効な活動',
+        'sessions.form.notes': '備考',
+        'sessions.form.save': '活動を保存',
+        'sessions.form.saving': '保存しています…',
+        'sessions.form.close': 'フォームを閉じる',
+        'sessions.action.edit': '編集',
+        'sessions.action.cancel': '活動を中止',
+        'sessions.action.delete': '完全に削除',
+        'sessions.action.working': '処理しています…',
+        'sessions.confirm.cancel':
+          '「{title}」を中止しますか？活動はスプレッドシートに残ります。',
+        'sessions.confirm.delete':
+          '「{title}」を完全に削除しますか？この操作は取り消せません。',
+        'sessions.confirm.linkedCancel':
+          'この活動には関連データがあるため削除できません（参加可否：{availability}件、訪問担当：{volunteers}件、出席：{attendance}件）。代わりに活動を中止しますか？',
+        'sessions.confirm.lateDeadline':
+          '回答期限が活動開始後に設定されています。このまま保存しますか？',
+        'sessions.message.created': '活動を作成しました。',
+        'sessions.message.updated': '活動を更新しました。',
+        'sessions.message.cancelled': '活動を中止しました。',
+        'sessions.message.deleted': '活動を完全に削除しました。',
+        'sessions.error.loadFailed':
+          '活動・イベントを読み込めませんでした。',
+        'sessions.error.saveFailed': '活動を保存できませんでした。',
+        'sessions.error.actionFailed':
+          '活動の操作を完了できませんでした。',
+        'sessions.error.invalidSubmission':
+          '活動情報が正しくありません。',
+        'sessions.error.sessionIdRequired':
+          '活動を特定できませんでした。',
+        'sessions.error.titleRequired': 'タイトルは必須です。',
+        'sessions.error.dateRequired': '日付は必須です。',
+        'sessions.error.dateInvalid': '正しい日付を入力してください。',
+        'sessions.error.sessionTypeInvalid':
+          '正しい活動区分を選択してください。',
+        'sessions.error.startTimeInvalid':
+          '正しい開始時刻を入力してください。',
+        'sessions.error.endTimeInvalid':
+          '正しい終了時刻を入力してください。',
+        'sessions.error.endBeforeStart':
+          '終了時刻は開始時刻より前に設定できません。',
+        'sessions.error.deadlineInvalid':
+          '正しい回答期限を入力してください。',
+        'sessions.error.deadlineAfterStart':
+          '回答期限が活動開始後に設定されています。',
+        'sessions.error.activeInvalid':
+          '活動を有効にするか選択してください。',
+        'sessions.error.requestIdInvalid':
+          '保存リクエストを特定できませんでした。フォームを開き直して再試行してください。',
+        'sessions.error.sessionNotFound':
+          '選択した活動が見つかりませんでした。',
+        'sessions.error.duplicateSessionId':
+          '同じ活動IDの行が複数あります。続行する前にスプレッドシートを修正してください。',
+        'sessions.error.linkedRecords':
+          '関連データがあるため、この活動を完全に削除できません。',
+        'sessions.error.unexpected':
+          '活動の管理中に予期しないエラーが発生しました。',
         'app.error.loadFailed':
           'クラブポータルを読み込めませんでした。'
       })

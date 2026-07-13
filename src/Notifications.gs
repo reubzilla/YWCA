@@ -72,6 +72,68 @@ function parseDateTime_(value) {
 
 
 /**
+ * Parses a YYYY-MM-DD form value as a Tokyo calendar date.
+ *
+ * @param {*} value
+ * @return {Date|null}
+ */
+function parseDateOnlyInput_(value) {
+  const text = String(value || '').trim();
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) {
+    return null;
+  }
+
+  const parsed = new Date(`${text}T00:00:00+09:00`);
+
+  if (
+    isNaN(parsed.getTime()) ||
+    Utilities.formatDate(
+      parsed,
+      getTimeZone_(),
+      'yyyy-MM-dd'
+    ) !== text
+  ) {
+    return null;
+  }
+
+  return parsed;
+}
+
+
+/**
+ * Parses a YYYY-MM-DDTHH:mm form value as Tokyo time.
+ *
+ * @param {*} value
+ * @return {Date|null}
+ */
+function parseTokyoDateTimeInput_(value) {
+  const text = String(value || '').trim();
+
+  if (
+    !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(text)
+  ) {
+    return null;
+  }
+
+  const parsed = new Date(`${text}:00+09:00`);
+
+  if (
+    isNaN(parsed.getTime()) ||
+    Utilities.formatDate(
+      parsed,
+      getTimeZone_(),
+      "yyyy-MM-dd'T'HH:mm"
+    ) !== text
+  ) {
+    return null;
+  }
+
+  return parsed;
+}
+
+
+/**
  * Returns a date with the time set to midnight.
  *
  * @param {Date} date
