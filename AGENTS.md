@@ -173,6 +173,7 @@ Place frontend code in the appropriate HTML partial:
 - `BrowserHelpers.html`
 - `Home.html`
 - `Availability.html`
+- `UpcomingActivities.html`
 - `Dashboard.html`
 - `Volunteer.html`
 - `VisitorScheduleManagement.html`

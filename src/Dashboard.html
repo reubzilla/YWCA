@@ -1,4 +1,7 @@
 let currentDashboardSessionId = null;
+let currentDashboardSection = 'today';
+let dashboardTodayRequestToken = 0;
+let dashboardSessionRequestToken = 0;
 
 function renderDashboard() {
   const content =
@@ -10,30 +13,134 @@ function renderDashboard() {
       ${t('dashboard.title')}
     </h2>
 
+    <div
+      class="dashboard-section-tabs"
+      role="tablist"
+      aria-label="${escapeHtml(
+        t('dashboard.section.label')
+      )}"
+    >
+      <button
+        type="button"
+        class="dashboard-section-tab"
+        id="dashboard-section-today"
+        data-dashboard-section="today"
+        role="tab"
+      >
+        ${t('dashboard.section.today')}
+      </button>
+
+      <button
+        type="button"
+        class="dashboard-section-tab"
+        id="dashboard-section-upcoming"
+        data-dashboard-section="upcoming"
+        role="tab"
+      >
+        ${t('dashboard.section.upcoming')}
+      </button>
+    </div>
+
+    <div id="dashboard-section-content"></div>
+  `;
+
+  initialiseDashboardSectionNavigation();
+  renderActiveDashboardSection();
+}
+
+
+function initialiseDashboardSectionNavigation() {
+  document
+    .querySelectorAll('[data-dashboard-section]')
+    .forEach(button => {
+      button.addEventListener('click', () => {
+        currentDashboardSection =
+          button.dataset.dashboardSection;
+
+        updateDashboardSectionNavigation();
+        renderActiveDashboardSection();
+      });
+    });
+
+  updateDashboardSectionNavigation();
+}
+
+
+function updateDashboardSectionNavigation() {
+  document
+    .querySelectorAll('[data-dashboard-section]')
+    .forEach(button => {
+      const isActive =
+        button.dataset.dashboardSection ===
+          currentDashboardSection;
+
+      button.classList.toggle('active', isActive);
+      button.setAttribute(
+        'aria-selected',
+        String(isActive)
+      );
+    });
+}
+
+
+function renderActiveDashboardSection() {
+  if (currentDashboardSection === 'upcoming') {
+    renderUpcomingActivities();
+    return;
+  }
+
+  renderTodayDashboard();
+}
+
+
+function renderTodayDashboard() {
+  const content = document.getElementById(
+    'dashboard-section-content'
+  );
+
+  content.innerHTML = `
     <section class="card view-loading">
       ${t('dashboard.loadingToday')}
     </section>
   `;
 
+  const requestToken = ++dashboardTodayRequestToken;
+
   google.script.run
-    .withSuccessHandler(renderDashboardData)
-    .withFailureHandler(renderDashboardError)
+    .withSuccessHandler(data => {
+      if (
+        requestToken !== dashboardTodayRequestToken ||
+        currentView !== 'dashboard' ||
+        currentDashboardSection !== 'today'
+      ) {
+        return;
+      }
+
+      renderDashboardData(data);
+    })
+    .withFailureHandler(error => {
+      if (
+        requestToken !== dashboardTodayRequestToken ||
+        currentView !== 'dashboard' ||
+        currentDashboardSection !== 'today'
+      ) {
+        return;
+      }
+
+      renderDashboardError(error);
+    })
     .getDashboardData();
 }
 
 
 function renderDashboardData(data) {
   const content =
-    document.getElementById('content');
+    document.getElementById('dashboard-section-content');
 
   const sessions = data.sessions || [];
 
   if (sessions.length === 0) {
     content.innerHTML = `
-      <h2 class="section-title">
-        ${t('dashboard.title')}
-      </h2>
-
       <section class="card">
         <p class="dashboard-date">
           ${escapeHtml(formatDateOnly(
@@ -86,10 +193,6 @@ function renderDashboardData(data) {
   }
 
   content.innerHTML = `
-    <h2 class="section-title">
-      ${t('dashboard.title')}
-    </h2>
-
     <section class="card">
       <p class="dashboard-date">
         ${escapeHtml(formatDateOnly(
@@ -196,9 +299,31 @@ function loadDashboardSession(sessionId) {
     </section>
   `;
 
+  const requestToken = ++dashboardSessionRequestToken;
+
   google.script.run
-    .withSuccessHandler(renderDashboardSession)
-    .withFailureHandler(renderDashboardError)
+    .withSuccessHandler(data => {
+      if (
+        requestToken !== dashboardSessionRequestToken ||
+        currentView !== 'dashboard' ||
+        currentDashboardSection !== 'today'
+      ) {
+        return;
+      }
+
+      renderDashboardSession(data);
+    })
+    .withFailureHandler(error => {
+      if (
+        requestToken !== dashboardSessionRequestToken ||
+        currentView !== 'dashboard' ||
+        currentDashboardSection !== 'today'
+      ) {
+        return;
+      }
+
+      renderDashboardError(error);
+    })
     .getDashboardSession(sessionId);
 }
 
@@ -521,14 +646,14 @@ function buildConflictBox(conflicts) {
 
 function renderDashboardError(error) {
   const content =
-    document.getElementById('content');
+    document.getElementById('dashboard-section-content');
+
+  if (!content) {
+    return;
+  }
 
   content.className = '';
   content.innerHTML = `
-    <h2 class="section-title">
-      ${t('dashboard.title')}
-    </h2>
-
     <section class="error">
       ${escapeHtml(t('dashboard.error.loadFailed'))}
     </section>

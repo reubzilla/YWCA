@@ -29,6 +29,7 @@ This document describes the code currently in the repository. Sections explicitl
     ├── BrowserHelpers.html Shared browser utility functions
     ├── Home.html        Home view rendering
     ├── Availability.html Availability rendering, saving, and event handlers
+    ├── UpcomingActivities.html Future availability list and detail view
     ├── Dashboard.html   Management dashboard rendering and event handlers
     ├── Volunteer.html   Signed-in member's volunteer schedule
     ├── VisitorScheduleManagement.html Manager visitor-schedule view
@@ -37,6 +38,7 @@ This document describes the code currently in the repository. Sections explicitl
     ├── Notifications.gs Date, time, and Boolean utilities
     ├── Portal.gs        Availability read/write API
     ├── Sessions.gs      Same-day cross-sheet aggregation and summaries
+    ├── FutureAvailability.gs Permission-protected future aggregation
     ├── ManageSessions.gs Teacher-only session and event management
     ├── SessionManagement.html Teacher session-management view
     ├── ManageMembers.gs Teacher-only member management
@@ -55,7 +57,7 @@ This requires an Apps Script HTML file named `Index`. `src/Index.html` matches t
 
 ## HTML partial and include mechanism
 
-`include_(filename)` in `Code.gs` reads the raw contents of a trusted Apps Script HTML template for inclusion in the evaluated `Index` template. `Index.html` includes `Styles` inside its `<style>` element. Its application `<script>` then includes `BrowserHelpers`, `Localization`, `Home`, `Availability`, `Dashboard`, `Volunteer`, `VisitorScheduleManagement`, `Attendance`, `SessionManagement`, `MemberManagement`, and `App` in that order.
+`include_(filename)` in `Code.gs` reads the raw contents of a trusted Apps Script HTML template for inclusion in the evaluated `Index` template. `Index.html` includes `Styles` inside its `<style>` element. Its application `<script>` then includes `BrowserHelpers`, `Localization`, `Home`, `Availability`, `UpcomingActivities`, `Dashboard`, `Volunteer`, `VisitorScheduleManagement`, `Attendance`, `SessionManagement`, `MemberManagement`, and `App` in that order.
 
 Browser helpers load before localisation because localisation rendering uses shared HTML escaping. View functions load before `App.html`, whose startup code executes only after every renderer has been declared. `Index.html` contains only the document shell and these ordered includes. CSS is in `Styles.html`, the single translation dictionary and translation helpers are in `Localization.html`, shared browser utilities are in `BrowserHelpers.html`, and each view has its own partial.
 
@@ -83,6 +85,8 @@ Authentication depends on the Apps Script deployment and Google Workspace policy
 - `Teacher` receives session, member, role, and settings-management permissions.
 
 The frontend uses `canViewDashboard` to decide whether to show dashboard navigation. Server-side `requireDashboardAccess_()` independently protects both public dashboard functions.
+
+The Upcoming Activities section uses the existing `canViewAllAvailability` permission directly. `getUpcomingActivities()` and `getUpcomingActivityDetail()` each call `requireFutureAvailabilityAccess_()` before validating filters or reading club-wide data. Teachers and Club Leaders currently receive this permission; Students do not.
 
 `saveAvailability()` authenticates the member server-side, but does not explicitly consult `canSubmitAvailability`; that permission is currently true for every active member. Every public session-management endpoint calls `requireSessionTeacherAccess_()`, which authenticates the member and requires `canManageSessions`. Every public member-management endpoint calls `requireMemberTeacherAccess_()`, which authenticates the member and requires `canManageMembers`. Visitor-schedule management endpoints independently require `canManageVolunteers`, which is granted to Club Leaders and Teachers. The personal volunteer endpoint requires own-schedule access and derives identity server-side. Club Leaders can manage visitor schedules and use the operational dashboard but cannot read or mutate session- or member-management data.
 
@@ -155,6 +159,22 @@ Visitor-schedule management does not replace or duplicate this same-day aggregat
 
 Attendance is read-only in the current dashboard. Manual and QR attendance operations are not implemented.
 
+## Upcoming Activities flow
+
+Upcoming Activities is a separate section inside the management Dashboard. Today remains the default section and continues to use the existing Today APIs and aggregation.
+
+1. `getUpcomingActivities(filters)` requires `canViewAllAvailability`.
+2. The server validates machine-readable date filters and an optional exact English Session Type.
+3. It selects active `Regular` and `Event` sessions after today. An empty request defaults to tomorrow through the existing eight-week configuration.
+4. Active Students and Club Leaders come from `getActiveAttendingMembers_()`; inactive members and Teachers are excluded consistently with Today.
+5. Availability and Volunteer Assignment rows are loaded once and indexed by Session ID.
+6. Each session receives `Available`, `Unavailable`, `Unsure`, No response, assigned visitor, and conflict counts.
+7. No response means there is no matching Availability row for the member and session.
+8. Cancelled and Declined Volunteer Assignments are ignored through the existing assignment-status helper.
+9. Selecting a session calls `getUpcomingActivityDetail(sessionId)`, which repeats permission and session validation before returning grouped member details.
+
+The detail payload contains Member ID, name, grade, role, response, private availability Reason, and current visitor-assignment details. It excludes member email and all Attendance data. Availability groups include every matching member regardless of assignment; visitor and conflict groups intentionally overlap the response groups. A conflict uses the same definition as Today: an active visitor assignment combined with `Unavailable`.
+
 ## Sessions and Events management flow
 
 The Teacher-only `SessionManagement.html` view is separate from the operational Today dashboard. It lists Sessions rows, applies browser-side date and type filters, and uses the shared localisation and date-formatting helpers.
@@ -210,6 +230,8 @@ The HTML frontend calls:
 | `saveAvailability(submission)` | Yes | Authenticates the member and creates or updates that member's response |
 | `getDashboardData()` | Yes | Requires Club Leader or Teacher dashboard access |
 | `getDashboardSession(sessionId)` | Yes | Requires Club Leader or Teacher dashboard access |
+| `getUpcomingActivities(filters)` | Yes | Requires club-wide availability access and returns active future session summaries |
+| `getUpcomingActivityDetail(sessionId)` | Yes | Requires club-wide availability access and returns one active future session's grouped details |
 | `getSessionManagementData()` | Yes | Requires Teacher access and returns Sessions rows for management |
 | `createSession(submission)` | Yes | Requires Teacher access; validates and creates a locked, server-ID session |
 | `updateSession(submission)` | Yes | Requires Teacher access; validates and updates one unique Session ID under lock |
@@ -239,6 +261,8 @@ Current server-enforced boundaries include:
 - the account must match an active `Members` row;
 - availability reads and writes are scoped to the authenticated member;
 - dashboard APIs repeat authorization on the server;
+- both Upcoming Activities APIs require `canViewAllAvailability` before reading or returning club-wide data;
+- future list payloads contain counts only, while detail payloads omit member email and Attendance data;
 - availability input is validated server-side;
 - availability writes use `LockService`;
 - every session-management read and write repeats Teacher authorization server-side;
