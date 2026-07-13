@@ -275,7 +275,7 @@ function saveAvailability(submission) {
       sessionId: sessionId,
       response: response,
       reason: reason,
-      message: 'Your availability has been saved.',
+      messageKey: 'availability.saved',
       updatedAt: formatDateTime_(
         now,
         getTimeZone_()

@@ -182,10 +182,7 @@ function createClientRequestId() {
         document.getElementById('content');
 
       content.className = 'error';
-      content.textContent =
-        error && error.message
-          ? error.message
-          : t('app.error.loadFailed');
+      content.textContent = t('app.error.loadFailed');
     }
 
     function buildTimeText(startTime, endTime) {

@@ -530,11 +530,7 @@ function renderDashboardError(error) {
     </h2>
 
     <section class="error">
-      ${escapeHtml(
-        error && error.message
-          ? error.message
-          : t('dashboard.error.loadFailed')
-      )}
+      ${escapeHtml(t('dashboard.error.loadFailed'))}
     </section>
   `;
 }

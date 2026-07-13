@@ -72,9 +72,7 @@ function getNotifications_(member) {
       notifications.push({
         type: 'response',
         priority: 'action',
-        title: 'Availability response needed',
-        message:
-          `You have not responded for ${session.Title}.`,
+        sessionTitle: String(session.Title || ''),
         sessionId: sessionId,
         dateValue: formatDateOnly_(
           sessionDate,
@@ -85,8 +83,7 @@ function getNotifications_(member) {
 
     if (volunteerAssignment) {
       const activity = String(
-        volunteerAssignment.Activity ||
-        'Volunteer activity'
+        volunteerAssignment.Activity || ''
       );
 
       const location = String(
@@ -96,10 +93,8 @@ function getNotifications_(member) {
       notifications.push({
         type: 'volunteer',
         priority: 'information',
-        title: 'Upcoming volunteer assignment',
-        message: location
-          ? `${activity} at ${location}`
-          : activity,
+        activity: activity,
+        location: location,
         sessionId: sessionId,
         dateValue: formatDateOnly_(
           sessionDate,

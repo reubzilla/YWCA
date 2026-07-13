@@ -433,7 +433,9 @@ function handleAvailabilitySaved(
   saveButton.textContent = t('availability.saveButton');
 
   message.classList.remove('error-message');
-  message.textContent = result.message;
+  message.textContent = t(
+    result.messageKey || 'availability.saved'
+  );
 
   status.className =
     `current-status ${statusDisplay.className}`;
@@ -474,10 +476,9 @@ function handleAvailabilitySaveError(
   saveButton.textContent = t('availability.saveButton');
 
   message.classList.add('error-message');
-  message.textContent =
-    error && error.message
-      ? error.message
-      : t('availability.error.saveFailed');
+  message.textContent = t(
+    'availability.error.saveFailed'
+  );
 }
 
 
@@ -491,11 +492,7 @@ function renderAvailabilityError(error) {
     </h2>
 
     <section class="error">
-      ${escapeHtml(
-        error && error.message
-          ? error.message
-          : t('availability.error.loadFailed')
-      )}
+      ${escapeHtml(t('availability.error.loadFailed'))}
     </section>
   `;
 }

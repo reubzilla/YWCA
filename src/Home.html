@@ -42,17 +42,21 @@ function renderHome() {
     `;
   } else {
     notifications.forEach(notification => {
+      const display = getNotificationDisplay(
+        notification
+      );
+
       html += `
         <article
           class="notification
             ${escapeHtml(notification.priority)}"
         >
           <p class="notification-title">
-            ${escapeHtml(notification.title)}
+            ${escapeHtml(display.title)}
           </p>
 
           <p class="notification-message">
-            ${escapeHtml(notification.message)}
+            ${escapeHtml(display.message)}
           </p>
 
           <div class="notification-date">
@@ -137,4 +141,50 @@ function renderHome() {
 
   content.className = '';
   content.innerHTML = html;
+}
+
+
+function getNotificationDisplay(notification) {
+  if (
+    notification.type === 'response' &&
+    Object.prototype.hasOwnProperty.call(
+      notification,
+      'sessionTitle'
+    )
+  ) {
+    return {
+      title: t('notification.availability.title'),
+      message: t('notification.availability.message', {
+        title: notification.sessionTitle || ''
+      })
+    };
+  }
+
+  if (
+    notification.type === 'volunteer' &&
+    Object.prototype.hasOwnProperty.call(
+      notification,
+      'activity'
+    )
+  ) {
+    const activity = notification.activity ||
+      t('notification.volunteer.defaultActivity');
+
+    return {
+      title: t('notification.volunteer.title'),
+      message: notification.location
+        ? t('notification.volunteer.messageWithLocation', {
+            activity: activity,
+            location: notification.location
+          })
+        : t('notification.volunteer.message', {
+            activity: activity
+          })
+    };
+  }
+
+  return {
+    title: notification.title || '',
+    message: notification.message || ''
+  };
 }
