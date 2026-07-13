@@ -17,10 +17,24 @@ function loadPortal() {
 }
 
 function initialisePortal(data) {
-  portalData = data;
+  updatePortalData(data);
 
   renderNavigation(data.permissions);
   selectView(currentView);
+}
+
+function updatePortalData(data) {
+  portalData = data;
+}
+
+function rerenderAfterLanguageChange() {
+  captureAvailabilityDrafts();
+  initialiseStaticTranslations();
+
+  if (portalData) {
+    renderNavigation(portalData.permissions);
+    selectView(currentView);
+  }
 }
 
 function renderNavigation(permissions) {

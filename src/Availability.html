@@ -10,7 +10,7 @@ function renderAvailability() {
       ${t('availability.title')}
     </h2>
 
-    <section class="card availability-loading">
+    <section class="card view-loading">
       ${t('availability.loading')}
     </section>
   `;
@@ -445,9 +445,7 @@ function handleAvailabilitySaved(
    * notifications are correct when the student returns.
    */
   google.script.run
-    .withSuccessHandler(data => {
-      portalData = data;
-    })
+    .withSuccessHandler(updatePortalData)
     .withFailureHandler(() => {
       // The availability has already saved successfully,
       // so a background refresh failure can be ignored.
@@ -524,5 +522,4 @@ function getStatusDisplay(response) {
       };
   }
 }
-
 

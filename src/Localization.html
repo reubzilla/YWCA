@@ -273,16 +273,9 @@
         return;
       }
 
-      captureAvailabilityDrafts();
-
       activeLocale = language;
       storeLanguage(language);
-      initialiseStaticTranslations();
-
-      if (portalData) {
-        renderNavigation(portalData.permissions);
-        selectView(currentView);
-      }
+      rerenderAfterLanguageChange();
     }
 
     function translateBusinessValue(group, value) {

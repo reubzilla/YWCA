@@ -10,7 +10,7 @@ function renderDashboard() {
       ${t('dashboard.title')}
     </h2>
 
-    <section class="card availability-loading">
+    <section class="card view-loading">
       ${t('dashboard.loadingToday')}
     </section>
   `;
@@ -144,7 +144,7 @@ function loadDashboardSession(sessionId) {
     );
 
   container.innerHTML = `
-    <section class="card availability-loading">
+    <section class="card view-loading">
       ${t('dashboard.loadingSession')}
     </section>
   `;

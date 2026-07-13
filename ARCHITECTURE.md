@@ -53,6 +53,8 @@ This requires an Apps Script HTML file named `Index`. `src/Index.html` matches t
 
 Browser helpers load before localisation because localisation rendering uses shared HTML escaping. View functions load before `App.html`, whose startup code executes only after every renderer has been declared. `Index.html` contains only the document shell and these ordered includes. CSS is in `Styles.html`, the single translation dictionary and translation helpers are in `Localization.html`, shared browser utilities are in `BrowserHelpers.html`, and each view has its own partial.
 
+`App.html` owns the shared `portalData` and `currentView` state. Other partials update portal data through `updatePortalData()` and request a language-change rerender through `rerenderAfterLanguageChange()` rather than assigning App state directly. Availability draft state remains owned by `Availability.html`, and the selected dashboard session remains owned by `Dashboard.html`.
+
 Apps Script requires unique filenames regardless of extension. The generic sheet reader therefore resides in `SheetData.gs`, leaving the `Dashboard` basename available for the frontend partial.
 
 ## Authentication flow
