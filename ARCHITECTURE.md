@@ -97,7 +97,7 @@ DOMContentLoaded
 `getPortalData()` authenticates the current member and returns that member's profile, role-derived permissions, notifications, and upcoming sessions. It does not return other members' records.
 
 
-Subsequent views independently request availability or dashboard data. Spreadsheet `Date` objects are converted to formatted strings before being returned to the browser.
+Subsequent views independently request availability or dashboard data. Spreadsheet `Date` objects are converted to language-neutral strings before being returned to the browser. Date-only values use `YYYY-MM-DD`, time-only values use `HH:mm`, and date-time values include the `Asia/Tokyo` offset. The browser formats these values for `ja-JP` or `en-GB` when rendering.
 
 ## Availability save flow
 
@@ -111,7 +111,7 @@ Subsequent views independently request availability or dashboard data. Spreadshe
 8. `getEditableSession_()` requires an active, non-cancelled session dated today or later.
 9. A script lock protects the read/modify/write operation.
 10. The first matching row is replaced, preserving its original `Submitted At`; otherwise a row is appended.
-11. The server returns the saved values and formatted update time.
+11. The server returns the saved values and a machine-readable update timestamp with the `Asia/Tokyo` offset.
 12. The browser updates the card and attempts to refresh cached home data through the missing `getPortalData()` function.
 
 
@@ -149,7 +149,9 @@ Attendance is read-only in the current dashboard. Manual and QR attendance opera
 
 ## Localisation approach
 
-English is the canonical source language. `Localization.html` contains one `TRANSLATIONS` dictionary with English and Japanese catalogues and a `t()` interpolation helper used by client-rendered labels and messages. Japanese is selected by default. The header language selector stores a valid `ja` or `en` preference in `localStorage`, updates the document language, and rerenders the active view. Server-generated errors, notifications, and formatted dates remain raw English or spreadsheet-derived data.
+English is the canonical source language. `Localization.html` contains one `TRANSLATIONS` dictionary with English and Japanese catalogues and a `t()` interpolation helper used by client-rendered labels and messages. Japanese is selected by default. The header language selector stores a valid `ja` or `en` preference in `localStorage`, updates the document language, and rerenders the active view. Shared browser helpers format machine-readable dates as `ja-JP` or `en-GB` using `Asia/Tokyo`. Server-generated errors and notification text remain raw English or spreadsheet-derived data.
+
+Date-only payloads are calendar values and must not be parsed as instants. The frontend parses their `YYYY-MM-DD` components explicitly before display. Date-time payloads represent instants and include the Tokyo offset, for example `2026-07-17T15:45:00+09:00`. During the migration, renderers prefer machine-readable properties such as `dateValue` and `todayDateValue` while accepting the previous display properties as fallbacks.
 
 Spreadsheet and business values are currently English, including roles, availability values, session types, and assignment statuses.
 

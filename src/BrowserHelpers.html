@@ -14,6 +14,105 @@ function cssEscape(value) {
   return String(value)
     .replace(/[^a-zA-Z0-9_-]/g, '\\$&');
 }
+
+const DATE_DISPLAY_TIME_ZONE = 'Asia/Tokyo';
+
+function getDateDisplayLocale() {
+  return activeLocale === 'ja'
+    ? 'ja-JP'
+    : 'en-GB';
+}
+
+function parseDateOnlyValue(value) {
+  const match = String(value || '').match(
+    /^(\d{4})-(\d{2})-(\d{2})$/
+  );
+
+  if (!match) {
+    return null;
+  }
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(Date.UTC(year, month - 1, day));
+
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  ) {
+    return null;
+  }
+
+  return date;
+}
+
+function formatDateOnly(value) {
+  const date = parseDateOnlyValue(value);
+
+  if (!date) {
+    return String(value || '');
+  }
+
+  return new Intl.DateTimeFormat(
+    getDateDisplayLocale(),
+    {
+      timeZone: DATE_DISPLAY_TIME_ZONE,
+      weekday: 'short',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    }
+  ).format(date);
+}
+
+function formatTime(value) {
+  return String(value || '');
+}
+
+function formatDateTime(value) {
+  const text = String(value || '');
+
+  if (
+    !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:Z|[+-]\d{2}:\d{2})$/.test(text)
+  ) {
+    return text;
+  }
+
+  const date = new Date(text);
+
+  if (isNaN(date.getTime())) {
+    return text;
+  }
+
+  const locale = getDateDisplayLocale();
+  const formattedDate = new Intl.DateTimeFormat(
+    locale,
+    {
+      timeZone: DATE_DISPLAY_TIME_ZONE,
+      weekday: 'short',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    }
+  ).format(date);
+
+  const formattedTime = new Intl.DateTimeFormat(
+    locale,
+    {
+      timeZone: DATE_DISPLAY_TIME_ZONE,
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    }
+  ).format(date);
+
+  return locale === 'ja-JP'
+    ? `${formattedDate} ${formattedTime}`
+    : `${formattedDate}, ${formattedTime}`;
+}
+
     function renderPlaceholder(title, message) {
       const content =
         document.getElementById('content');
@@ -42,11 +141,14 @@ function cssEscape(value) {
     }
 
     function buildTimeText(startTime, endTime) {
-      if (startTime && endTime) {
-        return `${startTime}–${endTime}`;
+      const formattedStart = formatTime(startTime);
+      const formattedEnd = formatTime(endTime);
+
+      if (formattedStart && formattedEnd) {
+        return `${formattedStart}–${formattedEnd}`;
       }
 
-      return startTime || endTime || '';
+      return formattedStart || formattedEnd;
     }
 
     function escapeHtml(value) {

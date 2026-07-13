@@ -36,7 +36,9 @@ function renderDashboardData(data) {
 
       <section class="card">
         <p class="dashboard-date">
-          ${escapeHtml(data.todayLabel)}
+          ${escapeHtml(formatDateOnly(
+            data.todayDateValue || data.todayLabel
+          ))}
         </p>
 
         <div class="dashboard-empty">
@@ -69,7 +71,9 @@ function renderDashboardData(data) {
           >
             ${escapeHtml(session.title)}
             ${session.startTime
-              ? ` — ${escapeHtml(session.startTime)}`
+              ? ` — ${escapeHtml(formatTime(
+                  session.startTime
+                ))}`
               : ''}
           </option>
         `).join('')}
@@ -84,7 +88,9 @@ function renderDashboardData(data) {
 
     <section class="card">
       <p class="dashboard-date">
-        ${escapeHtml(data.todayLabel)}
+        ${escapeHtml(formatDateOnly(
+          data.todayDateValue || data.todayLabel
+        ))}
       </p>
 
       ${selector}
@@ -184,7 +190,9 @@ function renderDashboardSession(data) {
       </h2>
 
       <p class="dashboard-session-meta">
-        ${escapeHtml(session.date)}
+        ${escapeHtml(formatDateOnly(
+          session.dateValue || session.date
+        ))}
         ${timeText
           ? `<br>${escapeHtml(timeText)}`
           : ''}
@@ -408,7 +416,9 @@ function buildDashboardMember(member, type) {
     if (member.volunteer.departureTime) {
       details.push(
         t('dashboard.volunteer.departureTime', {
-          time: member.volunteer.departureTime
+          time: formatTime(
+            member.volunteer.departureTime
+          )
         })
       );
     }

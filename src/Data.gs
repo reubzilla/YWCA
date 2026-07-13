@@ -46,15 +46,9 @@ function mapSessionForClient_(row, timeZone) {
 
   return {
     sessionId: String(row['Session ID'] || ''),
-    date: Utilities.formatDate(
+    dateValue: formatDateOnly_(
       sessionDate,
-      timeZone,
-      'EEE, d MMM yyyy'
-    ),
-    dateValue: Utilities.formatDate(
-      sessionDate,
-      timeZone,
-      'yyyy-MM-dd'
+      timeZone
     ),
     title: String(row.Title || ''),
     sessionType: String(row['Session Type'] || ''),

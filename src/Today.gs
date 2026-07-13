@@ -15,10 +15,9 @@ function getDashboardData() {
       role: String(member.Role || '')
     },
 
-    todayLabel: Utilities.formatDate(
+    todayDateValue: formatDateOnly_(
       new Date(),
-      getTimeZone_(),
-      'EEEE, d MMMM yyyy'
+      getTimeZone_()
     ),
 
     sessions: todaySessions,

@@ -153,7 +153,9 @@ function buildAvailabilityCard(session) {
       data-session-id="${safeSessionId}"
     >
       <div class="session-date">
-        ${escapeHtml(session.date)}
+        ${escapeHtml(formatDateOnly(
+          session.dateValue || session.date
+        ))}
       </div>
 
       <h3 class="session-title">
@@ -180,7 +182,9 @@ function buildAvailabilityCard(session) {
             style="margin-top: 12px;"
           >
             ${t('session.responseDeadlineLabel')}
-            ${escapeHtml(session.responseDeadline)}
+            ${escapeHtml(formatDateTime(
+              session.responseDeadline
+            ))}
           </p>
         `
         : ''}
@@ -269,7 +273,9 @@ function buildAvailabilityCard(session) {
             id="updated-${safeSessionId}"
           >
             ${t('availability.lastUpdated', {
-              updatedAt: escapeHtml(availability.updatedAt)
+              updatedAt: escapeHtml(formatDateTime(
+                availability.updatedAt
+              ))
             })}
           </div>
         `
@@ -437,7 +443,7 @@ function handleAvailabilitySaved(
 
   updated.textContent =
     t('availability.lastUpdated', {
-      updatedAt: result.updatedAt
+      updatedAt: formatDateTime(result.updatedAt)
     });
 
   /*
@@ -522,4 +528,3 @@ function getStatusDisplay(response) {
       };
   }
 }
-

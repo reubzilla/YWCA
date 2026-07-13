@@ -1,13 +1,10 @@
 /**
- * Returns the spreadsheet time zone.
+ * Returns the application business time zone.
  *
  * @return {string}
  */
 function getTimeZone_() {
-  return SpreadsheetApp
-    .getActiveSpreadsheet()
-    .getSpreadsheetTimeZone()
-    || CONFIG.DEFAULT_TIME_ZONE;
+  return CONFIG.DEFAULT_TIME_ZONE;
 }
 
 
@@ -112,7 +109,29 @@ function formatTime_(value, timeZone) {
 
 
 /**
- * Formats a date and time.
+ * Formats a date-only value for a client payload.
+ *
+ * @param {*} value
+ * @param {string} timeZone
+ * @return {string}
+ */
+function formatDateOnly_(value, timeZone) {
+  const date = parseSheetDate_(value);
+
+  if (!date) {
+    return value ? String(value) : '';
+  }
+
+  return Utilities.formatDate(
+    date,
+    timeZone,
+    'yyyy-MM-dd'
+  );
+}
+
+
+/**
+ * Formats a date and time for a client payload.
  *
  * @param {*} value
  * @param {string} timeZone
@@ -129,9 +148,14 @@ function formatDateTime_(value, timeZone) {
     return String(value);
   }
 
-  return Utilities.formatDate(
+  const valueWithOffset = Utilities.formatDate(
     date,
     timeZone,
-    'EEE, d MMM yyyy HH:mm'
+    "yyyy-MM-dd'T'HH:mm:ssZ"
+  );
+
+  return valueWithOffset.replace(
+    /([+-]\d{2})(\d{2})$/,
+    '$1:$2'
   );
 }

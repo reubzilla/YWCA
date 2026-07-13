@@ -56,7 +56,9 @@ function renderHome() {
           </p>
 
           <div class="notification-date">
-            ${escapeHtml(notification.date)}
+            ${escapeHtml(formatDateOnly(
+              notification.dateValue || notification.date
+            ))}
           </div>
         </article>
       `;
@@ -85,7 +87,9 @@ function renderHome() {
       html += `
         <section class="card">
           <div class="session-date">
-            ${escapeHtml(session.date)}
+            ${escapeHtml(formatDateOnly(
+              session.dateValue || session.date
+            ))}
           </div>
 
           <h3 class="session-title">
@@ -113,7 +117,7 @@ function renderHome() {
               >
                 ${t('session.responseDeadlineLabel')}
                 ${escapeHtml(
-                  session.responseDeadline
+                  formatDateTime(session.responseDeadline)
                 )}
               </p>
             `

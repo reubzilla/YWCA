@@ -54,6 +54,7 @@ The following code paths are present:
 - upcoming missing-response and volunteer-assignment notification generation;
 - same-day session aggregation across members, availability, volunteer assignments, and attendance;
 - a role-protected management dashboard with summaries and conflict detection;
+- language-neutral date payloads with Japanese and British English browser formatting;
 - responsive, framework-free HTML, CSS, and browser JavaScript.
 
 
@@ -153,7 +154,7 @@ The source assumes:
 
 - a Google Apps Script project containing the `.gs` files and an HTML file named `Index`;
 - access to an active spreadsheet containing all six sheets with matching headers;
-- a spreadsheet time zone, with `Asia/Tokyo` used as a fallback;
+- `Asia/Tokyo` as the application business time zone, with the database spreadsheet expected to use the same time zone;
 - a V8-compatible Apps Script runtime because the code uses modern JavaScript syntax;
 - a web-app deployment configuration in which `Session.getActiveUser().getEmail()` identifies the signed-in school user;
 - students use the web app without direct access to the database spreadsheet.

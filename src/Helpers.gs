@@ -76,10 +76,9 @@ function getNotifications_(member) {
         message:
           `You have not responded for ${session.Title}.`,
         sessionId: sessionId,
-        date: Utilities.formatDate(
+        dateValue: formatDateOnly_(
           sessionDate,
-          getTimeZone_(),
-          'EEE, d MMM'
+          getTimeZone_()
         )
       });
     }
@@ -102,10 +101,9 @@ function getNotifications_(member) {
           ? `${activity} at ${location}`
           : activity,
         sessionId: sessionId,
-        date: Utilities.formatDate(
+        dateValue: formatDateOnly_(
           sessionDate,
-          getTimeZone_(),
-          'EEE, d MMM'
+          getTimeZone_()
         )
       });
     }
