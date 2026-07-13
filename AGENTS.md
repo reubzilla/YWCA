@@ -159,6 +159,28 @@ Preserve these existing sheet column names unless an approved migration is inclu
 - Keep business logic in `.gs` files.
 - Keep presentation and browser interaction in HTML partials.
 
+## Frontend structure
+
+`Index.html` must remain a lightweight document shell.
+
+Do not add substantial CSS, localisation dictionaries, view rendering,
+business logic, or event-handling code directly to `Index.html`.
+
+Place frontend code in the appropriate HTML partial:
+
+- `Styles.html`
+- `Localization.html`
+- `BrowserHelpers.html`
+- `Home.html`
+- `Availability.html`
+- `Dashboard.html`
+- `Volunteer.html`
+- `Attendance.html`
+- `App.html`
+
+Before adding a new frontend function, identify which module owns it.
+Shared functions belong in `BrowserHelpers.html`, not in a view module.
+
 ## Coding rules
 
 - Use vanilla JavaScript.
