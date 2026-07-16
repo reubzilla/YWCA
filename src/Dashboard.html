@@ -1,108 +1,16 @@
 let currentDashboardSessionId = null;
-let currentDashboardSection = 'today';
+let dashboardTodaySessions = [];
+let dashboardTodayDateValue = '';
 let dashboardTodayRequestToken = 0;
 let dashboardSessionRequestToken = 0;
 
-function renderDashboard() {
-  const content =
-    document.getElementById('content');
+function renderTodayDashboard() {
+  const content = document.getElementById('content');
 
   content.className = '';
-  content.innerHTML = `
-    <h2 class="section-title">
-      ${t('dashboard.title')}
-    </h2>
-
-    <div
-      class="dashboard-section-tabs"
-      role="tablist"
-      aria-label="${escapeHtml(
-        t('dashboard.section.label')
-      )}"
-    >
-      <button
-        type="button"
-        class="dashboard-section-tab"
-        id="dashboard-section-today"
-        data-dashboard-section="today"
-        role="tab"
-      >
-        ${t('dashboard.section.today')}
-      </button>
-
-      <button
-        type="button"
-        class="dashboard-section-tab"
-        id="dashboard-section-upcoming"
-        data-dashboard-section="upcoming"
-        role="tab"
-      >
-        ${t('dashboard.section.upcoming')}
-      </button>
-    </div>
-
-    <div id="dashboard-section-content"></div>
-  `;
-
-  initialiseDashboardSectionNavigation();
-  renderActiveDashboardSection();
-}
-
-
-function initialiseDashboardSectionNavigation() {
-  document
-    .querySelectorAll('[data-dashboard-section]')
-    .forEach(button => {
-      button.addEventListener('click', () => {
-        navigateToRoute(
-          button.dataset.dashboardSection === 'upcoming'
-            ? 'planning'
-            : 'today'
-        );
-      });
-    });
-
-  updateDashboardSectionNavigation();
-}
-
-
-function updateDashboardSectionNavigation() {
-  document
-    .querySelectorAll('[data-dashboard-section]')
-    .forEach(button => {
-      const isActive =
-        button.dataset.dashboardSection ===
-          currentDashboardSection;
-
-      button.classList.toggle('active', isActive);
-      button.setAttribute(
-        'aria-selected',
-        String(isActive)
-      );
-    });
-}
-
-
-function renderActiveDashboardSection() {
-  if (currentDashboardSection === 'upcoming') {
-    renderUpcomingActivities();
-    return;
-  }
-
-  renderTodayDashboard();
-}
-
-
-function renderTodayDashboard() {
-  const content = document.getElementById(
-    'dashboard-section-content'
+  content.innerHTML = buildLoadingState(
+    t('dashboard.loadingToday')
   );
-
-  content.innerHTML = `
-    <section class="card view-loading">
-      ${t('dashboard.loadingToday')}
-    </section>
-  `;
 
   const requestToken = ++dashboardTodayRequestToken;
 
@@ -110,8 +18,7 @@ function renderTodayDashboard() {
     .withSuccessHandler(data => {
       if (
         requestToken !== dashboardTodayRequestToken ||
-        currentView !== 'dashboard' ||
-        currentDashboardSection !== 'today'
+        currentRouteId !== 'today'
       ) {
         return;
       }
@@ -121,8 +28,7 @@ function renderTodayDashboard() {
     .withFailureHandler(error => {
       if (
         requestToken !== dashboardTodayRequestToken ||
-        currentView !== 'dashboard' ||
-        currentDashboardSection !== 'today'
+        currentRouteId !== 'today'
       ) {
         return;
       }
@@ -132,136 +38,563 @@ function renderTodayDashboard() {
     .getDashboardData();
 }
 
-
 function renderDashboardData(data) {
-  const content =
-    document.getElementById('dashboard-section-content');
+  dashboardTodaySessions = data.sessions || [];
+  dashboardTodayDateValue =
+    data.todayDateValue || data.todayLabel || '';
 
-  const sessions = data.sessions || [];
-
-  if (sessions.length === 0) {
-    content.innerHTML = `
-      <section class="card">
-        <p class="dashboard-date">
-          ${escapeHtml(formatDateOnly(
-            data.todayDateValue || data.todayLabel
-          ))}
-        </p>
-
-        <div class="dashboard-empty">
-          ${t('dashboard.noSessionToday')}
-        </div>
-      </section>
-
-      ${buildVisitorScheduleDashboardLink()}
-    `;
-
-    initialiseVisitorScheduleDashboardLink();
-
+  if (dashboardTodaySessions.length === 0) {
+    currentDashboardSessionId = null;
+    renderEmptyTodayDashboard();
     return;
   }
 
-  let selector = '';
-
-  if (sessions.length > 1) {
-    selector = `
-      <label
-        class="form-label"
-        for="dashboard-session-selector"
-      >
-        ${t('dashboard.sessionSelectorLabel')}
-      </label>
-
-      <select
-        id="dashboard-session-selector"
-        class="session-selector"
-      >
-        ${sessions.map(session => `
-          <option
-            value="${escapeHtml(session.sessionId)}"
-          >
-            ${escapeHtml(session.title)}
-            ${session.startTime
-              ? ` — ${escapeHtml(formatTime(
-                  session.startTime
-                ))}`
-              : ''}
-          </option>
-        `).join('')}
-      </select>
-    `;
-  }
-
-  content.innerHTML = `
-    <section class="card">
-      <p class="dashboard-date">
-        ${escapeHtml(formatDateOnly(
-          data.todayDateValue || data.todayLabel
-        ))}
-      </p>
-
-      ${selector}
-    </section>
-
-    ${buildVisitorScheduleDashboardLink()}
-
-    <div id="dashboard-session-content"></div>
-  `;
-
-  initialiseVisitorScheduleDashboardLink();
-
-  if (sessions.length > 1) {
-    const selectorElement =
-      document.getElementById(
-        'dashboard-session-selector'
-      );
-
-    const retainedSession = sessions.find(session =>
-      session.sessionId === currentDashboardSessionId
-    );
-
-    if (retainedSession) {
-      selectorElement.value = retainedSession.sessionId;
-    }
-
-    selectorElement.addEventListener(
-      'change',
-      () => {
-        currentDashboardSessionId =
-          selectorElement.value;
-
-        loadDashboardSession(
-          selectorElement.value
-        );
-      }
-    );
-  }
-
-  const selectedSession = sessions.find(session =>
+  const retainedSession = dashboardTodaySessions.find(session =>
     session.sessionId === currentDashboardSessionId
   );
+  const selectedData = data.selectedSession;
 
   if (
-    selectedSession &&
-    data.selectedSession &&
-    data.selectedSession.session.sessionId !==
-      selectedSession.sessionId
+    retainedSession &&
+    selectedData &&
+    selectedData.session.sessionId !== retainedSession.sessionId
   ) {
-    loadDashboardSession(selectedSession.sessionId);
-  } else {
-    renderDashboardSession(data.selectedSession);
+    renderTodaySessionLoading(retainedSession);
+    loadDashboardSession(retainedSession.sessionId);
+    return;
+  }
+
+  renderDashboardSession(selectedData);
+}
+
+function renderEmptyTodayDashboard() {
+  const content = document.getElementById('content');
+
+  content.innerHTML = `
+    ${buildPageHeader({
+      title: t('dashboard.today.title'),
+      supportingText: formatDateOnly(dashboardTodayDateValue),
+      actionsHtml: buildTodayRefreshButton()
+    })}
+    ${buildEmptyState({
+      title: t('dashboard.noSessionToday'),
+      message: t('dashboard.noSessionTodayHelp')
+    })}
+    ${buildVisitorScheduleDashboardLink()}
+  `;
+
+  initialiseTodayWorkspaceEvents();
+}
+
+function renderTodaySessionLoading(session) {
+  const content = document.getElementById('content');
+  const timeText = buildTimeText(
+    session.startTime,
+    session.endTime
+  );
+
+  content.innerHTML = `
+    ${buildPageHeader({
+      title: session.title,
+      supportingText: [
+        formatDateOnly(
+          session.dateValue || dashboardTodayDateValue
+        ),
+        timeText
+      ].filter(Boolean).join(' · '),
+      actionsHtml: buildTodayHeaderActions(session.sessionId)
+    })}
+    ${buildLoadingState(t('dashboard.loadingSession'))}
+  `;
+
+  initialiseTodayWorkspaceEvents();
+}
+
+function loadDashboardSession(sessionId) {
+  const requestToken = ++dashboardSessionRequestToken;
+
+  google.script.run
+    .withSuccessHandler(data => {
+      if (
+        requestToken !== dashboardSessionRequestToken ||
+        currentRouteId !== 'today' ||
+        currentDashboardSessionId !== sessionId
+      ) {
+        return;
+      }
+
+      renderDashboardSession(data);
+    })
+    .withFailureHandler(error => {
+      if (
+        requestToken !== dashboardSessionRequestToken ||
+        currentRouteId !== 'today'
+      ) {
+        return;
+      }
+
+      renderDashboardError(error);
+    })
+    .getDashboardSession(sessionId);
+}
+
+function renderDashboardSession(data) {
+  const content = document.getElementById('content');
+
+  if (!content || !data) {
+    return;
+  }
+
+  const session = data.session;
+  const summary = data.summary;
+  const groups = data.groups || {};
+  const members = data.members || [];
+  const timeText = buildTimeText(
+    session.startTime,
+    session.endTime
+  );
+
+  currentDashboardSessionId = session.sessionId;
+
+  content.innerHTML = `
+    ${buildPageHeader({
+      title: session.title,
+      supportingText: [
+        formatDateOnly(
+          session.dateValue || session.date ||
+            dashboardTodayDateValue
+        ),
+        timeText
+      ].filter(Boolean).join(' · '),
+      actionsHtml: buildTodayHeaderActions(session.sessionId)
+    })}
+
+    ${session.notes
+      ? `<div class="today-session-note">${escapeHtml(
+          session.notes
+        )}</div>`
+      : ''}
+
+    ${buildTodayPriorityArea(groups)}
+
+    <section aria-labelledby="today-action-summary-title">
+      <div class="today-section-heading">
+        <h2 id="today-action-summary-title">
+          ${t('dashboard.actionSummary.title')}
+        </h2>
+      </div>
+      <div class="today-action-summary">
+        ${buildSummaryMetric(
+          (groups.conflicts || []).length,
+          t('dashboard.summary.conflicts'),
+          (groups.conflicts || []).length > 0
+            ? 'danger'
+            : 'neutral'
+        )}
+        ${buildSummaryMetric(
+          summary.unavailable,
+          t('dashboard.summary.unavailable'),
+          summary.unavailable > 0 ? 'danger' : 'neutral'
+        )}
+        ${buildSummaryMetric(
+          summary.noResponse,
+          t('dashboard.summary.noResponse'),
+          summary.noResponse > 0 ? 'warning' : 'neutral'
+        )}
+        ${buildSummaryMetric(
+          summary.notYetRecorded,
+          t('dashboard.summary.attendanceMissing'),
+          summary.notYetRecorded > 0 ? 'warning' : 'neutral'
+        )}
+        ${buildSummaryMetric(
+          summary.volunteers,
+          t('dashboard.summary.volunteers'),
+          'information'
+        )}
+        <div class="today-secondary-total">
+          ${t('dashboard.summary.activeMembersWithCount', {
+            count: escapeHtml(summary.activeMembers)
+          })}
+        </div>
+      </div>
+    </section>
+
+    <div class="today-workspace-grid">
+      <main class="today-primary-column">
+        ${buildTodayVisitors(groups.volunteers || [])}
+        ${buildTodayMemberStatus(members, groups)}
+      </main>
+      <aside class="today-secondary-column">
+        ${buildTodayAttendanceSummary(summary)}
+        ${buildVisitorScheduleDashboardLink()}
+      </aside>
+    </div>
+  `;
+
+  initialiseTodayWorkspaceEvents();
+  initialiseDisclosures(content);
+}
+
+function buildTodayHeaderActions(selectedSessionId) {
+  const selector = dashboardTodaySessions.length > 1
+    ? `
+      <label class="today-session-selector">
+        <span>${t('dashboard.sessionSelectorLabel')}</span>
+        <select id="dashboard-session-selector">
+          ${dashboardTodaySessions.map(session => `
+            <option
+              value="${escapeHtml(session.sessionId)}"
+              ${session.sessionId === selectedSessionId
+                ? 'selected'
+                : ''}
+            >
+              ${escapeHtml(session.title)}
+              ${session.startTime
+                ? ` — ${escapeHtml(formatTime(
+                    session.startTime
+                  ))}`
+                : ''}
+            </option>
+          `).join('')}
+        </select>
+      </label>
+    `
+    : '';
+
+  return `${selector}${buildTodayRefreshButton()}`;
+}
+
+function buildTodayRefreshButton() {
+  return `
+    <button
+      type="button"
+      class="secondary-button"
+      id="refresh-dashboard-button"
+    >
+      ${t('common.refresh')}
+    </button>
+  `;
+}
+
+function initialiseTodayWorkspaceEvents() {
+  const selector = document.getElementById(
+    'dashboard-session-selector'
+  );
+  const refreshButton = document.getElementById(
+    'refresh-dashboard-button'
+  );
+  const visitorButton = document.getElementById(
+    'open-visitor-schedules'
+  );
+
+  if (selector) {
+    selector.addEventListener('change', () => {
+      currentDashboardSessionId = selector.value;
+      const selectedSession = dashboardTodaySessions.find(
+        session => session.sessionId === selector.value
+      );
+
+      if (selectedSession) {
+        renderTodaySessionLoading(selectedSession);
+      }
+
+      loadDashboardSession(selector.value);
+    });
+  }
+
+  if (refreshButton) {
+    refreshButton.addEventListener('click', () => {
+      refreshButton.disabled = true;
+      refreshButton.textContent = t('common.refreshing');
+
+      if (currentDashboardSessionId) {
+        loadDashboardSession(currentDashboardSessionId);
+      } else {
+        renderTodayDashboard();
+      }
+    });
+  }
+
+  if (visitorButton) {
+    visitorButton.addEventListener('click', () => {
+      navigateToRoute('visitor-coordination');
+    });
   }
 }
 
+function buildTodayPriorityArea(groups) {
+  const conflicts = groups.conflicts || [];
+  const attendanceMissing = groups.attendanceMissing || [];
+  const banners = [];
+
+  if (conflicts.length > 0) {
+    banners.push(buildPriorityBanner({
+      tone: 'danger',
+      title: t('dashboard.attention.conflictsTitle'),
+      message: t('dashboard.attention.conflictsMessage', {
+        count: conflicts.length
+      }),
+      detailsHtml: buildTodayPriorityNames(conflicts)
+    }));
+  }
+
+  if (attendanceMissing.length > 0) {
+    banners.push(buildPriorityBanner({
+      tone: 'warning',
+      title: t('dashboard.attention.attendanceTitle'),
+      message: t('dashboard.attention.attendanceMessage', {
+        count: attendanceMissing.length
+      }),
+      detailsHtml: buildTodayPriorityNames(attendanceMissing)
+    }));
+  }
+
+  if (banners.length === 0) {
+    return '';
+  }
+
+  return `
+    <section
+      class="today-priority-area"
+      aria-labelledby="today-attention-title"
+    >
+      <h2 id="today-attention-title">
+        ${t('dashboard.attention.title')}
+      </h2>
+      ${banners.join('')}
+    </section>
+  `;
+}
+
+function buildTodayPriorityNames(members) {
+  return `
+    <ul class="priority-name-list">
+      ${members.map(member => `
+        <li>${escapeHtml(member.name)}</li>
+      `).join('')}
+    </ul>
+  `;
+}
+
+function buildTodayVisitors(visitors) {
+  const rows = visitors.map(member => {
+    const volunteer = member.volunteer || {};
+    const details = [
+      member.grade,
+      volunteer.activity,
+      volunteer.location,
+      volunteer.departureTime
+        ? t('dashboard.volunteer.departureTime', {
+            time: formatTime(volunteer.departureTime)
+          })
+        : ''
+    ].filter(Boolean);
+    const isConflict = member.availability === 'Unavailable';
+
+    return buildRecordRow({
+      title: member.name,
+      metaHtml: `
+        <p class="record-row-meta">
+          ${details.map(escapeHtml).join(' · ')}
+        </p>
+        ${member.reason
+          ? `<p class="record-row-note">${escapeHtml(
+              member.reason
+            )}</p>`
+          : ''}
+      `,
+      statusHtml: `
+        <div class="record-row-statuses">
+          ${buildStatusBadge(
+            getDashboardAvailabilityLabel(member.availability),
+            getAvailabilityTone(member.availability)
+          )}
+          ${isConflict
+            ? buildStatusBadge(
+                t('dashboard.summary.conflicts'),
+                'danger'
+              )
+            : ''}
+        </div>
+      `
+    });
+  }).join('');
+
+  return `
+    <section class="today-section" aria-labelledby="today-visitors-title">
+      <div class="today-section-heading">
+        <h2 id="today-visitors-title">
+          ${t('dashboard.visitors.todayTitle')}
+        </h2>
+        ${buildStatusBadge(
+          String(visitors.length),
+          visitors.length > 0 ? 'information' : 'neutral'
+        )}
+      </div>
+      ${visitors.length > 0
+        ? `<div class="record-row-list">${rows}</div>`
+        : buildEmptyState({
+            message: t('dashboard.visitors.noneToday')
+          })}
+    </section>
+  `;
+}
+
+function buildTodayMemberStatus(members, groups) {
+  const availabilityGroups = [
+    {
+      id: 'today-available',
+      title: t('dashboard.group.available'),
+      members: members.filter(member =>
+        member.availability === 'Available'
+      ),
+      type: 'availability'
+    },
+    {
+      id: 'today-unavailable',
+      title: t('dashboard.group.unavailable'),
+      members: members.filter(member =>
+        member.availability === 'Unavailable'
+      ),
+      type: 'availability'
+    },
+    {
+      id: 'today-unsure',
+      title: t('dashboard.group.unsure'),
+      members: members.filter(member =>
+        member.availability === 'Unsure'
+      ),
+      type: 'availability'
+    },
+    {
+      id: 'today-no-response',
+      title: t('dashboard.group.noResponse'),
+      members: members.filter(member => !member.availability),
+      type: 'availability'
+    }
+  ];
+  const attendanceGroups = [
+    {
+      id: 'today-attendance-recorded',
+      title: t('dashboard.group.attendanceRecorded'),
+      members: groups.attendanceRecorded || [],
+      type: 'attendance'
+    },
+    {
+      id: 'today-attendance-missing',
+      title: t('dashboard.group.attendanceMissing'),
+      members: groups.attendanceMissing || [],
+      type: 'attendance'
+    }
+  ];
+
+  return `
+    <section class="today-section" aria-labelledby="today-members-title">
+      <div class="today-section-heading">
+        <h2 id="today-members-title">
+          ${t('dashboard.memberStatus.title')}
+        </h2>
+      </div>
+      <h3 class="today-status-context">
+        ${t('dashboard.memberStatus.availability')}
+      </h3>
+      <div class="disclosure-stack">
+        ${availabilityGroups.map((group, index) =>
+          buildTodayMemberDisclosure(group, index === 0)
+        ).join('')}
+      </div>
+      <h3 class="today-status-context">
+        ${t('dashboard.memberStatus.attendance')}
+      </h3>
+      <div class="disclosure-stack">
+        ${attendanceGroups.map(group =>
+          buildTodayMemberDisclosure(group, false)
+        ).join('')}
+      </div>
+    </section>
+  `;
+}
+
+function buildTodayMemberDisclosure(group, expanded) {
+  const list = group.members || [];
+
+  return buildDisclosure({
+    id: group.id,
+    title: group.title,
+    count: list.length,
+    expanded: expanded,
+    contentHtml: list.length > 0
+      ? `<ul class="member-list">${list.map(member =>
+          buildTodayMember(member, group.type)
+        ).join('')}</ul>`
+      : `<div class="dashboard-empty">${t(
+          'dashboard.group.empty'
+        )}</div>`
+  });
+}
+
+function buildTodayMember(member, context) {
+  const details = [member.grade];
+
+  if (context === 'availability') {
+    details.push(getDashboardAvailabilityLabel(
+      member.availability
+    ));
+  } else if (member.attendance) {
+    details.push(t('dashboard.attendance.recorded'));
+  } else {
+    details.push(t('dashboard.attendance.notRecorded'));
+  }
+
+  return `
+    <li class="member-row">
+      <div class="member-name">${escapeHtml(member.name)}</div>
+      <div class="member-meta">
+        ${details.filter(Boolean).map(escapeHtml).join(' · ')}
+      </div>
+      ${context === 'availability' && member.reason
+        ? `<div class="member-reason">${escapeHtml(
+            member.reason
+          )}</div>`
+        : ''}
+    </li>
+  `;
+}
+
+function buildTodayAttendanceSummary(summary) {
+  return `
+    <section class="today-section today-attendance-summary">
+      <div class="today-section-heading">
+        <h2>${t('dashboard.attendance.title')}</h2>
+        ${buildStatusBadge(
+          t('dashboard.attendance.readOnly'),
+          'neutral'
+        )}
+      </div>
+      <p>
+        ${t('dashboard.attendance.summary', {
+          recorded: `<strong>${escapeHtml(
+            summary.attendanceRecorded
+          )}</strong>`,
+          expected: `<strong>${escapeHtml(
+            summary.expected
+          )}</strong>`
+        })}
+      </p>
+      <p class="session-details">
+        ${t('dashboard.attendance.futureNotice')}
+      </p>
+    </section>
+  `;
+}
 
 function buildVisitorScheduleDashboardLink() {
   return `
-    <section class="card dashboard-management-link">
+    <section class="today-section dashboard-management-link">
       <div>
-        <h3>${t('dashboard.visitors.title')}</h3>
+        <h2>${t('dashboard.visitors.title')}</h2>
         <p>${t('dashboard.visitors.description')}</p>
       </div>
-
       <button
         type="button"
         class="secondary-button"
@@ -273,380 +606,28 @@ function buildVisitorScheduleDashboardLink() {
   `;
 }
 
+function getDashboardAvailabilityLabel(response) {
+  const keys = {
+    Available: 'availability.status.available',
+    Unavailable: 'availability.status.unavailable',
+    Unsure: 'availability.status.unsure'
+  };
 
-function initialiseVisitorScheduleDashboardLink() {
-  const button = document.getElementById(
-    'open-visitor-schedules'
-  );
-
-  if (button) {
-    button.addEventListener('click', () => {
-      selectView('volunteer');
-    });
-  }
+  return t(keys[response] || 'availability.status.noResponse');
 }
 
+function getAvailabilityTone(response) {
+  const tones = {
+    Available: 'success',
+    Unavailable: 'danger',
+    Unsure: 'warning'
+  };
 
-function loadDashboardSession(sessionId) {
-  const container =
-    document.getElementById(
-      'dashboard-session-content'
-    );
-
-  container.innerHTML = `
-    <section class="card view-loading">
-      ${t('dashboard.loadingSession')}
-    </section>
-  `;
-
-  const requestToken = ++dashboardSessionRequestToken;
-
-  google.script.run
-    .withSuccessHandler(data => {
-      if (
-        requestToken !== dashboardSessionRequestToken ||
-        currentView !== 'dashboard' ||
-        currentDashboardSection !== 'today'
-      ) {
-        return;
-      }
-
-      renderDashboardSession(data);
-    })
-    .withFailureHandler(error => {
-      if (
-        requestToken !== dashboardSessionRequestToken ||
-        currentView !== 'dashboard' ||
-        currentDashboardSection !== 'today'
-      ) {
-        return;
-      }
-
-      renderDashboardError(error);
-    })
-    .getDashboardSession(sessionId);
+  return tones[response] || 'neutral';
 }
 
-
-function renderDashboardSession(data) {
-  const container =
-    document.getElementById(
-      'dashboard-session-content'
-    );
-
-  if (!container || !data) {
-    return;
-  }
-
-  currentDashboardSessionId = data.session.sessionId;
-
-  const session = data.session;
-  const summary = data.summary;
-  const groups = data.groups;
-
-  const timeText = buildTimeText(
-    session.startTime,
-    session.endTime
-  );
-
-  let html = `
-    <section class="card">
-      <h2 class="dashboard-session-heading">
-        ${escapeHtml(session.title)}
-      </h2>
-
-      <p class="dashboard-session-meta">
-        ${escapeHtml(formatDateOnly(
-          session.dateValue || session.date
-        ))}
-        ${timeText
-          ? `<br>${escapeHtml(timeText)}`
-          : ''}
-      </p>
-
-      ${session.notes
-        ? `
-          <div class="notes">
-            ${escapeHtml(session.notes)}
-          </div>
-        `
-        : ''}
-    </section>
-
-    <div class="dashboard-refresh-row">
-      <button
-        type="button"
-        class="secondary-button"
-        id="refresh-dashboard-button"
-      >
-        ${t('common.refresh')}
-      </button>
-    </div>
-
-    <section class="summary-grid">
-      ${buildSummaryCard(
-        summary.activeMembers,
-        t('dashboard.summary.activeMembers'),
-        ''
-      )}
-
-      ${buildSummaryCard(
-        summary.available,
-        t('dashboard.summary.available'),
-        'positive'
-      )}
-
-      ${buildSummaryCard(
-        summary.volunteers,
-        t('dashboard.summary.volunteers'),
-        'positive'
-      )}
-
-      ${buildSummaryCard(
-        summary.unavailable,
-        t('dashboard.summary.unavailable'),
-        summary.unavailable > 0
-          ? 'problem'
-          : ''
-      )}
-
-      ${buildSummaryCard(
-        summary.unsure,
-        t('dashboard.summary.unsure'),
-        summary.unsure > 0
-          ? 'attention'
-          : ''
-      )}
-
-      ${buildSummaryCard(
-        summary.noResponse,
-        t('dashboard.summary.noResponse'),
-        summary.noResponse > 0
-          ? 'attention'
-          : ''
-      )}
-    </section>
-  `;
-
-  if (
-    groups.conflicts &&
-    groups.conflicts.length > 0
-  ) {
-    html += buildConflictBox(groups.conflicts);
-  }
-
-  html += buildDashboardGroup(
-    t('dashboard.group.volunteers'),
-    groups.volunteers,
-    'volunteer'
-  );
-
-  html += buildDashboardGroup(
-    t('dashboard.group.available'),
-    groups.available,
-    'available'
-  );
-
-  html += buildDashboardGroup(
-    t('dashboard.group.unavailable'),
-    groups.unavailable,
-    'unavailable'
-  );
-
-  html += buildDashboardGroup(
-    t('dashboard.group.unsure'),
-    groups.unsure,
-    'unsure'
-  );
-
-  html += buildDashboardGroup(
-    t('dashboard.group.noResponse'),
-    groups.noResponse,
-    'no-response'
-  );
-
-  html += `
-    <h2 class="section-title">
-      ${t('dashboard.attendance.title')}
-    </h2>
-
-    <section class="card">
-      <p style="margin: 0; line-height: 1.6;">
-        ${t('dashboard.attendance.summary', {
-          recorded: `<strong>${summary.attendanceRecorded}</strong>`,
-          expected: `<strong>${summary.expected}</strong>`
-        })}
-      </p>
-
-      <p
-        class="session-details"
-        style="margin-top: 8px;"
-      >
-        ${t('dashboard.attendance.futureNotice')}
-      </p>
-    </section>
-  `;
-
-  container.innerHTML = html;
-
-  const refreshButton =
-    document.getElementById(
-      'refresh-dashboard-button'
-    );
-
-  if (refreshButton) {
-    refreshButton.addEventListener('click', () => {
-      refreshButton.disabled = true;
-      refreshButton.textContent = t('common.refreshing');
-
-      loadDashboardSession(session.sessionId);
-    });
-  }
-}
-
-
-function buildSummaryCard(
-  number,
-  label,
-  className
-) {
-  return `
-    <div class="summary-card ${escapeHtml(
-      className || ''
-    )}">
-      <span class="summary-number">
-        ${escapeHtml(number)}
-      </span>
-
-      <span class="summary-label">
-        ${escapeHtml(label)}
-      </span>
-    </div>
-  `;
-}
-
-
-function buildDashboardGroup(
-  title,
-  members,
-  type
-) {
-  const list = members || [];
-
-  return `
-    <section class="dashboard-group">
-      <div class="dashboard-group-header">
-        <h3 class="dashboard-group-title">
-          ${escapeHtml(title)}
-        </h3>
-
-        <span class="dashboard-count">
-          ${list.length}
-        </span>
-      </div>
-
-      ${list.length === 0
-        ? `
-          <div class="dashboard-empty">
-            ${t('dashboard.group.empty')}
-          </div>
-        `
-        : `
-          <ul class="member-list">
-            ${list.map(member =>
-              buildDashboardMember(member, type)
-            ).join('')}
-          </ul>
-        `}
-    </section>
-  `;
-}
-
-
-function buildDashboardMember(member, type) {
-  let details = [];
-
-  if (member.grade) {
-    details.push(member.grade);
-  }
-
-  if (type === 'volunteer' && member.volunteer) {
-    if (member.volunteer.activity) {
-      details.push(member.volunteer.activity);
-    }
-
-    if (member.volunteer.location) {
-      details.push(member.volunteer.location);
-    }
-
-    if (member.volunteer.departureTime) {
-      details.push(
-        t('dashboard.volunteer.departureTime', {
-          time: formatTime(
-            member.volunteer.departureTime
-          )
-        })
-      );
-    }
-  }
-
-  return `
-    <li class="member-row">
-      <div class="member-name">
-        ${escapeHtml(member.name)}
-      </div>
-
-      ${details.length > 0
-        ? `
-          <div class="member-meta">
-            ${details
-              .map(escapeHtml)
-              .join(' · ')}
-          </div>
-        `
-        : ''}
-
-      ${member.reason
-        ? `
-          <div class="member-reason">
-            ${escapeHtml(member.reason)}
-          </div>
-        `
-        : ''}
-    </li>
-  `;
-}
-
-
-function buildConflictBox(conflicts) {
-  return `
-    <section class="conflict-box">
-      <h3>${t('dashboard.conflict.title')}</h3>
-
-      <p style="margin: 0 0 10px; line-height: 1.5;">
-        ${t('dashboard.conflict.description')}
-      </p>
-
-      <ul style="margin-bottom: 0;">
-        ${conflicts.map(member => `
-          <li>
-            <strong>
-              ${escapeHtml(member.name)}
-            </strong>
-            ${member.reason
-              ? ` — ${escapeHtml(member.reason)}`
-              : ''}
-          </li>
-        `).join('')}
-      </ul>
-    </section>
-  `;
-}
-
-
-function renderDashboardError(error) {
-  const content =
-    document.getElementById('dashboard-section-content');
+function renderDashboardError() {
+  const content = document.getElementById('content');
 
   if (!content) {
     return;
@@ -654,8 +635,15 @@ function renderDashboardError(error) {
 
   content.className = '';
   content.innerHTML = `
-    <section class="error">
-      ${escapeHtml(t('dashboard.error.loadFailed'))}
-    </section>
+    ${buildPageHeader({
+      title: t('dashboard.today.title'),
+      actionsHtml: buildTodayRefreshButton()
+    })}
+    ${buildErrorState({
+      title: t('common.error'),
+      message: t('dashboard.error.loadFailed')
+    })}
   `;
+
+  initialiseTodayWorkspaceEvents();
 }

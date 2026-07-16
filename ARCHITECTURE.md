@@ -63,7 +63,7 @@ This requires an Apps Script HTML file named `Index`. `src/Index.html` matches t
 
 Browser helpers load before localisation because localisation rendering uses shared HTML escaping. Components load after localisation so their accessible controls can use translated labels. View functions load before `AppShell.html` and `App.html`; the route registry is therefore created only after every renderer has been declared. `Index.html` contains semantic shell landmarks, empty overlay hosts, and the ordered includes. CSS is in `Styles.html`, the single translation dictionary and translation helpers are in `Localization.html`, shared browser utilities are in `BrowserHelpers.html`, and each feature view retains its own partial.
 
-`App.html` owns `portalData`, the public `currentRouteId`, and a temporary legacy `currentView` value used by existing asynchronous Dashboard guards. It also owns the drawer-open and mobile-sheet-open state. `AppShell.html` renders those states but does not make permission decisions. Other partials update portal data through `updatePortalData()` and request a language-change rerender through `rerenderAfterLanguageChange()` rather than assigning App state directly. Availability draft state remains owned by `Availability.html`, and the selected dashboard session remains owned by `Dashboard.html`.
+`App.html` owns `portalData`, the public `currentRouteId`, and a temporary legacy `currentView` value used by views that have not yet migrated to route guards. It also owns the drawer-open and mobile-sheet-open state. `AppShell.html` renders those states but does not make permission decisions. Other partials update portal data through `updatePortalData()` and request a language-change rerender through `rerenderAfterLanguageChange()` rather than assigning App state directly. Availability draft state remains owned by `Availability.html`, the selected Today session remains owned by `Dashboard.html`, and Planning filters and selection remain owned by `UpcomingActivities.html`.
 
 Apps Script requires unique filenames regardless of extension. The generic sheet reader therefore resides in `SheetData.gs`, leaving the `Dashboard` basename available for the frontend partial.
 
@@ -73,9 +73,9 @@ Apps Script requires unique filenames regardless of extension. The generic sheet
 
 The active routes are:
 
-- `today`: Home for Students and the existing Today Dashboard for Club Leaders and Teachers;
+- `today`: Home for Students and the operational Today workspace for Club Leaders and Teachers;
 - `visitor-coordination`: existing Visitor Schedule management for Club Leaders and Teachers;
-- `planning`: the existing Dashboard with Upcoming Activities selected;
+- `planning`: the independent Upcoming Activities Planning view;
 - `sessions`: Teacher-only Session management;
 - `members`: Teacher-only Member management, labelled People in the shell;
 - `availability`: the signed-in member's Availability view;
@@ -170,12 +170,12 @@ Visitor-schedule management does not replace or duplicate this same-day aggregat
 
 ## Dashboard flow
 
-1. The `today` route selects the existing Today Dashboard adapter for Club Leaders and Teachers. The `planning` route selects the existing Upcoming Activities Dashboard section.
+1. The `today` route selects the operational Today renderer for Club Leaders and Teachers. The `planning` route independently selects the Upcoming Activities renderer; there are no internal Dashboard tabs.
 2. `getDashboardData()` calls `requireDashboardAccess_()`.
 3. `getTodaySessions_()` returns active, non-cancelled sessions matching today's date, sorted by start time.
 4. The first session is passed to `buildTodaySessionData_()`.
 5. The browser renders a session selector when multiple sessions exist.
-6. It displays totals, volunteer and availability groups, conflicts, and an attendance count.
+6. It displays conflicts and missing expected attendance first, followed by action totals, visitor assignments, availability and attendance groups, and a read-only attendance count.
 7. Selecting or refreshing a session calls `getDashboardSession(sessionId)`, which repeats server-side dashboard authorization and calls the same aggregation function.
 
 `getDashboardSession()` validates the supplied ID against the active, non-cancelled sessions returned for today before building dashboard data.
@@ -184,17 +184,18 @@ Attendance is read-only in the current dashboard. Manual and QR attendance opera
 
 ## Upcoming Activities flow
 
-Upcoming Activities is a separate section inside the management Dashboard. Today remains the default section and continues to use the existing Today APIs and aggregation.
+Upcoming Activities is a separate management Planning route. Today remains the default management route and continues to use the existing Today APIs and aggregation.
 
 1. `getUpcomingActivities(filters)` requires `canViewAllAvailability`.
 2. The server validates machine-readable date filters and an optional exact English Session Type.
 3. It selects active `Regular` and `Event` sessions after today. An empty request defaults to tomorrow through the existing eight-week configuration.
 4. Active Students and Club Leaders come from `getActiveAttendingMembers_()`; inactive members and Teachers are excluded consistently with Today.
 5. Availability and Volunteer Assignment rows are loaded once and indexed by Session ID.
-6. Each session receives `Available`, `Unavailable`, `Unsure`, No response, assigned visitor, and conflict counts.
+6. Each session receives `Available`, `Unavailable`, `Unsure`, No response, assigned visitor, and conflict counts, plus the existing machine-readable response deadline from the shared session mapper.
 7. No response means there is no matching Availability row for the member and session.
 8. Cancelled and Declined Volunteer Assignments are ignored through the existing assignment-status helper.
-9. Selecting a session calls `getUpcomingActivityDetail(sessionId)`, which repeats permission and session validation before returning grouped member details.
+9. The browser may filter those summaries to activities needing attention, defined as missing responses, assignment conflicts, or a response deadline within the next 72 hours.
+10. Selecting a session calls `getUpcomingActivityDetail(sessionId)`, which repeats permission and session validation before returning grouped member details. Wide layouts use master-detail; narrower layouts use a focused detail state with an explicit Back action.
 
 The detail payload contains Member ID, name, grade, role, response, private availability Reason, and current visitor-assignment details. It excludes member email and all Attendance data. Availability groups include every matching member regardless of assignment; visitor and conflict groups intentionally overlap the response groups. A conflict uses the same definition as Today: an active visitor assignment combined with `Unavailable`.
 

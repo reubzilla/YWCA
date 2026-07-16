@@ -127,25 +127,54 @@
         'dashboard.section.today': 'Today',
         'dashboard.section.upcoming': 'Upcoming Activities',
         'dashboard.loadingToday': "Loading today's information…",
+        'dashboard.today.title': 'Today',
         'dashboard.noSessionToday':
           'There is no active club session scheduled for today.',
+        'dashboard.noSessionTodayHelp':
+          'Use Visitor Schedules or Planning to prepare another activity.',
         'dashboard.sessionSelectorLabel': "Today's session",
         'dashboard.loadingSession': 'Loading session information…',
         'common.refresh': 'Refresh',
         'common.refreshing': 'Refreshing…',
+        'common.error': 'Something went wrong',
         'dashboard.summary.activeMembers': 'Active members',
         'dashboard.summary.available': 'Available',
         'dashboard.summary.volunteers': 'Volunteers',
         'dashboard.summary.unavailable': 'Unavailable',
         'dashboard.summary.unsure': 'Unsure',
         'dashboard.summary.noResponse': 'No response',
+        'dashboard.summary.conflicts': 'Conflicts',
+        'dashboard.summary.attendanceMissing':
+          'Attendance not recorded',
+        'dashboard.summary.activeMembersWithCount':
+          '{count} active members in total',
+        'dashboard.actionSummary.title': 'Action summary',
+        'dashboard.attention.title': 'Attention required',
+        'dashboard.attention.conflictsTitle':
+          'Visitor assignment conflicts',
+        'dashboard.attention.conflictsMessage':
+          '{count} assigned visitor(s) marked themselves unavailable.',
+        'dashboard.attention.attendanceTitle':
+          'Attendance not recorded',
+        'dashboard.attention.attendanceMessage':
+          '{count} expected member(s) do not yet have an attendance record.',
         'dashboard.group.volunteers': 'Scheduled volunteers',
         'dashboard.group.available': 'Available for club',
         'dashboard.group.unavailable': 'Unavailable',
         'dashboard.group.unsure': 'Unsure',
         'dashboard.group.noResponse': 'No response',
+        'dashboard.group.attendanceRecorded':
+          'Attendance recorded',
+        'dashboard.group.attendanceMissing':
+          'Attendance missing',
         'dashboard.group.empty': 'No students in this category.',
+        'dashboard.memberStatus.title': 'Member status',
+        'dashboard.memberStatus.availability': 'Availability',
+        'dashboard.memberStatus.attendance': 'Attendance status',
         'dashboard.attendance.title': 'Attendance',
+        'dashboard.attendance.readOnly': 'Read only',
+        'dashboard.attendance.recorded': 'Recorded',
+        'dashboard.attendance.notRecorded': 'Not recorded',
         'dashboard.attendance.summary':
           'Attendance has been recorded for {recorded} of {expected} expected members.',
         'dashboard.attendance.futureNotice':
@@ -161,6 +190,9 @@
         'dashboard.visitors.description':
           'Plan and update volunteer assignments for upcoming sessions.',
         'dashboard.visitors.open': 'Manage visitor schedules',
+        'dashboard.visitors.todayTitle': "Today's visitors",
+        'dashboard.visitors.noneToday':
+          'There are no visitor assignments for this session.',
         'upcomingActivities.title': 'Upcoming Activities',
         'upcomingActivities.intro':
           'Review availability and visitor assignments for future club meetings and events.',
@@ -177,10 +209,33 @@
         'upcomingActivities.filter.allTypes': 'All types',
         'upcomingActivities.filter.apply': 'Apply filters',
         'upcomingActivities.filter.reset': 'Reset filters',
+        'upcomingActivities.filter.clear': 'Clear filters',
+        'upcomingActivities.filter.button': 'Filters',
+        'upcomingActivities.filter.label':
+          'Upcoming activity filters',
+        'upcomingActivities.filter.needsAttention':
+          'Activities needing attention',
+        'upcomingActivities.filter.activeLabel': 'Active filters',
+        'upcomingActivities.filter.dateChip': '{from} – {to}',
         'upcomingActivities.detail.selectPrompt':
           'Select an activity to view member responses.',
         'upcomingActivities.detail.loading':
           'Loading activity details…',
+        'upcomingActivities.detail.regionLabel':
+          'Upcoming activity detail',
+        'upcomingActivities.detail.back':
+          'Back to activity list',
+        'upcomingActivities.responseDeadline':
+          'Response deadline: {date}',
+        'upcomingActivities.attention.conflicts': 'Conflicts',
+        'upcomingActivities.attention.missingResponses':
+          'Missing responses',
+        'upcomingActivities.attention.deadlineApproaching':
+          'Deadline approaching',
+        'upcomingActivities.attention.conflictsMessage':
+          '{count} visitor assignment conflict(s) need review.',
+        'upcomingActivities.attention.missingMessage':
+          '{count} active member(s) have not responded.',
         'upcomingActivities.count.available': 'Available',
         'upcomingActivities.count.unavailable': 'Unavailable',
         'upcomingActivities.count.unsure': 'Unsure',
@@ -643,25 +698,49 @@
         'dashboard.section.today': '本日',
         'dashboard.section.upcoming': '今後の活動',
         'dashboard.loadingToday': '本日の情報を読み込んでいます…',
+        'dashboard.today.title': '本日',
         'dashboard.noSessionToday':
           '本日予定されている有効なクラブ活動はありません。',
+        'dashboard.noSessionTodayHelp':
+          '訪問予定管理または今後の活動から、別の活動を準備できます。',
         'dashboard.sessionSelectorLabel': '本日の活動',
         'dashboard.loadingSession': '活動情報を読み込んでいます…',
         'common.refresh': '更新',
         'common.refreshing': '更新しています…',
+        'common.error': 'エラーが発生しました',
         'dashboard.summary.activeMembers': '在籍メンバー',
         'dashboard.summary.available': '参加可能',
         'dashboard.summary.volunteers': '訪問担当',
         'dashboard.summary.unavailable': '参加不可',
         'dashboard.summary.unsure': '未定',
         'dashboard.summary.noResponse': '未回答',
+        'dashboard.summary.conflicts': '不一致',
+        'dashboard.summary.attendanceMissing': '出席未記録',
+        'dashboard.summary.activeMembersWithCount':
+          '在籍メンバー 合計{count}名',
+        'dashboard.actionSummary.title': '対応状況',
+        'dashboard.attention.title': '確認が必要です',
+        'dashboard.attention.conflictsTitle': '訪問担当の不一致',
+        'dashboard.attention.conflictsMessage':
+          '訪問担当のうち{count}名が参加不可と回答しています。',
+        'dashboard.attention.attendanceTitle': '出席未記録',
+        'dashboard.attention.attendanceMessage':
+          '参加予定者のうち{count}名の出席がまだ記録されていません。',
         'dashboard.group.volunteers': '訪問担当者',
         'dashboard.group.available': 'クラブに参加可能',
         'dashboard.group.unavailable': '参加不可',
         'dashboard.group.unsure': '未定',
         'dashboard.group.noResponse': '未回答',
+        'dashboard.group.attendanceRecorded': '出席記録済み',
+        'dashboard.group.attendanceMissing': '出席未記録',
         'dashboard.group.empty': 'この区分に生徒はいません。',
+        'dashboard.memberStatus.title': 'メンバー状況',
+        'dashboard.memberStatus.availability': '参加可否',
+        'dashboard.memberStatus.attendance': '出席状況',
         'dashboard.attendance.title': '出席',
+        'dashboard.attendance.readOnly': '閲覧のみ',
+        'dashboard.attendance.recorded': '記録済み',
+        'dashboard.attendance.notRecorded': '未記録',
         'dashboard.attendance.summary':
           '出席記録：対象{expected}名のうち{recorded}名',
         'dashboard.attendance.futureNotice':
@@ -676,6 +755,9 @@
         'dashboard.visitors.description':
           '今後の活動の訪問担当を作成・更新します。',
         'dashboard.visitors.open': '訪問予定を管理',
+        'dashboard.visitors.todayTitle': '本日の訪問担当',
+        'dashboard.visitors.noneToday':
+          'この活動には訪問担当がありません。',
         'upcomingActivities.title': '今後の活動',
         'upcomingActivities.intro':
           '今後のクラブ活動やイベントについて、参加可否と訪問担当を確認します。',
@@ -692,10 +774,28 @@
         'upcomingActivities.filter.allTypes': 'すべての区分',
         'upcomingActivities.filter.apply': '絞り込みを適用',
         'upcomingActivities.filter.reset': '絞り込みを解除',
+        'upcomingActivities.filter.clear': '絞り込みを解除',
+        'upcomingActivities.filter.button': '絞り込み',
+        'upcomingActivities.filter.label': '今後の活動の絞り込み',
+        'upcomingActivities.filter.needsAttention':
+          '確認が必要な活動',
+        'upcomingActivities.filter.activeLabel': '適用中の条件',
+        'upcomingActivities.filter.dateChip': '{from}～{to}',
         'upcomingActivities.detail.selectPrompt':
           '活動を選ぶと、メンバーの回答が表示されます。',
         'upcomingActivities.detail.loading':
           '活動の詳細を読み込んでいます…',
+        'upcomingActivities.detail.regionLabel': '今後の活動の詳細',
+        'upcomingActivities.detail.back': '活動一覧に戻る',
+        'upcomingActivities.responseDeadline': '回答期限：{date}',
+        'upcomingActivities.attention.conflicts': '不一致',
+        'upcomingActivities.attention.missingResponses': '未回答あり',
+        'upcomingActivities.attention.deadlineApproaching':
+          '回答期限が近づいています',
+        'upcomingActivities.attention.conflictsMessage':
+          '訪問担当の不一致が{count}件あります。',
+        'upcomingActivities.attention.missingMessage':
+          '在籍メンバーのうち{count}名が未回答です。',
         'upcomingActivities.count.available': '参加可能',
         'upcomingActivities.count.unavailable': '参加不可',
         'upcomingActivities.count.unsure': '未定',

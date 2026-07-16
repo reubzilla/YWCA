@@ -1,12 +1,14 @@
 let upcomingActivitiesFilters = {
   fromDateValue: '',
   toDateValue: '',
-  sessionType: ''
+  sessionType: '',
+  needsAttention: false
 };
 let upcomingActivitiesMinimumDateValue = '';
 let upcomingActivitySessions = [];
 let upcomingActivitySessionTypes = [];
 let currentUpcomingActivityId = null;
+let upcomingActivityDetailFocused = false;
 let upcomingActivitiesRequestToken = 0;
 let upcomingActivityDetailRequestToken = 0;
 
@@ -14,11 +16,8 @@ function renderUpcomingActivities() {
   loadUpcomingActivities();
 }
 
-
 function loadUpcomingActivities() {
-  const content = document.getElementById(
-    'dashboard-section-content'
-  );
+  const content = document.getElementById('content');
 
   if (!content) {
     return;
@@ -26,18 +25,20 @@ function loadUpcomingActivities() {
 
   const requestToken = ++upcomingActivitiesRequestToken;
 
+  content.className = '';
   content.innerHTML = `
-    <section class="card view-loading">
-      ${t('upcomingActivities.loading')}
-    </section>
+    ${buildPageHeader({
+      title: t('upcomingActivities.title'),
+      supportingText: t('upcomingActivities.intro')
+    })}
+    ${buildLoadingState(t('upcomingActivities.loading'))}
   `;
 
   google.script.run
     .withSuccessHandler(data => {
       if (
         requestToken !== upcomingActivitiesRequestToken ||
-        currentView !== 'dashboard' ||
-        currentDashboardSection !== 'upcoming'
+        currentRouteId !== 'planning'
       ) {
         return;
       }
@@ -47,17 +48,19 @@ function loadUpcomingActivities() {
     .withFailureHandler(() => {
       if (
         requestToken !== upcomingActivitiesRequestToken ||
-        currentView !== 'dashboard' ||
-        currentDashboardSection !== 'upcoming'
+        currentRouteId !== 'planning'
       ) {
         return;
       }
 
       renderUpcomingActivitiesError('loadFailed');
     })
-    .getUpcomingActivities(upcomingActivitiesFilters);
+    .getUpcomingActivities({
+      fromDateValue: upcomingActivitiesFilters.fromDateValue,
+      toDateValue: upcomingActivitiesFilters.toDateValue,
+      sessionType: upcomingActivitiesFilters.sessionType
+    });
 }
-
 
 function handleUpcomingActivitiesLoaded(data) {
   if (!data || !data.success) {
@@ -70,9 +73,9 @@ function handleUpcomingActivitiesLoaded(data) {
   }
 
   upcomingActivitiesFilters = {
+    ...upcomingActivitiesFilters,
     fromDateValue: data.range.fromDateValue,
-    toDateValue: data.range.toDateValue,
-    sessionType: upcomingActivitiesFilters.sessionType
+    toDateValue: data.range.toDateValue
   };
   upcomingActivitiesMinimumDateValue =
     upcomingActivitiesMinimumDateValue ||
@@ -82,63 +85,75 @@ function handleUpcomingActivitiesLoaded(data) {
 
   if (
     currentUpcomingActivityId &&
-    !upcomingActivitySessions.some(session =>
+    !getVisibleUpcomingActivitySessions().some(session =>
       session.sessionId === currentUpcomingActivityId
     )
   ) {
     currentUpcomingActivityId = null;
+    upcomingActivityDetailFocused = false;
   }
 
-  renderUpcomingActivitiesPage(
-    upcomingActivitySessionTypes
-  );
+  renderUpcomingActivitiesPage();
 }
 
-
-function renderUpcomingActivitiesPage(sessionTypes) {
-  const content = document.getElementById(
-    'dashboard-section-content'
-  );
+function renderUpcomingActivitiesPage() {
+  const content = document.getElementById('content');
 
   if (!content) {
     return;
   }
 
   content.innerHTML = `
-    <section class="card upcoming-activities-intro">
-      <h2>${t('upcomingActivities.title')}</h2>
-      <p>${t('upcomingActivities.intro')}</p>
-      <p class="session-details">
-        ${t('upcomingActivities.activeOnlyNotice')}
-      </p>
-    </section>
+    ${buildPageHeader({
+      title: t('upcomingActivities.title'),
+      supportingText: t('upcomingActivities.intro'),
+      actionsHtml: `
+        <button
+          type="button"
+          class="secondary-button"
+          id="refresh-upcoming-activities"
+        >
+          ${t('common.refresh')}
+        </button>
+      `
+    })}
 
-    ${buildUpcomingActivitiesFilters(sessionTypes)}
+    <p class="planning-active-notice">
+      ${t('upcomingActivities.activeOnlyNotice')}
+    </p>
 
-    <div class="dashboard-refresh-row">
-      <button
-        type="button"
-        class="secondary-button"
-        id="refresh-upcoming-activities"
+    ${buildUpcomingActivitiesFilters()}
+    ${buildUpcomingActivitiesFilterChips()}
+
+    <div class="planning-layout${
+      upcomingActivityDetailFocused ? ' detail-focused' : ''
+    }" id="planning-layout">
+      <section
+        class="planning-list-pane"
+        aria-labelledby="upcoming-activities-list-title"
       >
-        ${t('common.refresh')}
-      </button>
-    </div>
+        <div class="today-section-heading">
+          <h2 id="upcoming-activities-list-title">
+            ${t('upcomingActivities.listTitle')}
+          </h2>
+          ${buildStatusBadge(
+            String(getVisibleUpcomingActivitySessions().length),
+            'neutral'
+          )}
+        </div>
+        ${buildUpcomingActivitiesList()}
+      </section>
 
-    <section aria-labelledby="upcoming-activities-list-title">
-      <h2
-        class="section-title"
-        id="upcoming-activities-list-title"
+      <section
+        class="planning-detail-pane"
+        id="upcoming-activity-detail"
+        aria-label="${escapeHtml(
+          t('upcomingActivities.detail.regionLabel')
+        )}"
       >
-        ${t('upcomingActivities.listTitle')}
-      </h2>
-
-      ${buildUpcomingActivitiesList()}
-    </section>
-
-    <div id="upcoming-activity-detail">
-      <section class="card dashboard-empty">
-        ${t('upcomingActivities.detail.selectPrompt')}
+        ${buildEmptyState({
+          message: t('upcomingActivities.detail.selectPrompt')
+        })}
       </section>
     </div>
   `;
@@ -150,130 +165,190 @@ function renderUpcomingActivitiesPage(sessionTypes) {
   }
 }
 
-
-function buildUpcomingActivitiesFilters(sessionTypes) {
-  return `
-    <form
-      class="card management-filter-card"
-      id="upcoming-activities-filter-form"
+function buildUpcomingActivitiesFilters() {
+  const fieldsHtml = `
+    <label class="form-field">
+      <span class="form-label">
+        ${t('upcomingActivities.filter.fromDate')}
+      </span>
+      <input
+        type="date"
+        class="management-input"
+        id="upcoming-activities-from-date"
+        min="${escapeHtml(upcomingActivitiesMinimumDateValue)}"
+        value="${escapeHtml(
+          upcomingActivitiesFilters.fromDateValue
+        )}"
+        required
+      >
+    </label>
+    <label class="form-field">
+      <span class="form-label">
+        ${t('upcomingActivities.filter.toDate')}
+      </span>
+      <input
+        type="date"
+        class="management-input"
+        id="upcoming-activities-to-date"
+        min="${escapeHtml(upcomingActivitiesMinimumDateValue)}"
+        value="${escapeHtml(
+          upcomingActivitiesFilters.toDateValue
+        )}"
+        required
+      >
+    </label>
+    <label class="form-field">
+      <span class="form-label">
+        ${t('upcomingActivities.filter.sessionType')}
+      </span>
+      <select
+        class="management-input"
+        id="upcoming-activities-session-type"
+      >
+        <option value="">
+          ${t('upcomingActivities.filter.allTypes')}
+        </option>
+        ${upcomingActivitySessionTypes.map(sessionType => `
+          <option
+            value="${escapeHtml(sessionType)}"
+            ${sessionType === upcomingActivitiesFilters.sessionType
+              ? 'selected'
+              : ''}
+          >
+            ${escapeHtml(translateBusinessValue(
+              'sessionType',
+              sessionType
+            ))}
+          </option>
+        `).join('')}
+      </select>
+    </label>
+    <label class="planning-attention-filter">
+      <input
+        type="checkbox"
+        id="upcoming-activities-needs-attention"
+        ${upcomingActivitiesFilters.needsAttention
+          ? 'checked'
+          : ''}
+      >
+      <span>${t('upcomingActivities.filter.needsAttention')}</span>
+    </label>
+  `;
+  const actionsHtml = `
+    <button type="submit" class="primary-button">
+      ${t('upcomingActivities.filter.apply')}
+    </button>
+    <button
+      type="button"
+      class="secondary-button"
+      id="reset-upcoming-activities-filters"
     >
-      <div class="upcoming-activities-filter-grid">
-        <label class="form-field">
-          <span class="form-label">
-            ${t('upcomingActivities.filter.fromDate')}
-          </span>
-          <input
-            type="date"
-            class="management-input"
-            id="upcoming-activities-from-date"
-            min="${escapeHtml(
-              upcomingActivitiesMinimumDateValue
-            )}"
-            value="${escapeHtml(
-              upcomingActivitiesFilters.fromDateValue
-            )}"
-            required
-          >
-        </label>
+      ${t('upcomingActivities.filter.clear')}
+    </button>
+  `;
 
-        <label class="form-field">
-          <span class="form-label">
-            ${t('upcomingActivities.filter.toDate')}
-          </span>
-          <input
-            type="date"
-            class="management-input"
-            id="upcoming-activities-to-date"
-            min="${escapeHtml(
-              upcomingActivitiesMinimumDateValue
-            )}"
-            value="${escapeHtml(
-              upcomingActivitiesFilters.toDateValue
-            )}"
-            required
-          >
-        </label>
-
-        <label class="form-field">
-          <span class="form-label">
-            ${t('upcomingActivities.filter.sessionType')}
-          </span>
-          <select
-            class="management-input"
-            id="upcoming-activities-session-type"
-          >
-            <option value="">
-              ${t('upcomingActivities.filter.allTypes')}
-            </option>
-            ${sessionTypes.map(sessionType => `
-              <option
-                value="${escapeHtml(sessionType)}"
-                ${sessionType ===
-                  upcomingActivitiesFilters.sessionType
-                    ? 'selected'
-                    : ''}
-              >
-                ${escapeHtml(translateBusinessValue(
-                  'sessionType',
-                  sessionType
-                ))}
-              </option>
-            `).join('')}
-          </select>
-        </label>
-      </div>
-
-      <div class="form-actions upcoming-activities-filter-actions">
-        <button type="submit" class="primary-button">
-          ${t('upcomingActivities.filter.apply')}
-        </button>
-
-        <button
-          type="button"
-          class="secondary-button"
-          id="reset-upcoming-activities-filters"
-        >
-          ${t('upcomingActivities.filter.reset')}
-        </button>
-      </div>
-    </form>
+  return `
+    <details class="planning-filter-disclosure" open>
+      <summary>${t('upcomingActivities.filter.button')}</summary>
+      <form id="upcoming-activities-filter-form">
+        ${buildFilterBar({
+          label: t('upcomingActivities.filter.label'),
+          fieldsHtml: fieldsHtml,
+          actionsHtml: actionsHtml
+        })}
+      </form>
+    </details>
   `;
 }
 
+function buildUpcomingActivitiesFilterChips() {
+  const chips = [
+    t('upcomingActivities.filter.dateChip', {
+      from: formatDateOnly(upcomingActivitiesFilters.fromDateValue),
+      to: formatDateOnly(upcomingActivitiesFilters.toDateValue)
+    })
+  ];
+
+  if (upcomingActivitiesFilters.sessionType) {
+    chips.push(translateBusinessValue(
+      'sessionType',
+      upcomingActivitiesFilters.sessionType
+    ));
+  }
+
+  if (upcomingActivitiesFilters.needsAttention) {
+    chips.push(t('upcomingActivities.filter.needsAttention'));
+  }
+
+  return `
+    <div
+      class="active-filter-chips"
+      aria-label="${escapeHtml(
+        t('upcomingActivities.filter.activeLabel')
+      )}"
+    >
+      ${chips.map(chip => `
+        <span class="filter-chip">${escapeHtml(chip)}</span>
+      `).join('')}
+    </div>
+  `;
+}
+
+function getVisibleUpcomingActivitySessions() {
+  return upcomingActivitySessions
+    .filter(session =>
+      !upcomingActivitiesFilters.needsAttention ||
+      getUpcomingActivityAttentionReasons(session).length > 0
+    )
+    .slice()
+    .sort((a, b) => {
+      const aAttention = getUpcomingActivityAttentionReasons(a);
+      const bAttention = getUpcomingActivityAttentionReasons(b);
+
+      return (
+        Number(bAttention.length > 0) -
+          Number(aAttention.length > 0) ||
+        (b.counts.conflicts || 0) -
+          (a.counts.conflicts || 0) ||
+        (b.counts.noResponse || 0) -
+          (a.counts.noResponse || 0) ||
+        String(a.dateValue).localeCompare(String(b.dateValue))
+      );
+    });
+}
 
 function buildUpcomingActivitiesList() {
-  if (upcomingActivitySessions.length === 0) {
-    return `
-      <section class="card dashboard-empty">
-        ${t('upcomingActivities.empty')}
-      </section>
-    `;
+  const sessions = getVisibleUpcomingActivitySessions();
+
+  if (sessions.length === 0) {
+    return buildEmptyState({
+      message: t('upcomingActivities.empty')
+    });
   }
 
   return `
     <div class="upcoming-activity-list">
-      ${upcomingActivitySessions.map(session =>
+      ${sessions.map(session =>
         buildUpcomingActivityCard(session)
       ).join('')}
     </div>
   `;
 }
 
-
 function buildUpcomingActivityCard(session) {
   const counts = session.counts || {};
   const isSelected =
     session.sessionId === currentUpcomingActivityId;
+  const attentionReasons =
+    getUpcomingActivityAttentionReasons(session);
 
   return `
     <button
       type="button"
       class="upcoming-activity-card${
         isSelected ? ' selected' : ''
-      }"
-      data-upcoming-activity-id="${escapeHtml(
-        session.sessionId
-      )}"
+      }${attentionReasons.length > 0 ? ' needs-attention' : ''}"
+      data-upcoming-activity-id="${escapeHtml(session.sessionId)}"
       aria-pressed="${String(isSelected)}"
     >
       <span class="upcoming-activity-card-heading">
@@ -285,56 +360,72 @@ function buildUpcomingActivityCard(session) {
             ${escapeHtml(session.title)}
           </span>
         </span>
-
-        <span class="session-type">
-          ${escapeHtml(translateBusinessValue(
+        ${buildStatusBadge(
+          translateBusinessValue(
             'sessionType',
             session.sessionType
-          ))}
-        </span>
+          ),
+          'neutral'
+        )}
       </span>
+
+      ${session.responseDeadline
+        ? `<span class="upcoming-response-deadline">${escapeHtml(
+            t('upcomingActivities.responseDeadline', {
+              date: formatDateTime(session.responseDeadline)
+            })
+          )}</span>`
+        : ''}
+
+      ${attentionReasons.length > 0
+        ? `<span class="upcoming-attention-badges">${attentionReasons.map(
+            reason => buildStatusBadge(
+              t(`upcomingActivities.attention.${reason}`),
+              reason === 'conflicts' ? 'danger' : 'warning'
+            )
+          ).join('')}</span>`
+        : ''}
 
       <span class="upcoming-activity-count-grid">
         ${buildUpcomingActivityCount(
           counts.available,
           t('upcomingActivities.count.available'),
-          'positive'
+          'success'
         )}
         ${buildUpcomingActivityCount(
           counts.unavailable,
           t('upcomingActivities.count.unavailable'),
-          counts.unavailable > 0 ? 'problem' : ''
+          counts.unavailable > 0 ? 'danger' : 'neutral'
         )}
         ${buildUpcomingActivityCount(
           counts.unsure,
           t('upcomingActivities.count.unsure'),
-          counts.unsure > 0 ? 'attention' : ''
+          counts.unsure > 0 ? 'warning' : 'neutral'
         )}
         ${buildUpcomingActivityCount(
           counts.noResponse,
           t('upcomingActivities.count.noResponse'),
-          counts.noResponse > 0 ? 'attention' : ''
+          counts.noResponse > 0 ? 'warning' : 'neutral'
         )}
         ${buildUpcomingActivityCount(
           counts.assignedVisitors,
           t('upcomingActivities.count.visitors'),
-          'positive'
+          'information'
         )}
         ${buildUpcomingActivityCount(
           counts.conflicts,
           t('upcomingActivities.count.conflicts'),
-          counts.conflicts > 0 ? 'problem' : ''
+          counts.conflicts > 0 ? 'danger' : 'neutral'
         )}
       </span>
     </button>
   `;
 }
 
-
-function buildUpcomingActivityCount(number, label, className) {
+function buildUpcomingActivityCount(number, label, tone) {
   return `
-    <span class="upcoming-activity-count ${escapeHtml(
-      className || ''
+    <span class="upcoming-activity-count count-${escapeHtml(
+      tone || 'neutral'
     )}">
       <strong>${escapeHtml(number || 0)}</strong>
       <span>${escapeHtml(label)}</span>
@@ -342,19 +433,60 @@ function buildUpcomingActivityCount(number, label, className) {
   `;
 }
 
+function getUpcomingActivityAttentionReasons(session) {
+  const counts = session.counts || {};
+  const reasons = [];
+
+  if ((counts.conflicts || 0) > 0) {
+    reasons.push('conflicts');
+  }
+
+  if ((counts.noResponse || 0) > 0) {
+    reasons.push('missingResponses');
+  }
+
+  if (isUpcomingDeadlineApproaching(session.responseDeadline)) {
+    reasons.push('deadlineApproaching');
+  }
+
+  return reasons;
+}
+
+function isUpcomingDeadlineApproaching(value) {
+  if (!value) {
+    return false;
+  }
+
+  const deadline = new Date(value).getTime();
+  const difference = deadline - Date.now();
+
+  return Number.isFinite(deadline) &&
+    difference >= 0 &&
+    difference <= 3 * 24 * 60 * 60 * 1000;
+}
 
 function initialiseUpcomingActivitiesEvents() {
   initialiseUpcomingActivitiesFilterEvents();
+
+  const filterDisclosure = document.querySelector(
+    '.planning-filter-disclosure'
+  );
+
+  if (filterDisclosure && window.innerWidth < 768) {
+    filterDisclosure.removeAttribute('open');
+  }
 
   const refreshButton = document.getElementById(
     'refresh-upcoming-activities'
   );
 
-  refreshButton.addEventListener('click', () => {
-    refreshButton.disabled = true;
-    refreshButton.textContent = t('common.refreshing');
-    loadUpcomingActivities();
-  });
+  if (refreshButton) {
+    refreshButton.addEventListener('click', () => {
+      refreshButton.disabled = true;
+      refreshButton.textContent = t('common.refreshing');
+      loadUpcomingActivities();
+    });
+  }
 
   document
     .querySelectorAll('[data-upcoming-activity-id]')
@@ -362,15 +494,13 @@ function initialiseUpcomingActivitiesEvents() {
       button.addEventListener('click', () => {
         currentUpcomingActivityId =
           button.dataset.upcomingActivityId;
-
+        upcomingActivityDetailFocused = true;
         updateUpcomingActivitySelection();
-        loadUpcomingActivityDetail(
-          currentUpcomingActivityId
-        );
+        updateUpcomingActivityLayout();
+        loadUpcomingActivityDetail(currentUpcomingActivityId);
       });
     });
 }
-
 
 function initialiseUpcomingActivitiesFilterEvents() {
   const filterForm = document.getElementById(
@@ -394,7 +524,6 @@ function initialiseUpcomingActivitiesFilterEvents() {
   });
 }
 
-
 function applyUpcomingActivitiesFilters() {
   upcomingActivitiesFilters = {
     fromDateValue: document.getElementById(
@@ -405,23 +534,27 @@ function applyUpcomingActivitiesFilters() {
     ).value,
     sessionType: document.getElementById(
       'upcoming-activities-session-type'
-    ).value
+    ).value,
+    needsAttention: document.getElementById(
+      'upcoming-activities-needs-attention'
+    ).checked
   };
   currentUpcomingActivityId = null;
+  upcomingActivityDetailFocused = false;
   loadUpcomingActivities();
 }
-
 
 function resetUpcomingActivitiesFilters() {
   upcomingActivitiesFilters = {
     fromDateValue: '',
     toDateValue: '',
-    sessionType: ''
+    sessionType: '',
+    needsAttention: false
   };
   currentUpcomingActivityId = null;
+  upcomingActivityDetailFocused = false;
   loadUpcomingActivities();
 }
-
 
 function updateUpcomingActivitySelection() {
   document
@@ -432,13 +565,35 @@ function updateUpcomingActivitySelection() {
           currentUpcomingActivityId;
 
       button.classList.toggle('selected', isSelected);
-      button.setAttribute(
-        'aria-pressed',
-        String(isSelected)
-      );
+      button.setAttribute('aria-pressed', String(isSelected));
     });
 }
 
+function updateUpcomingActivityLayout() {
+  const layout = document.getElementById('planning-layout');
+
+  if (layout) {
+    layout.classList.toggle(
+      'detail-focused',
+      upcomingActivityDetailFocused
+    );
+  }
+}
+
+function returnToUpcomingActivityList() {
+  upcomingActivityDetailFocused = false;
+  updateUpcomingActivityLayout();
+
+  const selected = document.querySelector(
+    `[data-upcoming-activity-id="${cssEscape(
+      currentUpcomingActivityId || ''
+    )}"]`
+  );
+
+  if (selected) {
+    selected.focus({ preventScroll: true });
+  }
+}
 
 function loadUpcomingActivityDetail(sessionId) {
   const detail = document.getElementById(
@@ -451,19 +606,15 @@ function loadUpcomingActivityDetail(sessionId) {
 
   const requestToken = ++upcomingActivityDetailRequestToken;
 
-  detail.innerHTML = `
-    <section class="card view-loading">
-      ${t('upcomingActivities.detail.loading')}
-    </section>
-  `;
+  detail.innerHTML = buildLoadingState(
+    t('upcomingActivities.detail.loading')
+  );
 
   google.script.run
     .withSuccessHandler(data => {
       if (
-        requestToken !==
-          upcomingActivityDetailRequestToken ||
-        currentView !== 'dashboard' ||
-        currentDashboardSection !== 'upcoming' ||
+        requestToken !== upcomingActivityDetailRequestToken ||
+        currentRouteId !== 'planning' ||
         currentUpcomingActivityId !== sessionId
       ) {
         return;
@@ -473,10 +624,8 @@ function loadUpcomingActivityDetail(sessionId) {
     })
     .withFailureHandler(() => {
       if (
-        requestToken !==
-          upcomingActivityDetailRequestToken ||
-        currentView !== 'dashboard' ||
-        currentDashboardSection !== 'upcoming'
+        requestToken !== upcomingActivityDetailRequestToken ||
+        currentRouteId !== 'planning'
       ) {
         return;
       }
@@ -485,7 +634,6 @@ function loadUpcomingActivityDetail(sessionId) {
     })
     .getUpcomingActivityDetail(sessionId);
 }
-
 
 function handleUpcomingActivityDetailLoaded(data) {
   if (!data || !data.success) {
@@ -499,7 +647,6 @@ function handleUpcomingActivityDetailLoaded(data) {
 
   renderUpcomingActivityDetail(data);
 }
-
 
 function renderUpcomingActivityDetail(data) {
   const detail = document.getElementById(
@@ -519,23 +666,37 @@ function renderUpcomingActivityDetail(data) {
   );
 
   detail.innerHTML = `
-    <section class="card upcoming-activity-detail-heading">
+    <button
+      type="button"
+      class="planning-back-button secondary-button"
+      id="back-to-upcoming-activities"
+    >
+      ${t('upcomingActivities.detail.back')}
+    </button>
+
+    <div class="planning-detail-heading">
       <div>
         <p class="dashboard-date">
           ${escapeHtml(formatDateOnly(session.dateValue))}
         </p>
-        <h2>${escapeHtml(session.title)}</h2>
+        <h2 id="upcoming-activity-detail-heading" tabindex="-1">
+          ${escapeHtml(session.title)}
+        </h2>
         <p class="dashboard-session-meta">
           ${escapeHtml(translateBusinessValue(
             'sessionType',
             session.sessionType
           ))}
-          ${timeText
-            ? ` · ${escapeHtml(timeText)}`
-            : ''}
+          ${timeText ? ` · ${escapeHtml(timeText)}` : ''}
         </p>
+        ${session.responseDeadline
+          ? `<p class="upcoming-response-deadline">${escapeHtml(
+              t('upcomingActivities.responseDeadline', {
+                date: formatDateTime(session.responseDeadline)
+              })
+            )}</p>`
+          : ''}
       </div>
-
       <button
         type="button"
         class="secondary-button"
@@ -543,138 +704,146 @@ function renderUpcomingActivityDetail(data) {
       >
         ${t('common.refresh')}
       </button>
-    </section>
+    </div>
 
-    <section class="summary-grid">
-      ${buildSummaryCard(
-        summary.activeMembers,
-        t('dashboard.summary.activeMembers'),
-        ''
-      )}
-      ${buildSummaryCard(
+    ${buildUpcomingDetailPriority(summary)}
+
+    <div class="planning-detail-summary">
+      ${buildSummaryMetric(
         summary.available,
         t('upcomingActivities.count.available'),
-        'positive'
+        'success'
       )}
-      ${buildSummaryCard(
+      ${buildSummaryMetric(
         summary.unavailable,
         t('upcomingActivities.count.unavailable'),
-        summary.unavailable > 0 ? 'problem' : ''
+        summary.unavailable > 0 ? 'danger' : 'neutral'
       )}
-      ${buildSummaryCard(
+      ${buildSummaryMetric(
         summary.unsure,
         t('upcomingActivities.count.unsure'),
-        summary.unsure > 0 ? 'attention' : ''
+        summary.unsure > 0 ? 'warning' : 'neutral'
       )}
-      ${buildSummaryCard(
+      ${buildSummaryMetric(
         summary.noResponse,
         t('upcomingActivities.count.noResponse'),
-        summary.noResponse > 0 ? 'attention' : ''
+        summary.noResponse > 0 ? 'warning' : 'neutral'
       )}
-      ${buildSummaryCard(
-        summary.assignedVisitors,
-        t('upcomingActivities.count.visitors'),
-        'positive'
-      )}
-      ${buildSummaryCard(
-        summary.conflicts,
-        t('upcomingActivities.count.conflicts'),
-        summary.conflicts > 0 ? 'problem' : ''
-      )}
-    </section>
+    </div>
 
-    ${buildUpcomingActivityGroup(
-      t('upcomingActivities.group.available'),
-      groups.available,
-      'available'
-    )}
-    ${buildUpcomingActivityGroup(
-      t('upcomingActivities.group.unavailable'),
-      groups.unavailable,
-      'unavailable'
-    )}
-    ${buildUpcomingActivityGroup(
-      t('upcomingActivities.group.unsure'),
-      groups.unsure,
-      'unsure'
-    )}
-    ${buildUpcomingActivityGroup(
-      t('upcomingActivities.group.noResponse'),
-      groups.noResponse,
-      'no-response'
-    )}
-    ${buildUpcomingActivityGroup(
-      t('upcomingActivities.group.visitors'),
-      groups.visitors,
-      'visitors',
-      'upcomingActivities.empty.visitors'
-    )}
-    ${buildUpcomingActivityGroup(
-      t('upcomingActivities.group.conflicts'),
-      groups.conflicts,
-      'conflicts',
-      'upcomingActivities.empty.conflicts'
-    )}
+    <div class="disclosure-stack planning-detail-groups">
+      ${buildUpcomingActivityGroup(
+        t('upcomingActivities.group.available'),
+        groups.available,
+        'available'
+      )}
+      ${buildUpcomingActivityGroup(
+        t('upcomingActivities.group.unavailable'),
+        groups.unavailable,
+        'unavailable'
+      )}
+      ${buildUpcomingActivityGroup(
+        t('upcomingActivities.group.unsure'),
+        groups.unsure,
+        'unsure'
+      )}
+      ${buildUpcomingActivityGroup(
+        t('upcomingActivities.group.noResponse'),
+        groups.noResponse,
+        'no-response'
+      )}
+      ${buildUpcomingActivityGroup(
+        t('upcomingActivities.group.visitors'),
+        groups.visitors,
+        'visitors',
+        'upcomingActivities.empty.visitors'
+      )}
+      ${buildUpcomingActivityGroup(
+        t('upcomingActivities.group.conflicts'),
+        groups.conflicts,
+        'conflicts',
+        'upcomingActivities.empty.conflicts'
+      )}
+    </div>
   `;
+
+  initialiseDisclosures(detail);
+
+  document.getElementById(
+    'back-to-upcoming-activities'
+  ).addEventListener('click', returnToUpcomingActivityList);
 
   document.getElementById(
     'refresh-upcoming-activity-detail'
   ).addEventListener('click', event => {
     event.currentTarget.disabled = true;
-    event.currentTarget.textContent =
-      t('common.refreshing');
+    event.currentTarget.textContent = t('common.refreshing');
     loadUpcomingActivityDetail(session.sessionId);
+  });
+
+  if (upcomingActivityDetailFocused) {
+    window.requestAnimationFrame(() => {
+      const heading = document.getElementById(
+        'upcoming-activity-detail-heading'
+      );
+
+      if (heading) {
+        heading.focus({ preventScroll: true });
+      }
+    });
+  }
+}
+
+function buildUpcomingDetailPriority(summary) {
+  const banners = [];
+
+  if (summary.conflicts > 0) {
+    banners.push(buildPriorityBanner({
+      tone: 'danger',
+      title: t('upcomingActivities.attention.conflicts'),
+      message: t('upcomingActivities.attention.conflictsMessage', {
+        count: summary.conflicts
+      })
+    }));
+  }
+
+  if (summary.noResponse > 0) {
+    banners.push(buildPriorityBanner({
+      tone: 'warning',
+      title: t('upcomingActivities.attention.missingResponses'),
+      message: t('upcomingActivities.attention.missingMessage', {
+        count: summary.noResponse
+      })
+    }));
+  }
+
+  return banners.join('');
+}
+
+function buildUpcomingActivityGroup(title, members, type, emptyKey) {
+  const list = members || [];
+  const id = `upcoming-${type}`;
+
+  return buildDisclosure({
+    id: id,
+    title: title,
+    count: list.length,
+    expanded: type === 'conflicts' && list.length > 0,
+    contentHtml: list.length === 0
+      ? `<div class="dashboard-empty">${t(
+          emptyKey || 'upcomingActivities.empty.group'
+        )}</div>`
+      : `<ul class="member-list">${list.map(member =>
+          buildUpcomingActivityMember(member, type)
+        ).join('')}</ul>`
   });
 }
 
-
-function buildUpcomingActivityGroup(
-  title,
-  members,
-  type,
-  emptyKey
-) {
-  const list = members || [];
-
-  return `
-    <section class="dashboard-group">
-      <div class="dashboard-group-header">
-        <h3 class="dashboard-group-title">
-          ${escapeHtml(title)}
-        </h3>
-        <span class="dashboard-count">${list.length}</span>
-      </div>
-
-      ${list.length === 0
-        ? `
-          <div class="dashboard-empty">
-            ${t(emptyKey || 'upcomingActivities.empty.group')}
-          </div>
-        `
-        : `
-          <ul class="member-list">
-            ${list.map(member =>
-              buildUpcomingActivityMember(member, type)
-            ).join('')}
-          </ul>
-        `}
-    </section>
-  `;
-}
-
-
 function buildUpcomingActivityMember(member, type) {
-  const details = [];
-
-  if (member.grade) {
-    details.push(member.grade);
-  }
+  const details = [member.grade];
 
   if (member.role) {
-    details.push(translateBusinessValue(
-      'role',
-      member.role
-    ));
+    details.push(translateBusinessValue('role', member.role));
   }
 
   details.push(getUpcomingAvailabilityLabel(
@@ -684,26 +853,20 @@ function buildUpcomingActivityMember(member, type) {
 
   return `
     <li class="member-row">
-      <div class="member-name">
-        ${escapeHtml(member.name)}
-      </div>
-
+      <div class="member-name">${escapeHtml(member.name)}</div>
       <div class="member-meta">
-        ${details.map(escapeHtml).join(' · ')}
+        ${details.filter(Boolean).map(escapeHtml).join(' · ')}
       </div>
-
       ${member.reason
         ? `
           <div class="member-reason">
-            <strong>
-              ${t('upcomingActivities.member.privateNote')}
-            </strong>
-            <br>
+            <strong>${t(
+              'upcomingActivities.member.privateNote'
+            )}</strong><br>
             ${escapeHtml(member.reason)}
           </div>
         `
         : ''}
-
       ${member.volunteer
         ? buildUpcomingActivityVolunteer(member.volunteer)
         : ''}
@@ -711,24 +874,19 @@ function buildUpcomingActivityMember(member, type) {
   `;
 }
 
-
 function getUpcomingAvailabilityLabel(response, noResponse) {
   if (noResponse) {
     return t('availability.status.noResponse');
   }
 
-  switch (response) {
-    case 'Available':
-      return t('availability.status.available');
-    case 'Unavailable':
-      return t('availability.status.unavailable');
-    case 'Unsure':
-      return t('availability.status.unsure');
-    default:
-      return String(response || '');
-  }
-}
+  const keys = {
+    Available: 'availability.status.available',
+    Unavailable: 'availability.status.unavailable',
+    Unsure: 'availability.status.unsure'
+  };
 
+  return keys[response] ? t(keys[response]) : String(response || '');
+}
 
 function buildUpcomingActivityVolunteer(volunteer) {
   const details = [];
@@ -783,50 +941,37 @@ function buildUpcomingActivityVolunteer(volunteer) {
   `;
 }
 
-
 function renderUpcomingActivitiesError(errorCode) {
-  const content = document.getElementById(
-    'dashboard-section-content'
-  );
+  const content = document.getElementById('content');
 
   if (!content) {
     return;
   }
 
   content.innerHTML = `
-    <section class="card upcoming-activities-intro">
-      <h2>${t('upcomingActivities.title')}</h2>
-      <p>${t('upcomingActivities.intro')}</p>
-    </section>
-
-    ${upcomingActivitiesMinimumDateValue
-      ? buildUpcomingActivitiesFilters(
-          upcomingActivitySessionTypes
-        )
-      : ''}
-
-    <section class="error">
-      ${escapeHtml(getUpcomingActivitiesErrorMessage(
-        errorCode
-      ))}
-    </section>
-
-    <button
-      type="button"
-      class="secondary-button"
-      id="retry-upcoming-activities"
-    >
-      ${t('common.refresh')}
-    </button>
+    ${buildPageHeader({
+      title: t('upcomingActivities.title'),
+      supportingText: t('upcomingActivities.intro')
+    })}
+    ${buildErrorState({
+      title: t('common.error'),
+      message: getUpcomingActivitiesErrorMessage(errorCode),
+      actionsHtml: `
+        <button
+          type="button"
+          class="secondary-button"
+          id="retry-upcoming-activities"
+        >
+          ${t('common.refresh')}
+        </button>
+      `
+    })}
   `;
 
   document.getElementById(
     'retry-upcoming-activities'
   ).addEventListener('click', loadUpcomingActivities);
-
-  initialiseUpcomingActivitiesFilterEvents();
 }
-
 
 function renderUpcomingActivityDetailError(errorCode) {
   const detail = document.getElementById(
@@ -838,21 +983,30 @@ function renderUpcomingActivityDetailError(errorCode) {
   }
 
   detail.innerHTML = `
-    <section class="error">
-      ${escapeHtml(getUpcomingActivitiesErrorMessage(
-        errorCode
-      ))}
-    </section>
-
     <button
       type="button"
-      class="secondary-button"
-      id="retry-upcoming-activity-detail"
+      class="planning-back-button secondary-button"
+      id="back-to-upcoming-activities"
     >
-      ${t('common.refresh')}
+      ${t('upcomingActivities.detail.back')}
     </button>
+    ${buildErrorState({
+      message: getUpcomingActivitiesErrorMessage(errorCode),
+      actionsHtml: `
+        <button
+          type="button"
+          class="secondary-button"
+          id="retry-upcoming-activity-detail"
+        >
+          ${t('common.refresh')}
+        </button>
+      `
+    })}
   `;
 
+  document.getElementById(
+    'back-to-upcoming-activities'
+  ).addEventListener('click', returnToUpcomingActivityList);
   document.getElementById(
     'retry-upcoming-activity-detail'
   ).addEventListener('click', () => {
@@ -860,35 +1014,20 @@ function renderUpcomingActivityDetailError(errorCode) {
   });
 }
 
-
 function getUpcomingActivitiesErrorMessage(errorCode) {
   const keys = {
-    fromDateInvalid:
-      'upcomingActivities.error.fromDateInvalid',
-    toDateInvalid:
-      'upcomingActivities.error.toDateInvalid',
-    dateRangeInvalid:
-      'upcomingActivities.error.dateRangeInvalid',
-    dateBeforeTomorrow:
-      'upcomingActivities.error.dateBeforeTomorrow',
-    sessionTypeInvalid:
-      'upcomingActivities.error.sessionTypeInvalid',
-    sessionIdRequired:
-      'upcomingActivities.error.sessionNotAvailable',
-    sessionNotFound:
-      'upcomingActivities.error.sessionNotAvailable',
-    duplicateSessionId:
-      'upcomingActivities.error.sessionNotAvailable',
-    sessionNotAvailable:
-      'upcomingActivities.error.sessionNotAvailable',
-    detailLoadFailed:
-      'upcomingActivities.error.detailLoadFailed',
-    loadFailed:
-      'upcomingActivities.error.loadFailed'
+    fromDateInvalid: 'upcomingActivities.error.fromDateInvalid',
+    toDateInvalid: 'upcomingActivities.error.toDateInvalid',
+    dateRangeInvalid: 'upcomingActivities.error.dateRangeInvalid',
+    dateBeforeTomorrow: 'upcomingActivities.error.dateBeforeTomorrow',
+    sessionTypeInvalid: 'upcomingActivities.error.sessionTypeInvalid',
+    sessionIdRequired: 'upcomingActivities.error.sessionNotAvailable',
+    sessionNotFound: 'upcomingActivities.error.sessionNotAvailable',
+    duplicateSessionId: 'upcomingActivities.error.sessionNotAvailable',
+    sessionNotAvailable: 'upcomingActivities.error.sessionNotAvailable',
+    detailLoadFailed: 'upcomingActivities.error.detailLoadFailed',
+    loadFailed: 'upcomingActivities.error.loadFailed'
   };
 
-  return t(
-    keys[errorCode] ||
-    'upcomingActivities.error.loadFailed'
-  );
+  return t(keys[errorCode] || 'upcomingActivities.error.loadFailed');
 }

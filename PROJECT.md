@@ -35,9 +35,9 @@ The availability interface and save operation exist. The personal volunteer sche
 
 ### Club Leaders and Teachers
 
-Club Leaders and Teachers can open a same-day management dashboard. It combines active students and Club Leaders with their availability, volunteer assignment, and attendance records. It displays totals, categorized member lists, volunteer conflicts, and an attendance summary.
+Club Leaders and Teachers can open a same-day Today workspace. It combines active students and Club Leaders with their availability, volunteer assignment, and attendance records. Operational conflicts and missing attendance are shown before neutral totals, followed by visitor assignments, grouped member status, and a read-only attendance summary.
 
-The management dashboard also has an Upcoming Activities section. It lists active Regular and Event sessions after today, defaults to the next eight weeks, and provides club-wide response totals and detailed groups for active Students and Club Leaders. Both the list and detail APIs require club-wide availability permission.
+Upcoming Activities is a separate Planning destination. It lists active Regular and Event sessions after today, defaults to the next eight weeks, and provides club-wide response totals, response deadlines, attention indicators, and detailed groups for active Students and Club Leaders. Both the list and detail APIs require club-wide availability permission.
 
 Day-to-day attendance editing is intended but not implemented. Club Leaders and Teachers can manage visitor schedules/Volunteer Assignments. Teachers can also manage sessions and events, and club member records, roles, and active status. Teacher-only settings management is not implemented.
 
@@ -55,8 +55,8 @@ The following code paths are present:
 - optional availability notes limited to 500 characters;
 - upcoming missing-response and volunteer-assignment notification generation;
 - same-day session aggregation across members, availability, volunteer assignments, and attendance;
-- a role-protected management dashboard with summaries and conflict detection;
-- a permission-protected Upcoming Activities dashboard section with date and session-type filters, future response totals, private management notes, visitor assignments, and conflict details;
+- a role-protected Today workspace with priority alerts, action-oriented summaries, visitor details, grouped member status, conflict detection, and read-only attendance;
+- a separate permission-protected Upcoming Activities Planning route with date, session-type, and attention filters, future response totals, response deadlines, private management notes, visitor assignments, and conflict details;
 - Teacher-only session and event creation, editing, cancellation, filtering, and integrity-protected deletion;
 - Teacher-only member creation, editing, role changes, activation, deactivation, filtering, and integrity-protected deletion;
 - locked M001-style Member ID generation, normalized unique member emails, final-active-Teacher protection, and strong confirmation before a Teacher removes their own management access;

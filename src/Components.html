@@ -225,6 +225,88 @@ function buildRecordRow(options) {
   `;
 }
 
+function buildPriorityBanner(options) {
+  const settings = options || {};
+
+  return `
+    <section
+      class="priority-banner priority-banner-${escapeHtml(
+        settings.tone || 'warning'
+      )}"
+      role="status"
+      aria-live="polite"
+    >
+      <div>
+        <h3>${escapeHtml(settings.title || '')}</h3>
+        ${settings.message
+          ? `<p>${escapeHtml(settings.message)}</p>`
+          : ''}
+      </div>
+      ${settings.detailsHtml || ''}
+    </section>
+  `;
+}
+
+function buildDisclosure(options) {
+  const settings = options || {};
+  const id = String(settings.id || 'disclosure');
+  const panelId = `${id}-panel`;
+  const expanded = settings.expanded === true;
+
+  return `
+    <section class="disclosure-component">
+      <button
+        type="button"
+        class="disclosure-trigger"
+        data-disclosure-trigger
+        aria-expanded="${String(expanded)}"
+        aria-controls="${escapeHtml(panelId)}"
+      >
+        <span>${escapeHtml(settings.title || '')}</span>
+        <span class="disclosure-trigger-end">
+          ${settings.count !== undefined
+            ? `<span class="dashboard-count">${escapeHtml(
+                settings.count
+              )}</span>`
+            : ''}
+          <span class="disclosure-chevron" aria-hidden="true">
+            ▾
+          </span>
+        </span>
+      </button>
+      <div
+        class="disclosure-panel"
+        id="${escapeHtml(panelId)}"
+        ${expanded ? '' : 'hidden'}
+      >
+        ${settings.contentHtml || ''}
+      </div>
+    </section>
+  `;
+}
+
+function initialiseDisclosures(container) {
+  const root = container || document;
+
+  root.querySelectorAll('[data-disclosure-trigger]').forEach(
+    trigger => {
+      trigger.addEventListener('click', () => {
+        const panel = document.getElementById(
+          trigger.getAttribute('aria-controls')
+        );
+        const expanded =
+          trigger.getAttribute('aria-expanded') === 'true';
+
+        trigger.setAttribute('aria-expanded', String(!expanded));
+
+        if (panel) {
+          panel.hidden = expanded;
+        }
+      });
+    }
+  );
+}
+
 function openDialog(options) {
   const settings = options || {};
   const host = document.getElementById('dialog-host');

@@ -404,7 +404,8 @@ function mapFutureAvailabilitySession_(row) {
     title: session.title,
     sessionType: session.sessionType,
     startTime: session.startTime,
-    endTime: session.endTime
+    endTime: session.endTime,
+    responseDeadline: session.responseDeadline
   };
 }
 

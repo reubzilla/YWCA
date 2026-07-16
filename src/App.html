@@ -1,7 +1,7 @@
 let portalData = null;
 let currentRouteId = 'today';
 
-// Retained for existing asynchronous view guards during Phase 1.
+// Retained for feature views that still use legacy asynchronous guards.
 let currentView = 'home';
 
 let isNavigationDrawerOpen = false;
@@ -351,9 +351,7 @@ function selectView(view) {
 function resolveLegacyRouteId(view) {
   const aliases = {
     home: 'today',
-    dashboard: currentDashboardSection === 'upcoming'
-      ? 'planning'
-      : 'today',
+    dashboard: 'today',
     sessions: 'sessions',
     members: 'members',
     availability: 'availability',
@@ -503,8 +501,7 @@ function shouldShowStandaloneMobileLanguage() {
 function renderTodayRoute() {
   if (portalData.permissions.canViewDashboard) {
     currentView = 'dashboard';
-    currentDashboardSection = 'today';
-    renderDashboard();
+    renderTodayDashboard();
     return;
   }
 
@@ -513,9 +510,8 @@ function renderTodayRoute() {
 }
 
 function renderPlanningRoute() {
-  currentView = 'dashboard';
-  currentDashboardSection = 'upcoming';
-  renderDashboard();
+  currentView = 'planning';
+  renderUpcomingActivities();
 }
 
 function renderVisitorCoordinationRoute() {
