@@ -177,10 +177,7 @@ function buildAvailabilityCard(session) {
 
       ${session.responseDeadline
         ? `
-          <p
-            class="session-details"
-            style="margin-top: 12px;"
-          >
+          <p class="session-details" style="margin-top: 12px;">
             ${t('session.responseDeadlineLabel')}
             ${escapeHtml(formatDateTime(
               session.responseDeadline
