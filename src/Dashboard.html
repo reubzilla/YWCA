@@ -54,11 +54,11 @@ function initialiseDashboardSectionNavigation() {
     .querySelectorAll('[data-dashboard-section]')
     .forEach(button => {
       button.addEventListener('click', () => {
-        currentDashboardSection =
-          button.dataset.dashboardSection;
-
-        updateDashboardSectionNavigation();
-        renderActiveDashboardSection();
+        navigateToRoute(
+          button.dataset.dashboardSection === 'upcoming'
+            ? 'planning'
+            : 'today'
+        );
       });
     });
 

@@ -1,0 +1,446 @@
+/**
+ * Shared presentation helpers. These functions do not read sheets,
+ * inspect permissions, or call Apps Script server functions.
+ */
+
+let activeDialogInvoker = null;
+let activeDialogOnClose = null;
+let activeSidePanelInvoker = null;
+let activeSidePanelOnClose = null;
+let componentKeyboardHandlerBound = false;
+
+function initialiseBaseComponents() {
+  if (componentKeyboardHandlerBound) {
+    return;
+  }
+
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Tab') {
+      const activeHost = isDialogOpen()
+        ? document.getElementById('dialog-host')
+        : isSidePanelOpen()
+          ? document.getElementById('side-panel-host')
+          : null;
+
+      if (activeHost) {
+        trapOverlayFocus(event, activeHost);
+      }
+
+      return;
+    }
+
+    if (event.key !== 'Escape') {
+      return;
+    }
+
+    if (isDialogOpen()) {
+      closeDialog('escape');
+      return;
+    }
+
+    if (isSidePanelOpen()) {
+      closeSidePanel('escape');
+    }
+  });
+
+  componentKeyboardHandlerBound = true;
+}
+
+function trapOverlayFocus(event, host) {
+  const focusable = Array.from(host.querySelectorAll(
+    'button:not([disabled]), [href], input:not([disabled]), ' +
+    'select:not([disabled]), textarea:not([disabled]), ' +
+    '[tabindex]:not([tabindex="-1"])'
+  )).filter(element =>
+    element.offsetParent !== null && element.tabIndex >= 0
+  );
+
+  if (focusable.length === 0) {
+    event.preventDefault();
+    return;
+  }
+
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (
+    !event.shiftKey &&
+    document.activeElement === last
+  ) {
+    event.preventDefault();
+    first.focus();
+  }
+}
+
+function buildPageHeader(options) {
+  const settings = options || {};
+  const title = String(settings.title || '');
+  const supportingText = String(
+    settings.supportingText || ''
+  );
+
+  return `
+    <div class="page-header-component">
+      <div class="page-header-copy">
+        <h1
+          class="page-title"
+          id="route-page-heading"
+          tabindex="-1"
+        >
+          ${escapeHtml(title)}
+        </h1>
+
+        ${supportingText
+          ? `
+            <p class="page-header-supporting">
+              ${escapeHtml(supportingText)}
+            </p>
+          `
+          : ''}
+      </div>
+
+      ${settings.actionsHtml
+        ? `
+          <div class="page-header-actions">
+            ${settings.actionsHtml}
+          </div>
+        `
+        : ''}
+    </div>
+  `;
+}
+
+function buildStatusBadge(label, tone) {
+  return `
+    <span class="status-badge status-badge-${escapeHtml(
+      tone || 'neutral'
+    )}">
+      ${escapeHtml(label)}
+    </span>
+  `;
+}
+
+function buildSummaryMetric(value, label, tone) {
+  return `
+    <div class="summary-metric summary-metric-${escapeHtml(
+      tone || 'neutral'
+    )}">
+      <strong class="summary-metric-value">
+        ${escapeHtml(value)}
+      </strong>
+      <span class="summary-metric-label">
+        ${escapeHtml(label)}
+      </span>
+    </div>
+  `;
+}
+
+function buildLoadingState(message) {
+  return `
+    <section
+      class="ui-state ui-state-loading"
+      role="status"
+      aria-live="polite"
+    >
+      ${escapeHtml(message)}
+    </section>
+  `;
+}
+
+function buildEmptyState(options) {
+  const settings = options || {};
+
+  return `
+    <section class="ui-state ui-state-empty">
+      ${settings.title
+        ? `<h2>${escapeHtml(settings.title)}</h2>`
+        : ''}
+      <p>${escapeHtml(settings.message || '')}</p>
+      ${settings.actionsHtml || ''}
+    </section>
+  `;
+}
+
+function buildErrorState(options) {
+  const settings = options || {};
+
+  return `
+    <section class="ui-state ui-state-error" role="alert">
+      ${settings.title
+        ? `<h2>${escapeHtml(settings.title)}</h2>`
+        : ''}
+      <p>${escapeHtml(settings.message || '')}</p>
+      ${settings.actionsHtml || ''}
+    </section>
+  `;
+}
+
+function buildFilterBar(options) {
+  const settings = options || {};
+
+  return `
+    <section
+      class="filter-bar"
+      ${settings.label
+        ? `aria-label="${escapeHtml(settings.label)}"`
+        : ''}
+    >
+      <div class="filter-bar-fields">
+        ${settings.fieldsHtml || ''}
+      </div>
+      ${settings.actionsHtml
+        ? `
+          <div class="filter-bar-actions">
+            ${settings.actionsHtml}
+          </div>
+        `
+        : ''}
+    </section>
+  `;
+}
+
+function buildRecordRow(options) {
+  const settings = options || {};
+
+  return `
+    <article class="record-row">
+      <div class="record-row-main">
+        <h3 class="record-row-title">
+          ${escapeHtml(settings.title || '')}
+        </h3>
+        ${settings.metaHtml || ''}
+      </div>
+      ${settings.statusHtml || ''}
+      ${settings.actionsHtml
+        ? `
+          <div class="record-row-actions">
+            ${settings.actionsHtml}
+          </div>
+        `
+        : ''}
+    </article>
+  `;
+}
+
+function openDialog(options) {
+  const settings = options || {};
+  const host = document.getElementById('dialog-host');
+
+  if (!host) {
+    return;
+  }
+
+  activeDialogInvoker = settings.invoker ||
+    document.activeElement;
+  activeDialogOnClose = settings.onClose || null;
+
+  host.hidden = false;
+  host.innerHTML = `
+    <button
+      type="button"
+      class="overlay-backdrop"
+      data-dialog-close
+      tabindex="-1"
+      aria-label="${escapeHtml(t('common.close'))}"
+    ></button>
+    <section
+      class="dialog-component"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="dialog-title"
+    >
+      <div class="overlay-heading-row">
+        <h2 id="dialog-title">${escapeHtml(
+          settings.title || ''
+        )}</h2>
+        <button
+          type="button"
+          class="icon-button"
+          data-dialog-close
+          aria-label="${escapeHtml(t('common.close'))}"
+        >
+          <span aria-hidden="true">×</span>
+        </button>
+      </div>
+      <div class="dialog-body">
+        ${settings.contentHtml || ''}
+      </div>
+      ${settings.actionsHtml
+        ? `
+          <div class="dialog-actions">
+            ${settings.actionsHtml}
+          </div>
+        `
+        : ''}
+    </section>
+  `;
+
+  document.body.classList.add('overlay-open');
+
+  host.querySelectorAll('[data-dialog-close]').forEach(
+    control => {
+      control.addEventListener('click', () => {
+        closeDialog('close');
+      });
+    }
+  );
+
+  const dialog = host.querySelector('.dialog-component');
+  const focusTarget = dialog
+    ? dialog.querySelector(
+        'button, [href], input, select, textarea, ' +
+        '[tabindex]:not([tabindex="-1"])'
+      )
+    : null;
+
+  if (focusTarget) {
+    focusTarget.focus();
+  }
+}
+
+function closeDialog(result, restoreFocus) {
+  const host = document.getElementById('dialog-host');
+
+  if (!host || host.hidden) {
+    return;
+  }
+
+  const invoker = activeDialogInvoker;
+  const onClose = activeDialogOnClose;
+
+  host.hidden = true;
+  host.innerHTML = '';
+  activeDialogInvoker = null;
+  activeDialogOnClose = null;
+  updateOverlayBodyState();
+
+  if (typeof onClose === 'function') {
+    onClose(result);
+  }
+
+  if (
+    restoreFocus !== false &&
+    invoker &&
+    document.contains(invoker)
+  ) {
+    invoker.focus();
+  }
+}
+
+function isDialogOpen() {
+  const host = document.getElementById('dialog-host');
+  return Boolean(host && !host.hidden);
+}
+
+function openSidePanel(options) {
+  const settings = options || {};
+  const host = document.getElementById('side-panel-host');
+
+  if (!host) {
+    return;
+  }
+
+  activeSidePanelInvoker = settings.invoker ||
+    document.activeElement;
+  activeSidePanelOnClose = settings.onClose || null;
+
+  host.hidden = false;
+  host.innerHTML = `
+    <button
+      type="button"
+      class="overlay-backdrop"
+      data-side-panel-close
+      tabindex="-1"
+      aria-label="${escapeHtml(t('common.close'))}"
+    ></button>
+    <aside
+      class="side-panel-component"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="side-panel-title"
+    >
+      <div class="overlay-heading-row">
+        <h2 id="side-panel-title">${escapeHtml(
+          settings.title || ''
+        )}</h2>
+        <button
+          type="button"
+          class="icon-button"
+          data-side-panel-close
+          aria-label="${escapeHtml(t('common.close'))}"
+        >
+          <span aria-hidden="true">×</span>
+        </button>
+      </div>
+      <div class="side-panel-body">
+        ${settings.contentHtml || ''}
+      </div>
+    </aside>
+  `;
+
+  document.body.classList.add('overlay-open');
+
+  host.querySelectorAll('[data-side-panel-close]').forEach(
+    control => {
+      control.addEventListener('click', () => {
+        closeSidePanel('close');
+      });
+    }
+  );
+
+  const panel = host.querySelector('.side-panel-component');
+  const focusTarget = panel
+    ? panel.querySelector(
+        '[data-side-panel-initial-focus], button, [href], ' +
+        'input, select, textarea'
+      )
+    : null;
+
+  if (focusTarget) {
+    focusTarget.focus();
+  }
+}
+
+function closeSidePanel(result, restoreFocus) {
+  const host = document.getElementById('side-panel-host');
+
+  if (!host || host.hidden) {
+    return;
+  }
+
+  const invoker = activeSidePanelInvoker;
+  const onClose = activeSidePanelOnClose;
+
+  host.hidden = true;
+  host.innerHTML = '';
+  activeSidePanelInvoker = null;
+  activeSidePanelOnClose = null;
+  updateOverlayBodyState();
+
+  if (typeof onClose === 'function') {
+    onClose(result);
+  }
+
+  if (
+    restoreFocus !== false &&
+    invoker &&
+    document.contains(invoker)
+  ) {
+    invoker.focus();
+  }
+}
+
+function isSidePanelOpen() {
+  const host = document.getElementById('side-panel-host');
+  return Boolean(host && !host.hidden);
+}
+
+function updateOverlayBodyState() {
+  document.body.classList.toggle(
+    'overlay-open',
+    isDialogOpen() || isSidePanelOpen()
+  );
+}

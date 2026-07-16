@@ -171,6 +171,8 @@ Place frontend code in the appropriate HTML partial:
 - `Styles.html`
 - `Localization.html`
 - `BrowserHelpers.html`
+- `Components.html`
+- `AppShell.html`
 - `Home.html`
 - `Availability.html`
 - `UpcomingActivities.html`
@@ -183,7 +185,9 @@ Place frontend code in the appropriate HTML partial:
 - `App.html`
 
 Before adding a new frontend function, identify which module owns it.
-Shared functions belong in `BrowserHelpers.html`, not in a view module.
+Shared browser utilities belong in `BrowserHelpers.html`, reusable
+presentation builders belong in `Components.html`, and responsive shell
+rendering belongs in `AppShell.html`, not in a feature view module.
 
 ## Coding rules
 

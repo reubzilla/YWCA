@@ -12,6 +12,8 @@
         'app.subtitle': 'Attendance and community visits',
         'app.loading': 'Loading your club information…',
         'a11y.primaryNavigation': 'Club Portal sections',
+        'a11y.mobileNavigation': 'Primary mobile navigation',
+        'a11y.skipToContent': 'Skip to main content',
         'language.label': 'Language',
         'language.japanese': 'Japanese',
         'language.english': 'English',
@@ -33,6 +35,29 @@
         'nav.dashboard': 'Dashboard',
         'nav.sessionsEvents': 'Sessions & Events',
         'nav.members': 'Members',
+        'nav.today': 'Today',
+        'nav.visitorCoordination': 'Visitor Coordination',
+        'nav.visitorsShort': 'Visitors',
+        'nav.upcomingActivities': 'Upcoming Activities',
+        'nav.planning': 'Planning',
+        'nav.myAvailability': 'My Availability',
+        'nav.myAssignments': 'My Assignments',
+        'nav.assignmentsShort': 'Assignments',
+        'nav.notifications': 'Notifications',
+        'nav.people': 'People',
+        'nav.personal': 'Personal',
+        'nav.more': 'More',
+        'nav.group.operations': 'Operations',
+        'nav.group.planning': 'Planning',
+        'nav.group.people': 'People',
+        'nav.group.personal': 'Personal',
+        'shell.menu': 'Menu',
+        'shell.navigation': 'Navigation',
+        'shell.closeMenu': 'Close navigation',
+        'shell.accountLabel': 'Signed-in account',
+        'shell.personalMenuTitle': 'Personal',
+        'shell.moreMenuTitle': 'More',
+        'common.close': 'Close',
         'volunteer.title': 'My Volunteer Schedule',
         'volunteer.loading': 'Loading your assignments…',
         'volunteer.intro':
@@ -505,6 +530,8 @@
         'app.subtitle': '出席・地域訪問',
         'app.loading': 'クラブ情報を読み込んでいます…',
         'a11y.primaryNavigation': 'クラブポータルのセクション',
+        'a11y.mobileNavigation': 'モバイルのメインナビゲーション',
+        'a11y.skipToContent': '本文へ移動',
         'language.label': '言語',
         'language.japanese': '日本語',
         'language.english': 'English',
@@ -526,6 +553,29 @@
         'nav.dashboard': 'ダッシュボード',
         'nav.sessionsEvents': '活動・イベント管理',
         'nav.members': 'メンバー管理',
+        'nav.today': '本日',
+        'nav.visitorCoordination': '訪問調整',
+        'nav.visitorsShort': '訪問',
+        'nav.upcomingActivities': '今後の活動',
+        'nav.planning': '計画',
+        'nav.myAvailability': '自分の参加可否',
+        'nav.myAssignments': '自分の担当',
+        'nav.assignmentsShort': '担当',
+        'nav.notifications': '通知',
+        'nav.people': 'メンバー',
+        'nav.personal': '個人',
+        'nav.more': 'その他',
+        'nav.group.operations': '当日の運営',
+        'nav.group.planning': '今後の計画',
+        'nav.group.people': 'メンバー',
+        'nav.group.personal': '個人',
+        'shell.menu': 'メニュー',
+        'shell.navigation': 'ナビゲーション',
+        'shell.closeMenu': 'ナビゲーションを閉じる',
+        'shell.accountLabel': 'ログイン中のアカウント',
+        'shell.personalMenuTitle': '個人',
+        'shell.moreMenuTitle': 'その他',
+        'common.close': '閉じる',
         'volunteer.title': '自分の訪問予定',
         'volunteer.loading': '担当予定を読み込んでいます…',
         'volunteer.intro':
@@ -1074,50 +1124,85 @@
     }
 
     function initialiseLanguageSelector() {
-      const selector = document.getElementById(
-        'language-selector'
-      );
+      document
+        .querySelectorAll('.language-selector')
+        .forEach(selector => {
+          selector.value = activeLocale;
 
-      selector.addEventListener('change', () => {
-        setLanguage(selector.value);
-      });
+          if (selector.dataset.languageBound === 'true') {
+            return;
+          }
+
+          selector.addEventListener('change', () => {
+            setLanguage(selector.value);
+          });
+
+          selector.dataset.languageBound = 'true';
+        });
+    }
+
+    function updateStaticTextElements() {
+      document
+        .querySelectorAll('[data-i18n-text]')
+        .forEach(element => {
+          element.textContent = t(
+            element.dataset.i18nText
+          );
+        });
+
+      document
+        .querySelectorAll('[data-i18n-aria-label]')
+        .forEach(element => {
+          element.setAttribute(
+            'aria-label',
+            t(element.dataset.i18nAriaLabel)
+          );
+        });
+
+      document
+        .querySelectorAll('[data-app-name]')
+        .forEach(element => {
+          element.textContent = t('app.name');
+        });
+
+      document
+        .querySelectorAll('[data-app-subtitle]')
+        .forEach(element => {
+          element.textContent = t('app.subtitle');
+        });
+    }
+
+    function updateLanguageSelectors() {
+      document
+        .querySelectorAll('.language-selector')
+        .forEach(selector => {
+          selector.innerHTML = `
+            <option value="ja">
+              ${escapeHtml(t('language.japanese'))}
+            </option>
+            <option value="en">
+              ${escapeHtml(t('language.english'))}
+            </option>
+          `;
+
+          selector.value = activeLocale;
+        });
     }
 
     function initialiseStaticTranslations() {
       document.documentElement.lang = activeLocale;
       document.title = t('app.browserTitle');
 
-      document.getElementById('app-name').textContent =
-        t('app.name');
+      updateStaticTextElements();
+      updateLanguageSelectors();
+      initialiseLanguageSelector();
 
-      document.getElementById('app-subtitle').textContent =
-        t('app.subtitle');
+      const content = document.getElementById('content');
 
-      document
-        .getElementById('navigation')
-        .setAttribute(
-          'aria-label',
-          t('a11y.primaryNavigation')
-        );
-
-      document.getElementById('content').textContent =
-        t('app.loading');
-
-      document.getElementById('language-label').textContent =
-        t('language.label');
-
-      const selector = document.getElementById(
-        'language-selector'
-      );
-
-      selector.innerHTML = `
-        <option value="ja">
-          ${escapeHtml(t('language.japanese'))}
-        </option>
-        <option value="en">
-          ${escapeHtml(t('language.english'))}
-        </option>
-      `;
-
-      selector.value = activeLocale;
+      if (content && !portalData && !content.textContent.trim()) {
+        content.innerHTML =
+          typeof buildLoadingState === 'function'
+          ? buildLoadingState(t('app.loading'))
+          : escapeHtml(t('app.loading'));
+      }
     }

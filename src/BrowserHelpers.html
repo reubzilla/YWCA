@@ -181,8 +181,10 @@ function createClientRequestId() {
       const content =
         document.getElementById('content');
 
-      content.className = 'error';
-      content.textContent = t('app.error.loadFailed');
+      content.className = '';
+      content.innerHTML = buildErrorState({
+        message: t('app.error.loadFailed')
+      });
     }
 
     function buildTimeText(startTime, endTime) {

@@ -1,7 +1,237 @@
 let portalData = null;
+let currentRouteId = 'today';
+
+// Retained for existing asynchronous view guards during Phase 1.
 let currentView = 'home';
 
-initialiseLanguageSelector();
+let isNavigationDrawerOpen = false;
+let isMoreMenuOpen = false;
+let activeMobileMenu = '';
+
+const STUDENT_ROLE = 'Student';
+const CLUB_LEADER_ROLE = 'Club Leader';
+const TEACHER_ROLE = 'Teacher';
+
+const ROUTE_REGISTRY = Object.freeze([
+  Object.freeze({
+    id: 'today',
+    labelKey: 'nav.today',
+    roles: Object.freeze([
+      STUDENT_ROLE,
+      CLUB_LEADER_ROLE,
+      TEACHER_ROLE
+    ]),
+    permission: '',
+    groupByRole: Object.freeze({
+      Student: 'personal',
+      'Club Leader': 'operations',
+      Teacher: 'operations'
+    }),
+    orderByRole: Object.freeze({
+      Student: 1,
+      'Club Leader': 1,
+      Teacher: 1
+    }),
+    renderer: renderTodayRoute,
+    icon: 'today',
+    desktop: true,
+    mobilePrimaryRoles: Object.freeze([
+      STUDENT_ROLE,
+      CLUB_LEADER_ROLE,
+      TEACHER_ROLE
+    ]),
+    mobileSecondaryRoles: Object.freeze([]),
+    enabled: true
+  }),
+  Object.freeze({
+    id: 'visitor-coordination',
+    labelKey: 'nav.visitorCoordination',
+    mobileLabelKey: 'nav.visitorsShort',
+    labelKeyByRole: Object.freeze({
+      Teacher: 'nav.visitorSchedules'
+    }),
+    roles: Object.freeze([
+      CLUB_LEADER_ROLE,
+      TEACHER_ROLE
+    ]),
+    permission: 'canManageVolunteers',
+    groupByRole: Object.freeze({
+      'Club Leader': 'operations',
+      Teacher: 'planning'
+    }),
+    orderByRole: Object.freeze({
+      'Club Leader': 2,
+      Teacher: 3
+    }),
+    renderer: renderVisitorCoordinationRoute,
+    icon: 'visitors',
+    desktop: true,
+    mobilePrimaryRoles: Object.freeze([
+      CLUB_LEADER_ROLE
+    ]),
+    mobileSecondaryRoles: Object.freeze([
+      TEACHER_ROLE
+    ]),
+    enabled: true
+  }),
+  Object.freeze({
+    id: 'planning',
+    labelKey: 'nav.upcomingActivities',
+    mobileLabelKey: 'nav.planning',
+    roles: Object.freeze([
+      CLUB_LEADER_ROLE,
+      TEACHER_ROLE
+    ]),
+    permission: 'canViewAllAvailability',
+    groupByRole: Object.freeze({
+      'Club Leader': 'planning',
+      Teacher: 'planning'
+    }),
+    orderByRole: Object.freeze({
+      'Club Leader': 1,
+      Teacher: 1
+    }),
+    renderer: renderPlanningRoute,
+    icon: 'planning',
+    desktop: true,
+    mobilePrimaryRoles: Object.freeze([
+      CLUB_LEADER_ROLE,
+      TEACHER_ROLE
+    ]),
+    mobileSecondaryRoles: Object.freeze([]),
+    enabled: true
+  }),
+  Object.freeze({
+    id: 'sessions',
+    labelKey: 'nav.sessionsEvents',
+    roles: Object.freeze([TEACHER_ROLE]),
+    permission: 'canManageSessions',
+    groupByRole: Object.freeze({
+      Teacher: 'planning'
+    }),
+    orderByRole: Object.freeze({
+      Teacher: 2
+    }),
+    renderer: renderSessionsRoute,
+    icon: 'sessions',
+    desktop: true,
+    mobilePrimaryRoles: Object.freeze([]),
+    mobileSecondaryRoles: Object.freeze([
+      TEACHER_ROLE
+    ]),
+    enabled: true
+  }),
+  Object.freeze({
+    id: 'members',
+    labelKey: 'nav.people',
+    roles: Object.freeze([TEACHER_ROLE]),
+    permission: 'canManageMembers',
+    groupByRole: Object.freeze({
+      Teacher: 'people'
+    }),
+    orderByRole: Object.freeze({
+      Teacher: 1
+    }),
+    renderer: renderMembersRoute,
+    icon: 'people',
+    desktop: true,
+    mobilePrimaryRoles: Object.freeze([
+      TEACHER_ROLE
+    ]),
+    mobileSecondaryRoles: Object.freeze([]),
+    enabled: true
+  }),
+  Object.freeze({
+    id: 'availability',
+    labelKey: 'nav.availability',
+    labelKeyByRole: Object.freeze({
+      'Club Leader': 'nav.myAvailability',
+      Teacher: 'nav.myAvailability'
+    }),
+    roles: Object.freeze([
+      STUDENT_ROLE,
+      CLUB_LEADER_ROLE,
+      TEACHER_ROLE
+    ]),
+    permission: 'canSubmitAvailability',
+    groupByRole: Object.freeze({
+      Student: 'personal',
+      'Club Leader': 'personal',
+      Teacher: 'personal'
+    }),
+    orderByRole: Object.freeze({
+      Student: 2,
+      'Club Leader': 1,
+      Teacher: 1
+    }),
+    renderer: renderAvailabilityRoute,
+    icon: 'availability',
+    desktop: true,
+    mobilePrimaryRoles: Object.freeze([
+      STUDENT_ROLE
+    ]),
+    mobileSecondaryRoles: Object.freeze([]),
+    enabled: true
+  }),
+  Object.freeze({
+    id: 'assignments',
+    labelKey: 'nav.myAssignments',
+    mobileLabelKey: 'nav.assignmentsShort',
+    roles: Object.freeze([
+      STUDENT_ROLE,
+      CLUB_LEADER_ROLE,
+      TEACHER_ROLE
+    ]),
+    permission: 'canViewOwnSchedule',
+    groupByRole: Object.freeze({
+      Student: 'personal',
+      'Club Leader': 'personal',
+      Teacher: 'personal'
+    }),
+    orderByRole: Object.freeze({
+      Student: 3,
+      'Club Leader': 2,
+      Teacher: 2
+    }),
+    renderer: renderAssignmentsRoute,
+    icon: 'assignments',
+    desktop: true,
+    mobilePrimaryRoles: Object.freeze([
+      STUDENT_ROLE
+    ]),
+    mobileSecondaryRoles: Object.freeze([]),
+    enabled: true
+  }),
+  Object.freeze({
+    id: 'notifications',
+    labelKey: 'nav.notifications',
+    roles: Object.freeze([
+      STUDENT_ROLE,
+      CLUB_LEADER_ROLE,
+      TEACHER_ROLE
+    ]),
+    permission: '',
+    groupByRole: Object.freeze({
+      Student: 'personal',
+      'Club Leader': 'personal',
+      Teacher: 'personal'
+    }),
+    orderByRole: Object.freeze({
+      Student: 4,
+      'Club Leader': 3,
+      Teacher: 3
+    }),
+    renderer: renderNotificationsRoute,
+    icon: 'notifications',
+    desktop: true,
+    mobilePrimaryRoles: Object.freeze([
+      STUDENT_ROLE
+    ]),
+    mobileSecondaryRoles: Object.freeze([]),
+    enabled: true
+  })
+]);
+
 initialiseStaticTranslations();
 
 document.addEventListener(
@@ -10,6 +240,12 @@ document.addEventListener(
 );
 
 function loadPortal() {
+  initialiseAppShell();
+
+  const content = document.getElementById('content');
+  content.className = '';
+  content.innerHTML = buildLoadingState(t('app.loading'));
+
   google.script.run
     .withSuccessHandler(initialisePortal)
     .withFailureHandler(renderError)
@@ -18,9 +254,11 @@ function loadPortal() {
 
 function initialisePortal(data) {
   updatePortalData(data);
-
-  renderNavigation(data.permissions);
-  selectView(currentView);
+  currentRouteId = getFirstPermittedRoute().id;
+  navigateToRoute(currentRouteId, {
+    focusHeading: false,
+    resetScroll: false
+  });
 }
 
 function updatePortalData(data) {
@@ -29,120 +267,284 @@ function updatePortalData(data) {
 
 function rerenderAfterLanguageChange() {
   captureAvailabilityDrafts();
+
+  const reopenDrawer = isNavigationDrawerOpen;
+  const openMobileMenu = isMoreMenuOpen
+    ? activeMobileMenu
+    : '';
+
+  if (openMobileMenu) {
+    closeSidePanel('language', false);
+  }
+
   initialiseStaticTranslations();
 
-  if (portalData) {
-    renderNavigation(portalData.permissions);
-    selectView(currentView);
+  if (!portalData) {
+    return;
+  }
+
+  navigateToRoute(currentRouteId, {
+    focusHeading: false,
+    resetScroll: false
+  });
+
+  if (
+    reopenDrawer &&
+    window.innerWidth >= 768 &&
+    window.innerWidth < 1024
+  ) {
+    openNavigationDrawer(
+      document.getElementById('navigation-drawer-button')
+    );
+  }
+
+  if (openMobileMenu) {
+    const invoker = document.querySelector(
+      `[data-mobile-action="${cssEscape(openMobileMenu)}"]`
+    );
+    openMobileNavigationSheet(openMobileMenu, invoker);
   }
 }
 
-function renderNavigation(permissions) {
-  const navigation =
-    document.getElementById('navigation');
+function navigateToRoute(routeId, options) {
+  const settings = options || {};
+  const route = getPermittedRoute(routeId) ||
+    getFirstPermittedRoute();
 
-  const items = [
-    { id: 'home', label: t('nav.home') },
-    { id: 'availability', label: t('nav.availability') },
-    {
-      id: 'volunteer',
-      label: t(
-        permissions.canManageVolunteers
-          ? 'nav.visitorSchedules'
-          : 'nav.volunteerSchedule'
-      )
-    },
-    { id: 'attendance', label: t('nav.checkIn') }
-  ];
-
-  if (permissions.canViewDashboard) {
-    items.push({
-      id: 'dashboard',
-      label: t('nav.dashboard')
-    });
+  if (isNavigationDrawerOpen) {
+    closeNavigationDrawer(false);
   }
 
-  if (permissions.canManageSessions) {
-    items.push({
-      id: 'sessions',
-      label: t('nav.sessionsEvents')
-    });
+  if (isMoreMenuOpen) {
+    closeMobileNavigationSheet(false);
   }
 
-  if (permissions.canManageMembers) {
-    items.push({
-      id: 'members',
-      label: t('nav.members')
-    });
+  currentRouteId = route.id;
+  renderAppShell();
+  initialiseStaticTranslations();
+  route.renderer();
+
+  if (settings.resetScroll !== false) {
+    window.scrollTo(0, 0);
   }
 
-  navigation.innerHTML = items.map(item => `
-    <button
-      class="nav-button ${item.id === currentView ? 'active' : ''}"
-      data-view="${escapeHtml(item.id)}"
-      type="button"
-    >
-      ${escapeHtml(item.label)}
-    </button>
-  `).join('');
-
-  navigation.classList.remove('hidden');
-
-  navigation
-    .querySelectorAll('.nav-button')
-    .forEach(button => {
-      button.addEventListener('click', () => {
-        selectView(button.dataset.view);
-      });
-    });
-}
-
-function selectView(view) {
-  currentView = view;
-
-  document
-    .querySelectorAll('.nav-button')
-    .forEach(button => {
-      button.classList.toggle(
-        'active',
-        button.dataset.view === view
+  if (settings.focusHeading !== false) {
+    window.requestAnimationFrame(() => {
+      const heading = document.getElementById(
+        'route-page-heading'
       );
-    });
 
-  switch (view) {
-    case 'home':
-      renderHome();
-      break;
-
-    case 'availability':
-      renderAvailability();
-      break;
-
-    case 'volunteer':
-      if (
-        portalData &&
-        portalData.permissions.canManageVolunteers
-      ) {
-        renderVisitorScheduleManagement();
-      } else {
-        renderVolunteer();
+      if (heading) {
+        heading.focus({ preventScroll: true });
       }
-      break;
-
-    case 'attendance':
-      renderAttendance();
-      break;
-
-    case 'dashboard':
-      renderDashboard();
-      break;
-
-    case 'sessions':
-      renderSessionManagement();
-      break;
-
-    case 'members':
-      renderMemberManagement();
-      break;
+    });
   }
+}
+
+/**
+ * Compatibility adapter for existing view event handlers.
+ */
+function selectView(view) {
+  navigateToRoute(resolveLegacyRouteId(view));
+}
+
+function resolveLegacyRouteId(view) {
+  const aliases = {
+    home: 'today',
+    dashboard: currentDashboardSection === 'upcoming'
+      ? 'planning'
+      : 'today',
+    sessions: 'sessions',
+    members: 'members',
+    availability: 'availability',
+    attendance: 'today'
+  };
+
+  if (view === 'volunteer') {
+    return portalData &&
+      portalData.permissions.canManageVolunteers
+      ? 'visitor-coordination'
+      : 'assignments';
+  }
+
+  return aliases[view] || view;
+}
+
+function getPermittedRoute(routeId) {
+  const route = ROUTE_REGISTRY.find(item =>
+    item.id === routeId
+  );
+
+  return route && isRoutePermitted(route)
+    ? route
+    : null;
+}
+
+function getFirstPermittedRoute() {
+  return ROUTE_REGISTRY.find(isRoutePermitted);
+}
+
+function getCurrentRoute() {
+  return getPermittedRoute(currentRouteId) ||
+    (portalData ? getFirstPermittedRoute() : null);
+}
+
+function isRoutePermitted(route) {
+  if (!portalData || !route.enabled) {
+    return false;
+  }
+
+  const role = portalData.user.role;
+
+  if (!route.roles.includes(role)) {
+    return false;
+  }
+
+  return !route.permission ||
+    portalData.permissions[route.permission] === true;
+}
+
+function getRouteLabel(route, variant) {
+  const role = portalData && portalData.user
+    ? portalData.user.role
+    : '';
+  const roleKey = route.labelKeyByRole &&
+    route.labelKeyByRole[role];
+  const mobileKey = variant === 'mobile' &&
+    route.mobileLabelKey;
+
+  return t(mobileKey || roleKey || route.labelKey);
+}
+
+function getDesktopNavigationGroups() {
+  const role = portalData.user.role;
+  const groupOrder = role === STUDENT_ROLE
+    ? ['personal']
+    : role === CLUB_LEADER_ROLE
+      ? ['operations', 'planning', 'personal']
+      : ['operations', 'planning', 'people', 'personal'];
+
+  return groupOrder.map(groupId => ({
+    id: groupId,
+    labelKey: `nav.group.${groupId}`,
+    routes: ROUTE_REGISTRY
+      .filter(route =>
+        route.desktop &&
+        isRoutePermitted(route) &&
+        route.groupByRole[role] === groupId
+      )
+      .sort((a, b) =>
+        a.orderByRole[role] - b.orderByRole[role]
+      )
+  })).filter(group => group.routes.length > 0);
+}
+
+function getMobileNavigationItems() {
+  const role = portalData.user.role;
+  const items = ROUTE_REGISTRY
+    .filter(route =>
+      isRoutePermitted(route) &&
+      route.mobilePrimaryRoles.includes(role)
+    )
+    .map(route => ({
+      type: 'route',
+      route: route
+    }));
+
+  if (role !== STUDENT_ROLE) {
+    items.push(
+      {
+        type: 'action',
+        action: 'personal',
+        labelKey: 'nav.personal',
+        icon: 'personal'
+      },
+      {
+        type: 'action',
+        action: 'more',
+        labelKey: 'nav.more',
+        icon: 'more'
+      }
+    );
+  }
+
+  return items.slice(0, 5);
+}
+
+function getPersonalRoutes() {
+  return [
+    'availability',
+    'assignments',
+    'notifications'
+  ].map(getPermittedRoute).filter(Boolean);
+}
+
+function getMobileSecondaryRoutes() {
+  const role = portalData.user.role;
+
+  return ROUTE_REGISTRY.filter(route =>
+    isRoutePermitted(route) &&
+    route.mobileSecondaryRoles.includes(role)
+  );
+}
+
+function mobileActionRepresentsCurrentRoute(action) {
+  const routes = action === 'personal'
+    ? getPersonalRoutes()
+    : getMobileSecondaryRoutes();
+
+  return routes.some(route => route.id === currentRouteId);
+}
+
+function shouldShowStandaloneMobileLanguage() {
+  return portalData.user.role === STUDENT_ROLE;
+}
+
+function renderTodayRoute() {
+  if (portalData.permissions.canViewDashboard) {
+    currentView = 'dashboard';
+    currentDashboardSection = 'today';
+    renderDashboard();
+    return;
+  }
+
+  currentView = 'home';
+  renderHome();
+}
+
+function renderPlanningRoute() {
+  currentView = 'dashboard';
+  currentDashboardSection = 'upcoming';
+  renderDashboard();
+}
+
+function renderVisitorCoordinationRoute() {
+  currentView = 'volunteer';
+  renderVisitorScheduleManagement();
+}
+
+function renderSessionsRoute() {
+  currentView = 'sessions';
+  renderSessionManagement();
+}
+
+function renderMembersRoute() {
+  currentView = 'members';
+  renderMemberManagement();
+}
+
+function renderAvailabilityRoute() {
+  currentView = 'availability';
+  renderAvailability();
+}
+
+function renderAssignmentsRoute() {
+  currentView = 'assignments';
+  renderVolunteer();
+}
+
+function renderNotificationsRoute() {
+  // Notifications remain part of Home until the Phase 4 view redesign.
+  currentView = 'home';
+  renderHome();
 }

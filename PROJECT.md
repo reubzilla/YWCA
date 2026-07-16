@@ -63,6 +63,9 @@ The following code paths are present:
 - signed-in-member-only volunteer schedule display;
 - Teacher and Club Leader visitor-schedule management with multi-member assignment, availability warnings, filtering, locked duplicate prevention, cancellation, and safe future deletion;
 - language-neutral date payloads with Japanese and British English browser formatting;
+- a role-aware single-page route registry that separates personal assignments from manager visitor coordination;
+- a responsive application shell with a persistent desktop sidebar, tablet drawer, and role-specific mobile navigation;
+- semantic design tokens and small framework-free base UI components;
 - responsive, framework-free HTML, CSS, and browser JavaScript.
 
 
@@ -71,10 +74,12 @@ The initial portal payload is provided by `getPortalData()`, which returns the a
 ## Incomplete features
 - Student, QR, and manual attendance check-in are not implemented.
 - Attendance can be read for the dashboard but cannot be recorded through the application.
+- Attendance is not exposed as a working navigation destination while it remains incomplete.
 - Settings management is not implemented.
 - Response deadlines are displayed but not enforced by `saveAvailability()`.
 - English is the canonical frontend source language. A single English/Japanese dictionary supplies client labels, Japanese is the default, and the language selector stores the user's preference in `localStorage`.
 - The frontend is split into HTML partials for styles, localisation, shared browser utilities, application routing, and each view; `Index.html` contains only the document shell and ordered includes.
+- The Phase 1 `notifications` route intentionally renders the existing Home view because notification content has not yet been separated into its own feature view.
 - There is no repository-provided sheet setup, migration, or test suite. Local Apps Script source synchronization is configured through `clasp`.
 
 ## Future planned features

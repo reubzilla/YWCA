@@ -14,42 +14,110 @@
 </head>
 
 <body>
-  <main class="page">
-    <header class="header">
-      <div class="header-row">
-        <div>
-          <h1 id="app-name"></h1>
-          <p id="app-subtitle"></p>
+  <a
+    class="skip-link"
+    href="#main-content"
+    data-i18n-text="a11y.skipToContent"
+  ></a>
+
+  <div class="app-shell" id="app-shell">
+    <aside
+      class="app-sidebar"
+      id="desktop-sidebar"
+      data-i18n-aria-label="a11y.primaryNavigation"
+    >
+      <div
+        class="app-sidebar-content"
+        id="desktop-sidebar-content"
+      ></div>
+    </aside>
+
+    <div class="app-workspace">
+      <header class="app-topbar">
+        <div class="app-topbar-leading">
+          <button
+            type="button"
+            class="menu-button"
+            id="navigation-drawer-button"
+            aria-controls="navigation-drawer"
+            aria-expanded="false"
+          >
+            <span class="menu-button-icon" aria-hidden="true">
+              ☰
+            </span>
+            <span data-i18n-text="shell.menu"></span>
+          </button>
+
+          <div class="topbar-app-identity">
+            <strong data-app-name></strong>
+            <span data-app-subtitle></span>
+          </div>
         </div>
 
-        <div class="language-control">
-          <label
-            id="language-label"
-            class="language-label"
-            for="language-selector"
-          ></label>
+        <div id="page-header"></div>
+        <div id="student-mobile-language"></div>
+      </header>
 
-          <select
-            id="language-selector"
-            class="language-selector"
-          ></select>
-        </div>
-      </div>
-    </header>
-
-    <nav
-      id="navigation"
-      class="navigation hidden"
-      aria-label=""
-    ></nav>
-
-    <div id="content" class="loading">
+      <main
+        class="app-main"
+        id="main-content"
+        tabindex="-1"
+      >
+        <div id="content" class="loading"></div>
+      </main>
     </div>
-  </main>
+  </div>
+
+  <nav
+    class="mobile-navigation"
+    id="mobile-navigation"
+    aria-label=""
+  ></nav>
+
+  <div
+    class="navigation-drawer"
+    id="navigation-drawer"
+    aria-hidden="true"
+    hidden
+  >
+    <button
+      type="button"
+      class="navigation-drawer-backdrop"
+      id="navigation-drawer-backdrop"
+      tabindex="-1"
+      data-i18n-aria-label="shell.closeMenu"
+    ></button>
+    <aside
+      class="navigation-drawer-panel"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="navigation-drawer-title"
+    >
+      <div class="overlay-heading-row drawer-heading-row">
+        <h2
+          id="navigation-drawer-title"
+          data-i18n-text="shell.navigation"
+        ></h2>
+        <button
+          type="button"
+          class="icon-button"
+          id="navigation-drawer-close"
+          data-i18n-aria-label="shell.closeMenu"
+        >
+          <span aria-hidden="true">×</span>
+        </button>
+      </div>
+      <div id="navigation-drawer-content"></div>
+    </aside>
+  </div>
+
+  <div id="dialog-host" hidden></div>
+  <div id="side-panel-host" hidden></div>
 
   <script>
     <?!= include_('BrowserHelpers'); ?>
     <?!= include_('Localization'); ?>
+    <?!= include_('Components'); ?>
     <?!= include_('Home'); ?>
     <?!= include_('Availability'); ?>
     <?!= include_('UpcomingActivities'); ?>
@@ -59,6 +127,7 @@
     <?!= include_('Attendance'); ?>
     <?!= include_('SessionManagement'); ?>
     <?!= include_('MemberManagement'); ?>
+    <?!= include_('AppShell'); ?>
     <?!= include_('App'); ?>
   </script>
 </body>

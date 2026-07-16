@@ -1,0 +1,450 @@
+/**
+ * Responsive application shell and navigation presentation.
+ * Route definitions and permission decisions remain in App.html.
+ */
+
+let drawerReturnFocusElement = null;
+let mobileSheetReturnFocusElement = null;
+
+function initialiseAppShell() {
+  initialiseBaseComponents();
+
+  const menuButton = document.getElementById(
+    'navigation-drawer-button'
+  );
+  const closeButton = document.getElementById(
+    'navigation-drawer-close'
+  );
+  const backdrop = document.getElementById(
+    'navigation-drawer-backdrop'
+  );
+
+  menuButton.addEventListener('click', event => {
+    openNavigationDrawer(event.currentTarget);
+  });
+
+  closeButton.addEventListener('click', () => {
+    closeNavigationDrawer(true);
+  });
+
+  backdrop.addEventListener('click', () => {
+    closeNavigationDrawer(true);
+  });
+
+  document.addEventListener('keydown', event => {
+    if (
+      event.key === 'Tab' &&
+      isNavigationDrawerOpen
+    ) {
+      trapOverlayFocus(
+        event,
+        document.getElementById('navigation-drawer')
+      );
+      return;
+    }
+
+    if (
+      event.key === 'Escape' &&
+      isNavigationDrawerOpen
+    ) {
+      closeNavigationDrawer(true);
+    }
+  });
+
+  window.addEventListener('resize', () => {
+    if (
+      isNavigationDrawerOpen &&
+      (
+        window.innerWidth < 768 ||
+        window.innerWidth >= 1024
+      )
+    ) {
+      closeNavigationDrawer(false);
+    }
+
+    if (isMoreMenuOpen && window.innerWidth >= 768) {
+      closeMobileNavigationSheet(false);
+    }
+  });
+}
+
+function renderAppShell() {
+  renderDesktopSidebar();
+  renderNavigationDrawer();
+  renderMobileNavigation();
+  renderStudentMobileLanguageControl();
+  setAppShellPageHeader(getCurrentRoute());
+  initialiseLanguageSelector();
+}
+
+function renderDesktopSidebar() {
+  const container = document.getElementById(
+    'desktop-sidebar-content'
+  );
+
+  container.innerHTML = `
+    <div class="sidebar-identity">
+      <div class="app-mark" aria-hidden="true">Y</div>
+      <div>
+        <div class="sidebar-app-name" data-app-name></div>
+        <div class="sidebar-app-subtitle" data-app-subtitle></div>
+      </div>
+    </div>
+
+    ${buildGroupedNavigation('desktop')}
+
+    <div class="sidebar-footer">
+      ${buildAccountSummary(portalData.user)}
+      ${buildLanguageControl('sidebar')}
+    </div>
+  `;
+
+  initialiseShellRouteButtons(container);
+}
+
+function renderNavigationDrawer() {
+  const content = document.getElementById(
+    'navigation-drawer-content'
+  );
+
+  content.innerHTML = `
+    <div class="drawer-identity">
+      <div class="app-mark" aria-hidden="true">Y</div>
+      <div>
+        <div class="sidebar-app-name" data-app-name></div>
+        <div class="sidebar-app-subtitle" data-app-subtitle></div>
+      </div>
+    </div>
+
+    ${buildGroupedNavigation('drawer')}
+
+    <div class="drawer-footer">
+      ${buildAccountSummary(portalData.user)}
+      ${buildLanguageControl('drawer')}
+    </div>
+  `;
+
+  initialiseShellRouteButtons(content);
+}
+
+function buildGroupedNavigation(location) {
+  const groups = getDesktopNavigationGroups();
+
+  return `
+    <nav
+      class="shell-navigation shell-navigation-${escapeHtml(
+        location
+      )}"
+      aria-label="${escapeHtml(t('a11y.primaryNavigation'))}"
+    >
+      ${groups.map(group => `
+        <section class="shell-navigation-group">
+          <h2 class="shell-navigation-heading">
+            ${escapeHtml(t(group.labelKey))}
+          </h2>
+          <div class="shell-navigation-items">
+            ${group.routes.map(route =>
+              buildShellRouteButton(route, 'sidebar')
+            ).join('')}
+          </div>
+        </section>
+      `).join('')}
+    </nav>
+  `;
+}
+
+function buildShellRouteButton(route, variant) {
+  const isCurrent = route.id === currentRouteId;
+
+  return `
+    <button
+      type="button"
+      class="shell-nav-button shell-nav-button-${escapeHtml(
+        variant
+      )}${isCurrent ? ' active' : ''}"
+      data-route-id="${escapeHtml(route.id)}"
+      ${isCurrent ? 'aria-current="page"' : ''}
+    >
+      ${buildRouteIcon(route.icon)}
+      <span>${escapeHtml(getRouteLabel(route, variant))}</span>
+    </button>
+  `;
+}
+
+function initialiseShellRouteButtons(container) {
+  container.querySelectorAll('[data-route-id]').forEach(
+    button => {
+      button.addEventListener('click', () => {
+        navigateToRoute(button.dataset.routeId);
+      });
+    }
+  );
+}
+
+function renderMobileNavigation() {
+  const navigation = document.getElementById(
+    'mobile-navigation'
+  );
+  const items = getMobileNavigationItems();
+
+  navigation.setAttribute(
+    'aria-label',
+    t('a11y.mobileNavigation')
+  );
+
+  navigation.innerHTML = items.map(item => {
+    if (item.type === 'route') {
+      return buildShellRouteButton(item.route, 'mobile');
+    }
+
+    const expanded = isMoreMenuOpen &&
+      activeMobileMenu === item.action;
+    const representsCurrentRoute =
+      mobileActionRepresentsCurrentRoute(item.action);
+
+    return `
+      <button
+        type="button"
+        class="shell-nav-button shell-nav-button-mobile${
+          representsCurrentRoute ? ' active' : ''
+        }"
+        data-mobile-action="${escapeHtml(item.action)}"
+        aria-expanded="${String(expanded)}"
+        aria-controls="side-panel-host"
+        ${representsCurrentRoute
+          ? 'aria-current="page"'
+          : ''}
+      >
+        ${buildRouteIcon(item.icon)}
+        <span>${escapeHtml(t(item.labelKey))}</span>
+      </button>
+    `;
+  }).join('');
+
+  initialiseShellRouteButtons(navigation);
+
+  navigation.querySelectorAll('[data-mobile-action]').forEach(
+    button => {
+      button.addEventListener('click', event => {
+        openMobileNavigationSheet(
+          button.dataset.mobileAction,
+          event.currentTarget
+        );
+      });
+    }
+  );
+}
+
+function renderStudentMobileLanguageControl() {
+  const container = document.getElementById(
+    'student-mobile-language'
+  );
+
+  container.innerHTML = shouldShowStandaloneMobileLanguage()
+    ? buildLanguageControl('student-mobile', true)
+    : '';
+}
+
+function buildLanguageControl(context, compact) {
+  const id = `language-selector-${context}`;
+
+  return `
+    <div class="language-control${compact ? ' compact' : ''}">
+      <label class="language-label" for="${escapeHtml(id)}">
+        ${escapeHtml(t('language.label'))}
+      </label>
+      <select
+        id="${escapeHtml(id)}"
+        class="language-selector"
+        aria-label="${escapeHtml(t('language.label'))}"
+      >
+        <option value="ja">
+          ${escapeHtml(t('language.japanese'))}
+        </option>
+        <option value="en">
+          ${escapeHtml(t('language.english'))}
+        </option>
+      </select>
+    </div>
+  `;
+}
+
+function buildAccountSummary(user) {
+  const details = [
+    translateBusinessValue('role', user.role),
+    user.grade || ''
+  ].filter(Boolean);
+
+  return `
+    <section
+      class="account-summary"
+      aria-label="${escapeHtml(t('shell.accountLabel'))}"
+    >
+      <div class="account-avatar" aria-hidden="true">
+        ${escapeHtml(String(user.name || '?').charAt(0))}
+      </div>
+      <div class="account-summary-copy">
+        <strong>${escapeHtml(user.name || '')}</strong>
+        <span>${escapeHtml(details.join(' · '))}</span>
+        <span class="account-email">${escapeHtml(
+          user.email || ''
+        )}</span>
+      </div>
+    </section>
+  `;
+}
+
+function setAppShellPageHeader(route) {
+  const container = document.getElementById('page-header');
+
+  if (!container || !route) {
+    return;
+  }
+
+  container.innerHTML = buildPageHeader({
+    title: getRouteLabel(route)
+  });
+}
+
+function openNavigationDrawer(invoker) {
+  const drawer = document.getElementById('navigation-drawer');
+  const button = document.getElementById(
+    'navigation-drawer-button'
+  );
+
+  drawerReturnFocusElement = invoker || button;
+  isNavigationDrawerOpen = true;
+  drawer.hidden = false;
+  drawer.setAttribute('aria-hidden', 'false');
+  button.setAttribute('aria-expanded', 'true');
+  document.body.classList.add('drawer-open');
+
+  document.getElementById('navigation-drawer-close').focus();
+}
+
+function closeNavigationDrawer(restoreFocus) {
+  const drawer = document.getElementById('navigation-drawer');
+  const button = document.getElementById(
+    'navigation-drawer-button'
+  );
+  const returnTarget = drawerReturnFocusElement;
+
+  isNavigationDrawerOpen = false;
+  drawer.hidden = true;
+  drawer.setAttribute('aria-hidden', 'true');
+  button.setAttribute('aria-expanded', 'false');
+  document.body.classList.remove('drawer-open');
+  drawerReturnFocusElement = null;
+
+  if (
+    restoreFocus &&
+    returnTarget &&
+    document.contains(returnTarget)
+  ) {
+    returnTarget.focus();
+  }
+}
+
+function openMobileNavigationSheet(mode, invoker) {
+  isMoreMenuOpen = true;
+  activeMobileMenu = mode;
+  mobileSheetReturnFocusElement = invoker || null;
+
+  if (invoker) {
+    invoker.setAttribute('aria-expanded', 'true');
+  }
+
+  openSidePanel({
+    title: t(
+      mode === 'personal'
+        ? 'shell.personalMenuTitle'
+        : 'shell.moreMenuTitle'
+    ),
+    invoker: mobileSheetReturnFocusElement,
+    contentHtml: buildMobileNavigationSheetContent(mode),
+    onClose: result => {
+      isMoreMenuOpen = false;
+      activeMobileMenu = '';
+      mobileSheetReturnFocusElement = null;
+      renderMobileNavigation();
+
+      if (result === 'close' || result === 'escape') {
+        window.requestAnimationFrame(() => {
+          const returnTarget = document.querySelector(
+            `[data-mobile-action="${cssEscape(mode)}"]`
+          );
+
+          if (returnTarget) {
+            returnTarget.focus();
+          }
+        });
+      }
+    }
+  });
+
+  const host = document.getElementById('side-panel-host');
+  initialiseShellRouteButtons(host);
+  initialiseLanguageSelector();
+}
+
+function buildMobileNavigationSheetContent(mode) {
+  const routes = mode === 'personal'
+    ? getPersonalRoutes()
+    : getMobileSecondaryRoutes();
+
+  return `
+    ${routes.length
+      ? `
+        <nav
+          class="mobile-sheet-navigation"
+          aria-label="${escapeHtml(t(
+            mode === 'personal'
+              ? 'shell.personalMenuTitle'
+              : 'shell.moreMenuTitle'
+          ))}"
+        >
+          ${routes.map(route =>
+            buildShellRouteButton(route, 'sheet')
+          ).join('')}
+        </nav>
+      `
+      : ''}
+
+    <div class="mobile-sheet-footer">
+      ${buildAccountSummary(portalData.user)}
+      ${buildLanguageControl(`mobile-${mode}`)}
+    </div>
+  `;
+}
+
+function closeMobileNavigationSheet(restoreFocus) {
+  closeSidePanel('route', restoreFocus);
+}
+
+function buildRouteIcon(icon) {
+  const paths = {
+    today: '<path d="M4 5h16v15H4z M8 3v4 M16 3v4 M4 9h16"/>',
+    availability: '<path d="M5 4h14v16H5z M8 9l2 2 5-5 M8 15h8"/>',
+    assignments: '<path d="M6 5h12v15H6z M9 3h6v4H9z M9 11h6 M9 15h6"/>',
+    notifications: '<path d="M6 17h12l-2-3V9a4 4 0 0 0-8 0v5z M10 20h4"/>',
+    visitors: '<path d="M4 19v-2a4 4 0 0 1 4-4h2 M9 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M14 8h6v8h-6z M17 5v3"/>',
+    planning: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+    sessions: '<path d="M4 6h16v14H4z M8 3v5 M16 3v5 M4 10h16"/>',
+    people: '<path d="M8 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z M2 21v-3a6 6 0 0 1 12 0v3 M16 4a4 4 0 0 1 0 7 M17 14a5 5 0 0 1 5 5v2"/>',
+    personal: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+    more: '<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>'
+  };
+
+  const path = paths[icon] || paths.more;
+
+  return `
+    <svg
+      class="route-icon"
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      focusable="false"
+    >
+      ${path}
+    </svg>
+  `;
+}

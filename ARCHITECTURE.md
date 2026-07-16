@@ -27,6 +27,8 @@ This document describes the code currently in the repository. Sections explicitl
     ├── Styles.html      CSS partial included by Index.html
     ├── Localization.html Translation dictionary and browser localisation helpers
     ├── BrowserHelpers.html Shared browser utility functions
+    ├── Components.html  Shared presentation primitives and overlay helpers
+    ├── AppShell.html    Responsive shell and navigation rendering
     ├── Home.html        Home view rendering
     ├── Availability.html Availability rendering, saving, and event handlers
     ├── UpcomingActivities.html Future availability list and detail view
@@ -57,13 +59,32 @@ This requires an Apps Script HTML file named `Index`. `src/Index.html` matches t
 
 ## HTML partial and include mechanism
 
-`include_(filename)` in `Code.gs` reads the raw contents of a trusted Apps Script HTML template for inclusion in the evaluated `Index` template. `Index.html` includes `Styles` inside its `<style>` element. Its application `<script>` then includes `BrowserHelpers`, `Localization`, `Home`, `Availability`, `UpcomingActivities`, `Dashboard`, `Volunteer`, `VisitorScheduleManagement`, `Attendance`, `SessionManagement`, `MemberManagement`, and `App` in that order.
+`include_(filename)` in `Code.gs` reads the raw contents of a trusted Apps Script HTML template for inclusion in the evaluated `Index` template. `Index.html` includes `Styles` inside its `<style>` element. Its application `<script>` then includes `BrowserHelpers`, `Localization`, `Components`, `Home`, `Availability`, `UpcomingActivities`, `Dashboard`, `Volunteer`, `VisitorScheduleManagement`, `Attendance`, `SessionManagement`, `MemberManagement`, `AppShell`, and `App` in that order.
 
-Browser helpers load before localisation because localisation rendering uses shared HTML escaping. View functions load before `App.html`, whose startup code executes only after every renderer has been declared. `Index.html` contains only the document shell and these ordered includes. CSS is in `Styles.html`, the single translation dictionary and translation helpers are in `Localization.html`, shared browser utilities are in `BrowserHelpers.html`, and each view has its own partial.
+Browser helpers load before localisation because localisation rendering uses shared HTML escaping. Components load after localisation so their accessible controls can use translated labels. View functions load before `AppShell.html` and `App.html`; the route registry is therefore created only after every renderer has been declared. `Index.html` contains semantic shell landmarks, empty overlay hosts, and the ordered includes. CSS is in `Styles.html`, the single translation dictionary and translation helpers are in `Localization.html`, shared browser utilities are in `BrowserHelpers.html`, and each feature view retains its own partial.
 
-`App.html` owns the shared `portalData` and `currentView` state. Other partials update portal data through `updatePortalData()` and request a language-change rerender through `rerenderAfterLanguageChange()` rather than assigning App state directly. Availability draft state remains owned by `Availability.html`, and the selected dashboard session remains owned by `Dashboard.html`.
+`App.html` owns `portalData`, the public `currentRouteId`, and a temporary legacy `currentView` value used by existing asynchronous Dashboard guards. It also owns the drawer-open and mobile-sheet-open state. `AppShell.html` renders those states but does not make permission decisions. Other partials update portal data through `updatePortalData()` and request a language-change rerender through `rerenderAfterLanguageChange()` rather than assigning App state directly. Availability draft state remains owned by `Availability.html`, and the selected dashboard session remains owned by `Dashboard.html`.
 
 Apps Script requires unique filenames regardless of extension. The generic sheet reader therefore resides in `SheetData.gs`, leaving the `Dashboard` basename available for the frontend partial.
+
+## Frontend routing and responsive shell
+
+`ROUTE_REGISTRY` in `App.html` is the single client-side route definition. Each entry declares its ID, localisation key, roles, optional existing permission flag, navigation group, renderer adapter, icon identifier, desktop visibility, mobile placement, and enabled state. Client visibility is convenience only; all protected server functions continue to authorize independently.
+
+The active routes are:
+
+- `today`: Home for Students and the existing Today Dashboard for Club Leaders and Teachers;
+- `visitor-coordination`: existing Visitor Schedule management for Club Leaders and Teachers;
+- `planning`: the existing Dashboard with Upcoming Activities selected;
+- `sessions`: Teacher-only Session management;
+- `members`: Teacher-only Member management, labelled People in the shell;
+- `availability`: the signed-in member's Availability view;
+- `assignments`: the signed-in member's personal Volunteer Assignment view;
+- `notifications`: a Phase 1 adapter to Home, where personal notifications still render.
+
+The previous `home`, `dashboard`, and `volunteer` IDs are accepted only through `selectView()` as compatibility aliases for existing event handlers. Attendance is not registered because its view is still a placeholder. Invalid or inaccessible route IDs fall back to the first permitted route, which is `today`.
+
+At 1024 CSS pixels and above, the shell uses a persistent 252-pixel sidebar. Between 768 and 1023 pixels it uses a labelled navigation drawer. Below 768 pixels it uses no more than five role-specific bottom actions. Teacher mobile navigation is Today, Planning, People, Personal, and More. Personal and More open a shared side-panel component containing secondary routes, language controls, and the signed-in account summary.
 
 ## Authentication flow
 
@@ -100,8 +121,9 @@ The intended initial flow is:
 DOMContentLoaded
   → getPortalData()
   → { user, permissions, notifications, sessions }
-  → renderNavigation()
-  → renderHome()
+  → validate the default route against ROUTE_REGISTRY
+  → render the responsive application shell
+  → render Home for Students or Today Dashboard for managers
 ```
 
 `getPortalData()` authenticates the current member and returns that member's profile, role-derived permissions, notifications, and upcoming sessions. It does not return other members' records.
@@ -148,12 +170,13 @@ Visitor-schedule management does not replace or duplicate this same-day aggregat
 
 ## Dashboard flow
 
-1. `getDashboardData()` calls `requireDashboardAccess_()`.
-2. `getTodaySessions_()` returns active, non-cancelled sessions matching today's date, sorted by start time.
-3. The first session is passed to `buildTodaySessionData_()`.
-4. The browser renders a session selector when multiple sessions exist.
-5. It displays totals, volunteer and availability groups, conflicts, and an attendance count.
-6. Selecting or refreshing a session calls `getDashboardSession(sessionId)`, which repeats server-side dashboard authorization and calls the same aggregation function.
+1. The `today` route selects the existing Today Dashboard adapter for Club Leaders and Teachers. The `planning` route selects the existing Upcoming Activities Dashboard section.
+2. `getDashboardData()` calls `requireDashboardAccess_()`.
+3. `getTodaySessions_()` returns active, non-cancelled sessions matching today's date, sorted by start time.
+4. The first session is passed to `buildTodaySessionData_()`.
+5. The browser renders a session selector when multiple sessions exist.
+6. It displays totals, volunteer and availability groups, conflicts, and an attendance count.
+7. Selecting or refreshing a session calls `getDashboardSession(sessionId)`, which repeats server-side dashboard authorization and calls the same aggregation function.
 
 `getDashboardSession()` validates the supplied ID against the active, non-cancelled sessions returned for today before building dashboard data.
 
@@ -211,7 +234,7 @@ Cancellation changes only `Assignment Status` to `Cancelled`. Permanent deletion
 
 ## Localisation approach
 
-English is the canonical source language. `Localization.html` contains one `TRANSLATIONS` dictionary with English and Japanese catalogues and a `t()` interpolation helper used by client-rendered labels and messages. Japanese is selected by default. The header language selector stores a valid `ja` or `en` preference in `localStorage`, updates the document language, and rerenders the active view. Shared browser helpers format machine-readable dates as `ja-JP` or `en-GB` using `Asia/Tokyo`. Server-generated errors and notification text remain raw English or spreadsheet-derived data.
+English is the canonical source language. `Localization.html` contains one `TRANSLATIONS` dictionary with English and Japanese catalogues and a `t()` interpolation helper used by client-rendered labels and messages. Japanese is selected by default. Responsive shell locations may render more than one language selector, but they all use the same `activeLocale`, dictionary, change handler, and `localStorage` preference. A language change rebuilds the shell and current permitted route while retaining Availability drafts. Shared browser helpers format machine-readable dates as `ja-JP` or `en-GB` using `Asia/Tokyo`. Server-generated errors and spreadsheet-derived fallback notification text remain raw English or spreadsheet-derived data.
 
 Date-only payloads are calendar values and must not be parsed as instants. The frontend parses their `YYYY-MM-DD` components explicitly before display. Date-time payloads represent instants and include the Tokyo offset, for example `2026-07-17T15:45:00+09:00`. During the migration, renderers prefer machine-readable properties such as `dateValue` and `todayDateValue` while accepting the previous display properties as fallbacks.
 
