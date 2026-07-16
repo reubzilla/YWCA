@@ -2,25 +2,29 @@ let managedMembers = [];
 let managedMemberRoles = [];
 let managedMemberGrades = [];
 let managedMemberTodayDateValue = '';
-let managedMemberRequestId = '';
 let memberSaveInProgress = false;
 let memberActionInProgress = false;
 let memberManagementNoticeKey = '';
+let memberManagementState = {
+  filters: { search: '', status: '', role: '', grade: '' },
+  selectedId: '',
+  mode: 'list',
+  focused: false,
+  draft: null,
+  initialDraft: '',
+  requestId: ''
+};
 
 function renderMemberManagement() {
   const content = document.getElementById('content');
-
   content.className = '';
   content.innerHTML = `
-    <h2 class="section-title">
-      ${t('members.title')}
-    </h2>
-
-    <section class="card view-loading">
-      ${t('members.loading')}
-    </section>
+    ${buildPageHeader({
+      title: t('members.title'),
+      supportingText: t('members.intro')
+    })}
+    ${buildLoadingState(t('members.loading'))}
   `;
-
   loadMemberManagementData();
 }
 
@@ -37,728 +41,669 @@ function renderMemberManagementData(data) {
   managedMemberGrades = data.grades || [];
   managedMemberTodayDateValue = data.todayDateValue || '';
 
+  if (
+    memberManagementState.selectedId &&
+    !findManagedMember(memberManagementState.selectedId)
+  ) {
+    memberManagementState.selectedId = '';
+    memberManagementState.mode = 'list';
+    memberManagementState.focused = false;
+  }
+
+  renderMemberManagementWorkspace();
+}
+
+function renderMemberManagementWorkspace() {
   const content = document.getElementById('content');
+  const filtered = getFilteredManagedMembers();
 
   content.innerHTML = `
-    <div class="management-heading-row">
-      <div>
-        <h2 class="section-title management-title">
-          ${t('members.title')}
-        </h2>
-        <p class="management-intro">
-          ${t('members.intro')}
-        </p>
-      </div>
-
-      <button
-        type="button"
-        class="primary-button"
-        id="add-member-button"
-      >
-        ${t('members.add')}
-      </button>
-    </div>
-
+    ${buildPageHeader({
+      title: t('members.title'),
+      supportingText: t('members.intro'),
+      actionsHtml: `<button type="button" class="primary-button" id="add-member-button">${t(
+        'management.create'
+      )}</button>`
+    })}
     <div
       id="member-management-message"
-      class="save-message"
+      class="management-announcement"
       role="status"
-    ></div>
-
-    <section class="card management-filter-card">
-      <div class="member-filter-grid">
-        <label class="member-search-field">
-          <span class="form-label">
-            ${t('members.filter.search')}
-          </span>
-          <input
-            type="search"
-            class="management-input"
-            id="member-filter-search"
-            placeholder="${t('members.filter.searchPlaceholder')}"
-          >
-        </label>
-
-        <label>
-          <span class="form-label">
-            ${t('members.filter.status')}
-          </span>
-          <select
-            class="management-input"
-            id="member-filter-status"
-          >
-            <option value="">
-              ${t('members.filter.allStatuses')}
-            </option>
-            <option value="active">
-              ${t('members.active')}
-            </option>
-            <option value="inactive">
-              ${t('members.inactive')}
-            </option>
-          </select>
-        </label>
-
-        <label>
-          <span class="form-label">
-            ${t('members.filter.role')}
-          </span>
-          <select
-            class="management-input"
-            id="member-filter-role"
-          >
-            <option value="">
-              ${t('members.filter.allRoles')}
-            </option>
-            ${buildManagedMemberRoleOptions('')}
-          </select>
-        </label>
-
-        <label>
-          <span class="form-label">
-            ${t('members.filter.grade')}
-          </span>
-          <select
-            class="management-input"
-            id="member-filter-grade"
-          >
-            <option value="">
-              ${t('members.filter.allGrades')}
-            </option>
-            ${managedMemberGrades.map(grade => `
-              <option value="${escapeHtml(grade)}">
-                ${escapeHtml(grade)}
-              </option>
-            `).join('')}
-          </select>
-        </label>
-      </div>
-
-      <button
-        type="button"
-        class="secondary-button"
-        id="clear-member-filters"
-      >
-        ${t('members.filter.clear')}
-      </button>
-    </section>
-
-    <div id="member-management-form"></div>
-
-    <h2 class="section-title">
-      ${t('members.listTitle')}
-    </h2>
-
-    <div id="managed-member-list"></div>
+      aria-live="polite"
+      tabindex="-1"
+    >${memberManagementNoticeKey
+      ? escapeHtml(t(memberManagementNoticeKey))
+      : ''}</div>
+    ${buildMemberFilters()}
+    ${buildMemberFilterChips()}
+    ${buildManagementLayout({
+      focused: memberManagementState.focused,
+      listLabelledBy: 'managed-member-list-title',
+      detailLabel: t('members.detail.regionLabel'),
+      listHtml: `
+        <div class="management-pane-heading">
+          <h2 id="managed-member-list-title">${t(
+            'members.listTitle'
+          )}</h2>
+          ${buildStatusBadge(String(filtered.length), 'neutral')}
+        </div>
+        <div id="managed-member-list">${buildManagedMemberList(
+          filtered
+        )}</div>
+      `,
+      detailHtml: buildManagedMemberDetailPane()
+    })}
   `;
 
-  document
-    .getElementById('add-member-button')
-    .addEventListener('click', () => {
-      openManagedMemberForm(null);
-    });
-
-  document
-    .getElementById('member-filter-search')
-    .addEventListener('input', renderManagedMemberList);
-
-  [
-    'member-filter-status',
-    'member-filter-role',
-    'member-filter-grade'
-  ].forEach(id => {
-    document
-      .getElementById(id)
-      .addEventListener('change', renderManagedMemberList);
-  });
-
-  document
-    .getElementById('clear-member-filters')
-    .addEventListener('click', clearManagedMemberFilters);
-
-  showMemberManagementNotice();
-  renderManagedMemberList();
-}
-
-function clearManagedMemberFilters() {
-  [
-    'member-filter-search',
-    'member-filter-status',
-    'member-filter-role',
-    'member-filter-grade'
-  ].forEach(id => {
-    document.getElementById(id).value = '';
-  });
-
-  renderManagedMemberList();
-}
-
-function showMemberManagementNotice() {
-  if (!memberManagementNoticeKey) {
-    return;
-  }
-
-  const message = document.getElementById(
-    'member-management-message'
-  );
-
-  if (message) {
-    message.textContent = t(memberManagementNoticeKey);
-  }
-
   memberManagementNoticeKey = '';
+  initialiseMemberManagementEvents();
+  registerMemberManagementGuard();
+  focusMemberManagementDetailIfNeeded();
 }
 
-function renderManagedMemberList() {
-  const container = document.getElementById(
-    'managed-member-list'
-  );
+function buildMemberFilters() {
+  const filters = memberManagementState.filters;
 
-  if (!container) {
-    return;
-  }
+  return `
+    <details class="management-filter-disclosure" open>
+      <summary>${t('management.filters')} ${buildStatusBadge(
+        String(countMemberActiveFilters()),
+        'neutral'
+      )}</summary>
+      <form id="member-filter-form">
+        ${buildFilterBar({
+          label: t('members.filter.label'),
+          fieldsHtml: `
+            <label class="form-field management-title-field">
+              <span class="form-label">${t('members.filter.search')}</span>
+              <input
+                type="search"
+                class="management-input"
+                id="member-filter-search"
+                value="${escapeHtml(filters.search)}"
+                placeholder="${escapeHtml(
+                  t('members.filter.searchPlaceholder')
+                )}"
+              >
+            </label>
+            <label class="form-field">
+              <span class="form-label">${t('members.filter.status')}</span>
+              <select class="management-input" id="member-filter-status">
+                <option value="">${t('members.filter.allStatuses')}</option>
+                <option value="active" ${filters.status === 'active'
+                  ? 'selected'
+                  : ''}>${t('members.active')}</option>
+                <option value="inactive" ${filters.status === 'inactive'
+                  ? 'selected'
+                  : ''}>${t('members.inactive')}</option>
+              </select>
+            </label>
+            <label class="form-field">
+              <span class="form-label">${t('members.filter.role')}</span>
+              <select class="management-input" id="member-filter-role">
+                <option value="">${t('members.filter.allRoles')}</option>
+                ${buildManagedMemberRoleOptions(filters.role)}
+              </select>
+            </label>
+            <label class="form-field">
+              <span class="form-label">${t('members.filter.grade')}</span>
+              <select class="management-input" id="member-filter-grade">
+                <option value="">${t('members.filter.allGrades')}</option>
+                ${managedMemberGrades.map(grade => `
+                  <option value="${escapeHtml(grade)}" ${
+                    grade === filters.grade ? 'selected' : ''
+                  }>${escapeHtml(grade)}</option>
+                `).join('')}
+              </select>
+            </label>
+          `,
+          actionsHtml: `
+            <button type="submit" class="primary-button">${t(
+              'management.applyFilters'
+            )}</button>
+            <button type="button" class="secondary-button" id="clear-member-filters">${t(
+              'management.clearFilters'
+            )}</button>
+          `
+        })}
+      </form>
+    </details>
+  `;
+}
 
-  const search = document.getElementById(
-    'member-filter-search'
-  ).value.trim().toLowerCase();
-  const status = document.getElementById(
-    'member-filter-status'
-  ).value;
-  const role = document.getElementById(
-    'member-filter-role'
-  ).value;
-  const grade = document.getElementById(
-    'member-filter-grade'
-  ).value;
-  const filteredMembers = managedMembers.filter(member => {
+function buildMemberFilterChips() {
+  const filters = memberManagementState.filters;
+  const chips = [];
+  if (filters.search) chips.push(filters.search);
+  if (filters.status) chips.push(t(
+    filters.status === 'active' ? 'members.active' : 'members.inactive'
+  ));
+  if (filters.role) chips.push(translateBusinessValue('role', filters.role));
+  if (filters.grade) chips.push(filters.grade);
+  return buildManagementFilterChips(chips);
+}
+
+function countMemberActiveFilters() {
+  return Object.values(memberManagementState.filters)
+    .filter(Boolean).length;
+}
+
+function getFilteredManagedMembers() {
+  const filters = memberManagementState.filters;
+  const search = filters.search.trim().toLowerCase();
+
+  return managedMembers.filter(member => {
     const matchesSearch = !search ||
       member.name.toLowerCase().includes(search) ||
       member.email.toLowerCase().includes(search);
-    const matchesStatus = !status ||
-      (status === 'active' && member.active) ||
-      (status === 'inactive' && !member.active);
-
-    return matchesSearch &&
-      matchesStatus &&
-      (!role || member.role === role) &&
-      (!grade || member.grade === grade);
+    const matchesStatus = !filters.status ||
+      (filters.status === 'active' && member.active) ||
+      (filters.status === 'inactive' && !member.active);
+    return matchesSearch && matchesStatus &&
+      (!filters.role || member.role === filters.role) &&
+      (!filters.grade || member.grade === filters.grade);
   });
-
-  if (filteredMembers.length === 0) {
-    container.innerHTML = `
-      <section class="card empty">
-        ${t('members.empty')}
-      </section>
-    `;
-    return;
-  }
-
-  container.innerHTML = filteredMembers.map(member =>
-    buildManagedMemberCard(member)
-  ).join('');
-
-  container
-    .querySelectorAll('[data-member-edit]')
-    .forEach(button => {
-      button.addEventListener('click', () => {
-        const member = findManagedMember(
-          button.dataset.memberEdit
-        );
-
-        if (member) {
-          openManagedMemberForm(member);
-        }
-      });
-    });
-
-  container
-    .querySelectorAll('[data-member-status]')
-    .forEach(button => {
-      button.addEventListener('click', () => {
-        requestManagedMemberStatusChange(
-          button.dataset.memberStatus
-        );
-      });
-    });
-
-  container
-    .querySelectorAll('[data-member-delete]')
-    .forEach(button => {
-      button.addEventListener('click', () => {
-        requestManagedMemberDeletion(
-          button.dataset.memberDelete
-        );
-      });
-    });
 }
 
-function buildManagedMemberCard(member) {
-  const joinDate = member.joinDateValue
-    ? formatDateOnly(member.joinDateValue)
-    : t('members.date.notSet');
-  const leaveDate = member.leaveDateValue
-    ? formatDateOnly(member.leaveDateValue)
-    : t('members.date.notSet');
+function buildManagedMemberList(members) {
+  if (!members.length) {
+    return buildEmptyState({ message: t('management.noMatchingRecords') });
+  }
 
-  return `
-    <article class="card managed-member-card">
-      <div class="managed-member-header">
-        <div>
-          <h3 class="member-management-name">
-            ${escapeHtml(member.name)}
-            ${member.isCurrentUser
-              ? `<span class="current-user-marker">${
-                  t('members.currentUser')
-                }</span>`
-              : ''}
-          </h3>
-          <p class="managed-member-email">
-            ${escapeHtml(member.email)}
-          </p>
-        </div>
-
-        <span class="management-status ${
-          member.active ? 'active' : 'inactive'
-        }">
-          ${t(
-            member.active
-              ? 'members.active'
-              : 'members.inactive'
-          )}
-        </span>
-      </div>
-
-      <dl class="member-detail-grid">
-        <div>
-          <dt>${t('members.memberIdLabel')}</dt>
-          <dd>${escapeHtml(member.memberId)}</dd>
-        </div>
-        <div>
-          <dt>${t('members.form.role')}</dt>
-          <dd>${escapeHtml(translateBusinessValue(
+  return `<div class="management-record-list">${members.map(member => {
+    const selected = member.memberId === memberManagementState.selectedId;
+    return `<div class="management-record${selected ? ' selected' : ''}">${
+      buildRecordRow({
+        title: member.name,
+        metaHtml: `
+          <p class="record-row-meta">${escapeHtml(member.email)}</p>
+          <p class="record-row-meta">${escapeHtml(
+            member.grade || t('members.grade.notSet')
+          )} · ${escapeHtml(translateBusinessValue(
             'role',
             member.role
-          ))}</dd>
-        </div>
-        <div>
-          <dt>${t('members.form.grade')}</dt>
-          <dd>${escapeHtml(
-            member.grade || t('members.grade.notSet')
-          )}</dd>
-        </div>
-        <div>
-          <dt>${t('members.form.joinDate')}</dt>
-          <dd>${escapeHtml(joinDate)}</dd>
-        </div>
-        <div>
-          <dt>${t('members.form.leaveDate')}</dt>
-          <dd>${escapeHtml(leaveDate)}</dd>
-        </div>
-      </dl>
-
-      <div class="managed-member-actions">
-        <button
-          type="button"
-          class="secondary-button"
-          data-member-edit="${escapeHtml(member.memberId)}"
-          ${memberActionInProgress ? 'disabled' : ''}
-        >
-          ${t('members.action.edit')}
-        </button>
-
-        <button
-          type="button"
-          class="secondary-button"
-          data-member-status="${escapeHtml(member.memberId)}"
-          ${memberActionInProgress ? 'disabled' : ''}
-        >
-          ${t(
-            member.active
-              ? 'members.action.deactivate'
-              : 'members.action.activate'
+          ))}</p>
+          <p class="record-row-meta">${escapeHtml(t('members.form.joinDate'))}: ${escapeHtml(
+            member.joinDateValue
+              ? formatDateOnly(member.joinDateValue)
+              : t('members.date.notSet')
+          )}${member.leaveDateValue
+            ? ` · ${escapeHtml(t('members.form.leaveDate'))}: ${escapeHtml(
+                formatDateOnly(member.leaveDateValue)
+              )}`
+            : ''}</p>
+        `,
+        statusHtml: `<div class="record-row-statuses">
+          ${buildStatusBadge(
+            translateBusinessValue('role', member.role),
+            member.role === 'Teacher'
+              ? 'information'
+              : member.role === 'Club Leader'
+                ? 'warning'
+                : 'neutral'
           )}
-        </button>
-
-        <button
+          ${buildStatusBadge(
+            t(member.active ? 'members.active' : 'members.inactive'),
+            member.active ? 'success' : 'neutral'
+          )}
+        </div>`,
+        actionsHtml: `<button
           type="button"
-          class="danger-button"
-          data-member-delete="${escapeHtml(member.memberId)}"
-          ${memberActionInProgress ? 'disabled' : ''}
-        >
-          ${t('members.action.delete')}
-        </button>
-      </div>
-    </article>
+          class="secondary-button"
+          data-member-view="${escapeHtml(member.memberId)}"
+        >${t('management.viewDetails')}</button>`
+      })
+    }</div>`;
+  }).join('')}</div>`;
+}
+
+function buildManagedMemberDetailPane() {
+  if (['create', 'edit'].includes(memberManagementState.mode)) {
+    return buildManagedMemberForm();
+  }
+
+  const member = findManagedMember(memberManagementState.selectedId);
+  if (!member) {
+    return buildEmptyState({ message: t('members.detail.selectPrompt') });
+  }
+
+  return `
+    ${buildDetailHeader({
+      showBack: true,
+      eyebrow: member.isCurrentUser ? t('members.currentUser') : member.memberId,
+      title: member.name,
+      metaHtml: `<p class="detail-header-meta">${escapeHtml(
+        member.email
+      )}</p>`,
+      actionsHtml: `<button
+        type="button"
+        class="secondary-button"
+        data-member-edit="${escapeHtml(member.memberId)}"
+      >${t('management.edit')}</button>`
+    })}
+    <div class="management-detail-badges">
+      ${buildStatusBadge(
+        translateBusinessValue('role', member.role),
+        member.role === 'Teacher'
+          ? 'information'
+          : member.role === 'Club Leader'
+            ? 'warning'
+            : 'neutral'
+      )}
+      ${buildStatusBadge(
+        t(member.active ? 'members.active' : 'members.inactive'),
+        member.active ? 'success' : 'neutral'
+      )}
+    </div>
+    <dl class="management-detail-grid">
+      <div><dt>${t('members.memberIdLabel')}</dt><dd>${escapeHtml(
+        member.memberId
+      )}</dd></div>
+      <div><dt>${t('members.form.grade')}</dt><dd>${escapeHtml(
+        member.grade || t('members.grade.notSet')
+      )}</dd></div>
+      <div><dt>${t('members.form.joinDate')}</dt><dd>${escapeHtml(
+        member.joinDateValue
+          ? formatDateOnly(member.joinDateValue)
+          : t('members.date.notSet')
+      )}</dd></div>
+      <div><dt>${t('members.form.leaveDate')}</dt><dd>${escapeHtml(
+        member.leaveDateValue
+          ? formatDateOnly(member.leaveDateValue)
+          : t('members.date.notSet')
+      )}</dd></div>
+    </dl>
+    <section class="management-safe-zone">
+      <h3>${t(member.active
+        ? 'members.action.deactivate'
+        : 'members.action.activate')}</h3>
+      <p>${t(member.active
+        ? 'members.deactivate.explanation'
+        : 'members.activate.explanation')}</p>
+      <button
+        type="button"
+        class="secondary-button"
+        data-member-status="${escapeHtml(member.memberId)}"
+      >${t(member.active
+        ? 'members.action.deactivate'
+        : 'members.action.activate')}</button>
+    </section>
+    <section class="management-danger-zone">
+      <h3>${t('management.dangerZone')}</h3>
+      <p>${t('members.delete.explanation')}</p>
+      <button
+        type="button"
+        class="danger-button"
+        data-member-delete="${escapeHtml(member.memberId)}"
+      >${t('management.deletePermanently')}</button>
+    </section>
   `;
 }
 
-function openManagedMemberForm(member) {
-  const container = document.getElementById(
-    'member-management-form'
-  );
+function createMemberDraft(member) {
+  return {
+    memberId: member ? member.memberId : '',
+    name: member ? member.name : '',
+    email: member ? member.email : '',
+    grade: member ? member.grade : '',
+    role: member ? member.role : 'Student',
+    active: member ? member.active : true,
+    joinDateValue: member ? member.joinDateValue : '',
+    leaveDateValue: member ? member.leaveDateValue : '',
+    originalEmail: member ? member.email : '',
+    isCurrentUser: Boolean(member && member.isCurrentUser)
+  };
+}
 
-  if (!container) {
-    return;
+function buildManagedMemberForm() {
+  const draft = memberManagementState.draft || createMemberDraft(null);
+  const editing = memberManagementState.mode === 'edit';
+
+  return `
+    ${buildDetailHeader({
+      showBack: true,
+      eyebrow: editing ? t('management.editing') : t('management.creating'),
+      title: t(editing
+        ? 'members.form.editTitle'
+        : 'members.form.createTitle')
+    })}
+    <form id="managed-member-form" novalidate>
+      <div
+        class="form-error-summary"
+        id="managed-member-form-message"
+        role="alert"
+        tabindex="-1"
+        hidden
+      ></div>
+      ${buildFormSection({
+        title: t('management.form.basicInformation'),
+        fieldsHtml: `
+          ${buildMemberFormField('name', t('members.form.name'),
+            `<input type="text" class="management-input" id="managed-member-name" value="${escapeHtml(
+              draft.name
+            )}" required>`, true, 'management-title-field')}
+          ${buildMemberFormField('email', t('members.form.email'),
+            `<input type="email" class="management-input" id="managed-member-email" value="${escapeHtml(
+              draft.email
+            )}" required>`, true, 'management-title-field')}
+          ${buildMemberFormField('grade', t('members.form.grade'),
+            `<input type="text" class="management-input" id="managed-member-grade" value="${escapeHtml(
+              draft.grade
+            )}">`)}
+          ${buildMemberFormField('role', t('members.form.role'),
+            `<select class="management-input" id="managed-member-role">${
+              buildManagedMemberRoleOptions(draft.role)
+            }</select>`, true)}
+        `
+      })}
+      ${buildFormSection({
+        title: t('management.form.membership'),
+        fieldsHtml: `
+          ${buildMemberFormField('joinDate', t('members.form.joinDate'),
+            `<input type="date" class="management-input" id="managed-member-join-date" value="${escapeHtml(
+              draft.joinDateValue
+            )}">`)}
+          ${buildMemberFormField('leaveDate', t('members.form.leaveDate'),
+            `<input type="date" class="management-input" id="managed-member-leave-date" value="${escapeHtml(
+              draft.leaveDateValue
+            )}"><span class="form-help">${t(
+              'members.form.leaveDateHelp'
+            )}</span>`)}
+          <label class="management-checkbox">
+            <input type="checkbox" id="managed-member-active" ${
+              draft.active ? 'checked' : ''
+            }>
+            <span>${t('members.form.active')}</span>
+          </label>
+        `
+      })}
+      <div class="management-form-actions">
+        <button type="button" class="secondary-button" id="managed-member-close">${t(
+          'common.cancel'
+        )}</button>
+        <button
+          type="submit"
+          class="primary-button"
+          id="managed-member-save"
+          ${memberSaveInProgress ? 'disabled' : ''}
+        >${t(memberSaveInProgress
+          ? 'members.form.saving'
+          : 'members.form.save')}</button>
+      </div>
+    </form>
+  `;
+}
+
+function buildMemberFormField(
+  errorName,
+  label,
+  controlHtml,
+  required,
+  className
+) {
+  return `<label class="form-field ${escapeHtml(className || '')}">
+    <span class="form-label">${escapeHtml(label)} ${required
+      ? `<span class="required-indicator">${t('management.required')}</span>`
+      : ''}</span>
+    ${controlHtml}
+    <span class="field-error" id="member-${escapeHtml(
+      errorName
+    )}-error" hidden></span>
+  </label>`;
+}
+
+function initialiseMemberManagementEvents() {
+  const filterDisclosure = document.querySelector(
+    '.management-filter-disclosure'
+  );
+  if (filterDisclosure && window.innerWidth < 1024) {
+    filterDisclosure.removeAttribute('open');
   }
 
-  const editing = Boolean(member);
-  const selectedRole = editing
-    ? member.role
-    : 'Student';
+  document.getElementById('add-member-button')
+    .addEventListener('click', event => runAfterMemberDiscard(
+      () => openManagedMemberForm(null),
+      event.currentTarget
+    ));
 
-  managedMemberRequestId = createClientRequestId();
-
-  container.innerHTML = `
-    <section class="card management-form-card">
-      <h2 class="section-title management-form-title">
-        ${t(
-          editing
-            ? 'members.form.editTitle'
-            : 'members.form.createTitle'
-        )}
-      </h2>
-
-      <form id="managed-member-form" novalidate>
-        <input
-          type="hidden"
-          id="managed-member-id"
-          value="${escapeHtml(
-            editing ? member.memberId : ''
-          )}"
-        >
-        <input
-          type="hidden"
-          id="managed-member-original-email"
-          value="${escapeHtml(editing ? member.email : '')}"
-        >
-        <input
-          type="hidden"
-          id="managed-member-is-current-user"
-          value="${editing && member.isCurrentUser ? 'true' : 'false'}"
-        >
-
-        ${editing
-          ? `
-            <p class="managed-session-id">
-              ${t('members.memberId', {
-                id: escapeHtml(member.memberId)
-              })}
-            </p>
-          `
-          : ''}
-
-        <div class="management-form-grid">
-          <label class="management-title-field">
-            <span class="form-label">
-              ${t('members.form.name')}
-            </span>
-            <input
-              type="text"
-              class="management-input"
-              id="managed-member-name"
-              value="${escapeHtml(editing ? member.name : '')}"
-              required
-            >
-          </label>
-
-          <label class="management-title-field">
-            <span class="form-label">
-              ${t('members.form.email')}
-            </span>
-            <input
-              type="email"
-              class="management-input"
-              id="managed-member-email"
-              value="${escapeHtml(editing ? member.email : '')}"
-              required
-            >
-          </label>
-
-          <label>
-            <span class="form-label">
-              ${t('members.form.grade')}
-            </span>
-            <input
-              type="text"
-              class="management-input"
-              id="managed-member-grade"
-              value="${escapeHtml(editing ? member.grade : '')}"
-            >
-          </label>
-
-          <label>
-            <span class="form-label">
-              ${t('members.form.role')}
-            </span>
-            <select
-              class="management-input"
-              id="managed-member-role"
-            >
-              ${buildManagedMemberRoleOptions(selectedRole)}
-            </select>
-          </label>
-
-          <label>
-            <span class="form-label">
-              ${t('members.form.joinDate')}
-            </span>
-            <input
-              type="date"
-              class="management-input"
-              id="managed-member-join-date"
-              value="${escapeHtml(
-                editing ? member.joinDateValue : ''
-              )}"
-            >
-          </label>
-
-          <label>
-            <span class="form-label">
-              ${t('members.form.leaveDate')}
-            </span>
-            <input
-              type="date"
-              class="management-input"
-              id="managed-member-leave-date"
-              value="${escapeHtml(
-                editing ? member.leaveDateValue : ''
-              )}"
-            >
-            <span class="form-help">
-              ${t('members.form.leaveDateHelp')}
-            </span>
-          </label>
-        </div>
-
-        <label class="management-checkbox">
-          <input
-            type="checkbox"
-            id="managed-member-active"
-            ${!editing || member.active ? 'checked' : ''}
-          >
-          <span>${t('members.form.active')}</span>
-        </label>
-
-        <div
-          id="managed-member-form-message"
-          class="save-message error-message"
-          role="alert"
-        ></div>
-
-        <div class="form-actions">
-          <button
-            type="submit"
-            class="primary-button"
-            id="managed-member-save"
-          >
-            ${t('members.form.save')}
-          </button>
-
-          <button
-            type="button"
-            class="secondary-button"
-            id="managed-member-close"
-          >
-            ${t('members.form.close')}
-          </button>
-        </div>
-      </form>
-    </section>
-  `;
-
-  document
-    .getElementById('managed-member-form')
+  document.getElementById('member-filter-form')
     .addEventListener('submit', event => {
+      event.preventDefault();
+      memberManagementState.filters = {
+        search: document.getElementById('member-filter-search').value,
+        status: document.getElementById('member-filter-status').value,
+        role: document.getElementById('member-filter-role').value,
+        grade: document.getElementById('member-filter-grade').value
+      };
+      renderMemberManagementWorkspace();
+    });
+  document.getElementById('clear-member-filters')
+    .addEventListener('click', () => {
+      memberManagementState.filters = {
+        search: '', status: '', role: '', grade: ''
+      };
+      renderMemberManagementWorkspace();
+    });
+
+  document.querySelectorAll('[data-member-view]').forEach(button => {
+    button.addEventListener('click', event => runAfterMemberDiscard(() => {
+      memberManagementState.selectedId = button.dataset.memberView;
+      memberManagementState.mode = 'detail';
+      memberManagementState.focused = true;
+      memberManagementState.draft = null;
+      renderMemberManagementWorkspace();
+    }, event.currentTarget));
+  });
+  document.querySelectorAll('[data-member-edit]').forEach(button => {
+    button.addEventListener('click', event => openManagedMemberForm(
+      findManagedMember(button.dataset.memberEdit),
+      event.currentTarget
+    ));
+  });
+  document.querySelectorAll('[data-management-back], #managed-member-close')
+    .forEach(button => button.addEventListener('click', event =>
+      runAfterMemberDiscard(closeManagedMemberDetail, event.currentTarget)
+    ));
+  document.querySelectorAll('[data-member-status]').forEach(button => {
+    button.addEventListener('click', event =>
+      requestManagedMemberStatusChange(
+        button.dataset.memberStatus,
+        event.currentTarget
+      )
+    );
+  });
+  document.querySelectorAll('[data-member-delete]').forEach(button => {
+    button.addEventListener('click', event => requestManagedMemberDeletion(
+      button.dataset.memberDelete,
+      event.currentTarget
+    ));
+  });
+
+  const form = document.getElementById('managed-member-form');
+  if (form) {
+    form.addEventListener('input', captureManagedMemberDraft);
+    form.addEventListener('change', captureManagedMemberDraft);
+    form.addEventListener('submit', event => {
       event.preventDefault();
       submitManagedMemberForm(false, '');
     });
-
-  document
-    .getElementById('managed-member-close')
-    .addEventListener('click', closeManagedMemberForm);
-
-  container.scrollIntoView({
-    behavior: 'smooth',
-    block: 'start'
-  });
+  }
 }
 
-function closeManagedMemberForm() {
-  const container = document.getElementById(
-    'member-management-form'
+function runAfterMemberDiscard(action, invoker) {
+  if (requestManagementDiscard(action, invoker)) return;
+  action();
+}
+
+function openManagedMemberForm(member) {
+  if (member === null) {
+    memberManagementState.selectedId = '';
+    memberManagementState.mode = 'create';
+  } else if (member) {
+    memberManagementState.selectedId = member.memberId;
+    memberManagementState.mode = 'edit';
+  } else return;
+
+  memberManagementState.focused = true;
+  memberManagementState.draft = createMemberDraft(member);
+  memberManagementState.initialDraft = JSON.stringify(
+    memberManagementState.draft
   );
-
-  if (container) {
-    container.innerHTML = '';
-  }
-
-  managedMemberRequestId = '';
-  memberSaveInProgress = false;
+  memberManagementState.requestId = createClientRequestId();
+  renderMemberManagementWorkspace();
 }
 
-function buildManagedMemberRoleOptions(selectedRole) {
-  return managedMemberRoles.map(role => `
-    <option
-      value="${escapeHtml(role)}"
-      ${role === selectedRole ? 'selected' : ''}
-    >
-      ${escapeHtml(translateBusinessValue('role', role))}
-    </option>
-  `).join('');
+function closeManagedMemberDetail() {
+  memberManagementState.mode = memberManagementState.selectedId
+    ? 'detail'
+    : 'list';
+  memberManagementState.focused = false;
+  memberManagementState.draft = null;
+  memberManagementState.initialDraft = '';
+  memberManagementState.requestId = '';
+  clearManagementNavigationGuard();
+  renderMemberManagementWorkspace();
 }
 
-function submitManagedMemberForm(
-  allowMissingLeaveDate,
-  selfAccessConfirmation
-) {
-  if (memberSaveInProgress) {
-    return;
-  }
-
-  const payload = collectManagedMemberForm();
-  const errorCode = validateManagedMemberForm(payload);
-
-  if (errorCode) {
-    showManagedMemberFormError(errorCode);
-    return;
-  }
-
-  if (
-    !payload.active &&
-    !payload.leaveDateValue &&
-    !allowMissingLeaveDate
-  ) {
-    if (!window.confirm(
-      t('members.confirm.missingLeaveDate')
-    )) {
-      return;
-    }
-
-    allowMissingLeaveDate = true;
-  }
-
-  if (
-    !selfAccessConfirmation &&
-    managedMemberFormRemovesOwnAccess(payload)
-  ) {
-    selfAccessConfirmation = requestSelfAccessConfirmation();
-
-    if (!selfAccessConfirmation) {
-      return;
-    }
-  }
-
-  payload.allowMissingLeaveDate = allowMissingLeaveDate;
-  payload.selfAccessConfirmation = selfAccessConfirmation;
-  memberSaveInProgress = true;
-  setManagedMemberSaveState(true);
-
-  const runner = google.script.run
-    .withSuccessHandler(result => {
-      handleManagedMemberSaved(
-        result,
-        allowMissingLeaveDate,
-        selfAccessConfirmation
-      );
-    })
-    .withFailureHandler(() => {
-      memberSaveInProgress = false;
-      setManagedMemberSaveState(false);
-      showManagedMemberFormError('saveFailed');
-    });
-
-  if (payload.memberId) {
-    runner.updateMember(payload);
-  } else {
-    runner.createMember(payload);
-  }
+function captureManagedMemberDraft() {
+  memberManagementState.draft = collectManagedMemberForm();
+  delete memberManagementState.draft.requestId;
+  memberManagementState.draft.originalEmail =
+    memberManagementState.initialDraft
+      ? JSON.parse(memberManagementState.initialDraft).originalEmail
+      : '';
+  memberManagementState.draft.isCurrentUser =
+    memberManagementState.initialDraft
+      ? JSON.parse(memberManagementState.initialDraft).isCurrentUser
+      : false;
 }
 
 function collectManagedMemberForm() {
+  const original = memberManagementState.initialDraft
+    ? JSON.parse(memberManagementState.initialDraft)
+    : {};
   return {
-    memberId: document.getElementById(
-      'managed-member-id'
-    ).value,
-    name: document.getElementById(
-      'managed-member-name'
-    ).value,
-    email: document.getElementById(
-      'managed-member-email'
-    ).value.trim().toLowerCase(),
-    grade: document.getElementById(
-      'managed-member-grade'
-    ).value,
-    role: document.getElementById(
-      'managed-member-role'
-    ).value,
-    active: document.getElementById(
-      'managed-member-active'
-    ).checked,
+    memberId: memberManagementState.mode === 'edit'
+      ? memberManagementState.selectedId
+      : '',
+    name: document.getElementById('managed-member-name').value,
+    email: document.getElementById('managed-member-email')
+      .value.trim().toLowerCase(),
+    grade: document.getElementById('managed-member-grade').value,
+    role: document.getElementById('managed-member-role').value,
+    active: document.getElementById('managed-member-active').checked,
     joinDateValue: document.getElementById(
       'managed-member-join-date'
     ).value,
     leaveDateValue: document.getElementById(
       'managed-member-leave-date'
     ).value,
-    requestId: managedMemberRequestId
+    originalEmail: original.originalEmail || '',
+    isCurrentUser: Boolean(original.isCurrentUser),
+    requestId: memberManagementState.requestId
   };
 }
 
+function registerMemberManagementGuard() {
+  if (!['create', 'edit'].includes(memberManagementState.mode)) {
+    clearManagementNavigationGuard();
+    return;
+  }
+  setManagementNavigationGuard({
+    isDirty: () => Boolean(
+      memberManagementState.draft &&
+      JSON.stringify(memberManagementState.draft) !==
+        memberManagementState.initialDraft
+    ),
+    discard: () => {
+      memberManagementState.draft = null;
+      memberManagementState.initialDraft = '';
+      memberManagementState.requestId = '';
+    }
+  });
+}
+
 function validateManagedMemberForm(payload) {
-  if (!payload.name.trim()) {
-    return 'nameRequired';
-  }
-
-  if (!payload.email) {
-    return 'emailRequired';
-  }
-
+  if (!payload.name.trim()) return 'nameRequired';
+  if (!payload.email) return 'emailRequired';
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email)) {
     return 'emailInvalid';
   }
-
-  if (!managedMemberRoles.includes(payload.role)) {
-    return 'roleInvalid';
-  }
-
-  if (
-    payload.joinDateValue &&
-    !parseDateOnlyValue(payload.joinDateValue)
-  ) {
-    return 'joinDateInvalid';
-  }
-
-  if (
-    payload.leaveDateValue &&
-    !parseDateOnlyValue(payload.leaveDateValue)
-  ) {
-    return 'leaveDateInvalid';
-  }
-
-  if (
-    payload.joinDateValue &&
-    payload.leaveDateValue &&
-    payload.leaveDateValue < payload.joinDateValue
-  ) {
+  if (!managedMemberRoles.includes(payload.role)) return 'roleInvalid';
+  if (payload.joinDateValue &&
+      !parseDateOnlyValue(payload.joinDateValue)) return 'joinDateInvalid';
+  if (payload.leaveDateValue &&
+      !parseDateOnlyValue(payload.leaveDateValue)) return 'leaveDateInvalid';
+  if (payload.joinDateValue && payload.leaveDateValue &&
+      payload.leaveDateValue < payload.joinDateValue) {
     return 'leaveBeforeJoin';
   }
-
   return '';
 }
 
 function managedMemberFormRemovesOwnAccess(payload) {
-  const isCurrentUser = document.getElementById(
-    'managed-member-is-current-user'
-  ).value === 'true';
-  const originalEmail = document.getElementById(
-    'managed-member-original-email'
-  ).value;
-
-  return isCurrentUser && (
+  return payload.isCurrentUser && (
     !payload.active ||
     payload.role !== 'Teacher' ||
-    payload.email !== originalEmail
+    payload.email !== payload.originalEmail
   );
+}
+
+function submitManagedMemberForm(
+  allowMissingLeaveDate,
+  selfAccessConfirmation
+) {
+  if (memberSaveInProgress) return;
+  const payload = collectManagedMemberForm();
+  memberManagementState.draft = { ...payload };
+  delete memberManagementState.draft.requestId;
+  const errorCode = validateManagedMemberForm(payload);
+  if (errorCode) {
+    showManagedMemberFormError(errorCode);
+    return;
+  }
+
+  if (!payload.active && !payload.leaveDateValue &&
+      !allowMissingLeaveDate) {
+    openConfirmationDialog({
+      title: t('members.dialog.missingLeaveDateTitle'),
+      contentHtml: `<p>${escapeHtml(
+        t('members.confirm.missingLeaveDate')
+      )}</p>`,
+      confirmLabel: t('management.continue'),
+      onConfirm: () => submitManagedMemberForm(true, selfAccessConfirmation)
+    });
+    return;
+  }
+
+  if (!selfAccessConfirmation &&
+      managedMemberFormRemovesOwnAccess(payload)) {
+    requestSelfAccessConfirmation(
+      confirmation => submitManagedMemberForm(
+        allowMissingLeaveDate,
+        confirmation
+      )
+    );
+    return;
+  }
+
+  payload.allowMissingLeaveDate = allowMissingLeaveDate;
+  payload.selfAccessConfirmation = selfAccessConfirmation;
+  memberSaveInProgress = true;
+  renderMemberManagementWorkspace();
+  const runner = google.script.run
+    .withSuccessHandler(result => handleManagedMemberSaved(
+      result,
+      allowMissingLeaveDate,
+      selfAccessConfirmation
+    ))
+    .withFailureHandler(() => {
+      memberSaveInProgress = false;
+      renderMemberManagementWorkspace();
+      showManagedMemberFormError('saveFailed');
+    });
+  if (payload.memberId) runner.updateMember(payload);
+  else runner.createMember(payload);
 }
 
 function handleManagedMemberSaved(
@@ -767,127 +712,160 @@ function handleManagedMemberSaved(
   selfAccessConfirmation
 ) {
   memberSaveInProgress = false;
-  setManagedMemberSaveState(false);
-
   if (!result || !result.success) {
-    if (
-      result &&
-      result.requiresConfirmation &&
-      result.errorCode === 'leaveDateRecommended' &&
-      window.confirm(t('members.confirm.missingLeaveDate'))
-    ) {
-      submitManagedMemberForm(true, selfAccessConfirmation);
+    renderMemberManagementWorkspace();
+    if (result && result.requiresConfirmation && !allowMissingLeaveDate) {
+      openConfirmationDialog({
+        title: t('members.dialog.missingLeaveDateTitle'),
+        contentHtml: `<p>${escapeHtml(
+          t('members.confirm.missingLeaveDate')
+        )}</p>`,
+        confirmLabel: t('management.continue'),
+        onConfirm: () => submitManagedMemberForm(
+          true,
+          selfAccessConfirmation
+        )
+      });
       return;
     }
-
     if (result && result.requiresSelfConfirmation) {
-      const confirmation = requestSelfAccessConfirmation();
-
-      if (confirmation) {
-        submitManagedMemberForm(
-          allowMissingLeaveDate,
-          confirmation
-        );
-      }
-
+      requestSelfAccessConfirmation(confirmation =>
+        submitManagedMemberForm(allowMissingLeaveDate, confirmation)
+      );
       return;
     }
-
     showManagedMemberFormError(
-      result && result.errorCode
-        ? result.errorCode
-        : 'saveFailed'
+      result && result.errorCode ? result.errorCode : 'saveFailed'
     );
     return;
   }
-
-  memberManagementNoticeKey =
-    result.operation === 'created'
-      ? 'members.message.created'
-      : 'members.message.updated';
-
-  closeManagedMemberForm();
+  memberManagementState.selectedId = result.member.memberId;
+  memberManagementState.mode = 'detail';
+  memberManagementState.focused = true;
+  memberManagementState.draft = null;
+  memberManagementState.initialDraft = '';
+  memberManagementState.requestId = '';
+  clearManagementNavigationGuard();
+  memberManagementNoticeKey = result.operation === 'created'
+    ? 'members.message.created'
+    : 'members.message.updated';
   loadMemberManagementData();
 }
 
-function setManagedMemberSaveState(saving) {
-  const button = document.getElementById(
-    'managed-member-save'
-  );
-
-  if (!button) {
-    return;
-  }
-
-  button.disabled = saving;
-  button.textContent = t(
-    saving
-      ? 'members.form.saving'
-      : 'members.form.save'
-  );
-}
-
 function showManagedMemberFormError(errorCode) {
-  const message = document.getElementById(
-    'managed-member-form-message'
-  );
-
-  if (message) {
-    message.textContent = getMemberManagementErrorMessage(
-      errorCode
-    );
+  const message = getMemberManagementErrorMessage(errorCode);
+  const summary = document.getElementById('managed-member-form-message');
+  const fieldMap = {
+    nameRequired: ['managed-member-name', 'member-name-error'],
+    emailRequired: ['managed-member-email', 'member-email-error'],
+    emailInvalid: ['managed-member-email', 'member-email-error'],
+    duplicateEmail: ['managed-member-email', 'member-email-error'],
+    roleInvalid: ['managed-member-role', 'member-role-error'],
+    joinDateInvalid: ['managed-member-join-date', 'member-joinDate-error'],
+    leaveDateInvalid: ['managed-member-leave-date', 'member-leaveDate-error'],
+    leaveBeforeJoin: ['managed-member-leave-date', 'member-leaveDate-error']
+  };
+  document.querySelectorAll('#managed-member-form .field-error')
+    .forEach(element => {
+      element.hidden = true;
+      element.textContent = '';
+    });
+  document.querySelectorAll('#managed-member-form [aria-invalid]')
+    .forEach(element => {
+      element.removeAttribute('aria-invalid');
+      element.removeAttribute('aria-describedby');
+    });
+  if (summary) {
+    summary.hidden = false;
+    summary.textContent = message;
+    summary.focus({ preventScroll: true });
+  }
+  const field = fieldMap[errorCode];
+  if (field) {
+    const input = document.getElementById(field[0]);
+    const error = document.getElementById(field[1]);
+    input.setAttribute('aria-invalid', 'true');
+    input.setAttribute('aria-describedby', field[1]);
+    error.hidden = false;
+    error.textContent = message;
   }
 }
 
-function requestManagedMemberStatusChange(memberId) {
-  if (memberActionInProgress) {
-    return;
-  }
-
+function requestManagedMemberStatusChange(memberId, invoker) {
+  if (memberActionInProgress) return;
   const member = findManagedMember(memberId);
-
-  if (!member) {
-    return;
-  }
+  if (!member) return;
 
   if (member.active) {
-    const leaveDateValue = window.prompt(
-      t('members.prompt.leaveDate'),
-      managedMemberTodayDateValue
-    );
-
-    if (leaveDateValue === null) {
-      return;
-    }
-
-    if (!parseDateOnlyValue(leaveDateValue)) {
-      showMemberManagementActionError('leaveDateInvalid');
-      return;
-    }
-
-    if (!window.confirm(t('members.confirm.deactivate', {
-      name: member.name,
-      date: formatDateOnly(leaveDateValue)
-    }))) {
-      return;
-    }
-
-    performManagedMemberStatusChange(
-      member,
-      false,
-      leaveDateValue,
-      ''
-    );
+    openMemberDeactivationDialog(member, invoker);
     return;
   }
 
-  if (!window.confirm(t('members.confirm.activate', {
-    name: member.name
-  }))) {
-    return;
-  }
+  openConfirmationDialog({
+    title: t('members.dialog.activateTitle'),
+    contentHtml: `<p>${escapeHtml(t('members.confirm.activate', {
+      name: member.name
+    }))}</p>`,
+    confirmLabel: t('members.action.activate'),
+    invoker: invoker,
+    onConfirm: () => performManagedMemberStatusChange(
+      member, true, '', ''
+    )
+  });
+}
 
-  performManagedMemberStatusChange(member, true, '', '');
+function openMemberDeactivationDialog(member, invoker, linkedMessage) {
+  openConfirmationDialog({
+    title: t('members.dialog.deactivateTitle'),
+    contentHtml: `
+      ${linkedMessage ? `<p>${escapeHtml(linkedMessage)}</p>` : ''}
+      <p><strong>${escapeHtml(member.name)}</strong></p>
+      <p>${escapeHtml(t('members.deactivate.explanation'))}</p>
+      <label class="form-field">
+        <span class="form-label">${t('members.form.leaveDate')}</span>
+        <input
+          type="date"
+          class="management-input"
+          id="deactivate-member-leave-date"
+          value="${escapeHtml(managedMemberTodayDateValue)}"
+        >
+        <span class="field-error" id="deactivate-date-error" hidden></span>
+      </label>
+      ${member.isCurrentUser ? buildSelfAccessConfirmationField() : ''}
+    `,
+    confirmLabel: t('members.action.deactivate'),
+    invoker: invoker,
+    onConfirm: dialog => {
+      const dateInput = dialog.querySelector(
+        '#deactivate-member-leave-date'
+      );
+      const confirmationInput = dialog.querySelector(
+        '#member-self-access-confirmation'
+      );
+      if (!parseDateOnlyValue(dateInput.value)) {
+        const error = dialog.querySelector('#deactivate-date-error');
+        error.hidden = false;
+        error.textContent = getMemberManagementErrorMessage(
+          'leaveDateInvalid'
+        );
+        dateInput.setAttribute('aria-invalid', 'true');
+        return false;
+      }
+      if (member.isCurrentUser && !confirmationInput.value.trim()) {
+        showSelfAccessDialogError(dialog);
+        return false;
+      }
+      performManagedMemberStatusChange(
+        member,
+        false,
+        dateInput.value,
+        confirmationInput
+          ? confirmationInput.value.trim().toLowerCase()
+          : ''
+      );
+      return true;
+    }
+  });
 }
 
 function performManagedMemberStatusChange(
@@ -896,48 +874,27 @@ function performManagedMemberStatusChange(
   leaveDateValue,
   selfAccessConfirmation
 ) {
-  if (!selfAccessConfirmation && member.isCurrentUser && !active) {
-    selfAccessConfirmation = requestSelfAccessConfirmation();
-
-    if (!selfAccessConfirmation) {
-      return;
-    }
-  }
-
   memberActionInProgress = true;
-  renderManagedMemberList();
-
   google.script.run
     .withSuccessHandler(result => {
       memberActionInProgress = false;
-
       if (result && result.requiresSelfConfirmation) {
-        const confirmation = requestSelfAccessConfirmation();
-
-        if (confirmation) {
+        requestSelfAccessConfirmation(confirmation =>
           performManagedMemberStatusChange(
             member,
             active,
             leaveDateValue,
             confirmation
-          );
-        } else {
-          renderManagedMemberList();
-        }
-
+          )
+        );
         return;
       }
-
       if (!result || !result.success) {
         showMemberManagementActionError(
-          result && result.errorCode
-            ? result.errorCode
-            : 'actionFailed'
+          result && result.errorCode ? result.errorCode : 'actionFailed'
         );
-        renderManagedMemberList();
         return;
       }
-
       memberManagementNoticeKey = active
         ? 'members.message.activated'
         : 'members.message.deactivated';
@@ -946,7 +903,6 @@ function performManagedMemberStatusChange(
     .withFailureHandler(() => {
       memberActionInProgress = false;
       showMemberManagementActionError('actionFailed');
-      renderManagedMemberList();
     })
     .setMemberActiveStatus({
       memberId: member.memberId,
@@ -957,115 +913,78 @@ function performManagedMemberStatusChange(
     });
 }
 
-function requestManagedMemberDeletion(memberId) {
-  if (memberActionInProgress) {
-    return;
-  }
-
+function requestManagedMemberDeletion(memberId, invoker) {
+  if (memberActionInProgress) return;
   const member = findManagedMember(memberId);
-
-  if (
-    !member ||
-    !window.confirm(t('members.confirm.delete', {
-      name: member.name
-    }))
-  ) {
-    return;
-  }
-
-  performManagedMemberDeletion(member, '');
+  if (!member) return;
+  openConfirmationDialog({
+    title: t('members.dialog.deleteTitle'),
+    contentHtml: `
+      <p>${escapeHtml(t('members.confirm.delete', {
+        name: member.name
+      }))}</p>
+      <p>${escapeHtml(t('members.delete.explanation'))}</p>
+      ${member.isCurrentUser ? buildSelfAccessConfirmationField() : ''}
+    `,
+    confirmLabel: t('management.deletePermanently'),
+    danger: true,
+    invoker: invoker,
+    onConfirm: dialog => {
+      const input = dialog.querySelector(
+        '#member-self-access-confirmation'
+      );
+      if (member.isCurrentUser && !input.value.trim()) {
+        showSelfAccessDialogError(dialog);
+        return false;
+      }
+      performManagedMemberDeletion(
+        member,
+        input ? input.value.trim().toLowerCase() : ''
+      );
+      return true;
+    }
+  });
 }
 
-function performManagedMemberDeletion(
-  member,
-  selfAccessConfirmation
-) {
-  if (!selfAccessConfirmation && member.isCurrentUser) {
-    selfAccessConfirmation = requestSelfAccessConfirmation();
-
-    if (!selfAccessConfirmation) {
-      return;
-    }
-  }
-
+function performManagedMemberDeletion(member, selfAccessConfirmation) {
   memberActionInProgress = true;
-  renderManagedMemberList();
-
   google.script.run
     .withSuccessHandler(result => {
       memberActionInProgress = false;
-
       if (result && result.requiresSelfConfirmation) {
-        const confirmation = requestSelfAccessConfirmation();
-
-        if (confirmation) {
-          performManagedMemberDeletion(member, confirmation);
-        } else {
-          renderManagedMemberList();
-        }
-
+        requestSelfAccessConfirmation(confirmation =>
+          performManagedMemberDeletion(member, confirmation)
+        );
         return;
       }
-
-      if (
-        result &&
-        !result.success &&
-        result.errorCode === 'linkedRecords'
-      ) {
+      if (result && !result.success && result.errorCode === 'linkedRecords') {
         const linked = result.linkedRecords || {};
-
-        if (window.confirm(t('members.confirm.linkedDeactivate', {
-          availability: linked.availability || 0,
-          volunteers: linked.volunteers || 0,
-          attendance: linked.attendance || 0
-        }))) {
-          const leaveDateValue = window.prompt(
-            t('members.prompt.leaveDate'),
-            managedMemberTodayDateValue
-          );
-
-          if (
-            leaveDateValue !== null &&
-            parseDateOnlyValue(leaveDateValue)
-          ) {
-            performManagedMemberStatusChange(
-              member,
-              false,
-              leaveDateValue,
-              selfAccessConfirmation
-            );
-          } else if (leaveDateValue !== null) {
-            showMemberManagementActionError(
-              'leaveDateInvalid'
-            );
-            renderManagedMemberList();
-          } else {
-            renderManagedMemberList();
-          }
-        } else {
-          renderManagedMemberList();
-        }
-
+        openMemberDeactivationDialog(
+          member,
+          null,
+          t('members.confirm.linkedDeactivate', {
+            availability: linked.availability || 0,
+            volunteers: linked.volunteers || 0,
+            attendance: linked.attendance || 0
+          })
+        );
         return;
       }
-
       if (!result || !result.success) {
         showMemberManagementActionError(
-          result && result.errorCode
-            ? result.errorCode
-            : 'actionFailed'
+          result && result.errorCode ? result.errorCode : 'actionFailed'
         );
-        renderManagedMemberList();
         return;
       }
-
+      memberManagementState.selectedId = '';
+      memberManagementState.mode = 'list';
+      memberManagementState.focused = false;
       memberManagementNoticeKey = 'members.message.deleted';
       loadMemberManagementData();
     })
     .withFailureHandler(() => {
       memberActionInProgress = false;
       showMemberManagementActionError('actionFailed');
-      renderManagedMemberList();
     })
     .deleteMember({
       memberId: member.memberId,
@@ -1074,55 +993,105 @@ function performManagedMemberDeletion(
     });
 }
 
-function requestSelfAccessConfirmation() {
-  const confirmation = window.prompt(
-    t('members.prompt.selfAccessConfirmation')
-  );
+function buildSelfAccessConfirmationField() {
+  return `
+    <label class="form-field">
+      <span class="form-label">${t(
+        'members.dialog.selfAccessEmail'
+      )}</span>
+      <input
+        type="email"
+        class="management-input"
+        id="member-self-access-confirmation"
+        autocomplete="email"
+      >
+      <span class="form-help">${t(
+        'members.prompt.selfAccessConfirmation'
+      )}</span>
+      <span class="field-error" id="self-access-error" hidden></span>
+    </label>
+  `;
+}
 
-  return confirmation === null
-    ? ''
-    : confirmation.trim().toLowerCase();
+function requestSelfAccessConfirmation(onConfirm) {
+  openConfirmationDialog({
+    title: t('members.dialog.selfAccessTitle'),
+    contentHtml: buildSelfAccessConfirmationField(),
+    confirmLabel: t('management.continue'),
+    onConfirm: dialog => {
+      const input = dialog.querySelector(
+        '#member-self-access-confirmation'
+      );
+      if (!input.value.trim()) {
+        showSelfAccessDialogError(dialog);
+        return false;
+      }
+      onConfirm(input.value.trim().toLowerCase());
+      return true;
+    }
+  });
+}
+
+function showSelfAccessDialogError(dialog) {
+  const input = dialog.querySelector('#member-self-access-confirmation');
+  const error = dialog.querySelector('#self-access-error');
+  input.setAttribute('aria-invalid', 'true');
+  input.setAttribute('aria-describedby', 'self-access-error');
+  error.hidden = false;
+  error.textContent = t('members.error.selfAccessEmailRequired');
 }
 
 function showMemberManagementActionError(errorCode) {
-  const message = document.getElementById(
-    'member-management-message'
-  );
-
+  const message = document.getElementById('member-management-message');
   if (message) {
     message.classList.add('error-message');
-    message.textContent = getMemberManagementErrorMessage(
-      errorCode
-    );
+    message.textContent = getMemberManagementErrorMessage(errorCode);
+    message.focus();
   }
 }
 
 function getMemberManagementErrorMessage(errorCode) {
   const key = `members.error.${errorCode}`;
   const message = t(key);
+  return message === key ? t('members.error.unexpected') : message;
+}
 
-  return message === key
-    ? t('members.error.unexpected')
-    : message;
+function buildManagedMemberRoleOptions(selectedRole) {
+  return managedMemberRoles.map(role => `
+    <option value="${escapeHtml(role)}" ${
+      role === selectedRole ? 'selected' : ''
+    }>${escapeHtml(translateBusinessValue('role', role))}</option>
+  `).join('');
 }
 
 function findManagedMember(memberId) {
-  return managedMembers.find(member =>
-    member.memberId === memberId
-  ) || null;
+  return managedMembers.find(member => member.memberId === memberId) || null;
+}
+
+function focusMemberManagementDetailIfNeeded() {
+  if (!memberManagementState.focused) return;
+  window.requestAnimationFrame(() =>
+    document.getElementById('management-detail-heading')
+      ?.focus({ preventScroll: true })
+  );
 }
 
 function renderMemberManagementError() {
   const content = document.getElementById('content');
-
   content.className = '';
   content.innerHTML = `
-    <h2 class="section-title">
-      ${t('members.title')}
-    </h2>
-
-    <section class="error">
-      ${t('members.error.loadFailed')}
-    </section>
+    ${buildPageHeader({
+      title: t('members.title'),
+      supportingText: t('members.intro')
+    })}
+    ${buildErrorState({
+      title: t('common.error'),
+      message: t('members.error.loadFailed'),
+      actionsHtml: `<button type="button" class="secondary-button" id="retry-members">${t(
+        'common.refresh'
+      )}</button>`
+    })}
   `;
+  document.getElementById('retry-members')
+    .addEventListener('click', loadMemberManagementData);
 }

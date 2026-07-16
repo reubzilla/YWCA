@@ -310,6 +310,21 @@ function navigateToRoute(routeId, options) {
   const settings = options || {};
   const route = getPermittedRoute(routeId) ||
     getFirstPermittedRoute();
+  const routeChanging = route.id !== currentRouteId;
+
+  if (
+    settings.skipManagementGuard !== true &&
+    routeChanging &&
+    requestManagementDiscard(
+      () => navigateToRoute(route.id, {
+        ...settings,
+        skipManagementGuard: true
+      }),
+      document.activeElement
+    )
+  ) {
+    return;
+  }
 
   if (isNavigationDrawerOpen) {
     closeNavigationDrawer(false);
@@ -317,6 +332,10 @@ function navigateToRoute(routeId, options) {
 
   if (isMoreMenuOpen) {
     closeMobileNavigationSheet(false);
+  }
+
+  if (routeChanging) {
+    clearManagementNavigationGuard();
   }
 
   currentRouteId = route.id;

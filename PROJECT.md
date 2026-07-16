@@ -62,6 +62,7 @@ The following code paths are present:
 - locked M001-style Member ID generation, normalized unique member emails, final-active-Teacher protection, and strong confirmation before a Teacher removes their own management access;
 - signed-in-member-only volunteer schedule display;
 - Teacher and Club Leader visitor-schedule management with multi-member assignment, availability warnings, filtering, locked duplicate prevention, cancellation, and safe future deletion;
+- a shared responsive management workspace for Sessions & Events, Members, and Visitor Schedules: desktop master-detail, focused tablet/mobile detail and editor states, compact filters, inline validation, and accessible confirmation/unsaved-change dialogs;
 - language-neutral date payloads with Japanese and British English browser formatting;
 - a role-aware single-page route registry that separates personal assignments from manager visitor coordination;
 - a responsive application shell with a persistent desktop sidebar, tablet drawer, and role-specific mobile navigation;

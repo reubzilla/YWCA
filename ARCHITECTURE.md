@@ -63,6 +63,8 @@ This requires an Apps Script HTML file named `Index`. `src/Index.html` matches t
 
 Browser helpers load before localisation because localisation rendering uses shared HTML escaping. Components load after localisation so their accessible controls can use translated labels. View functions load before `AppShell.html` and `App.html`; the route registry is therefore created only after every renderer has been declared. `Index.html` contains semantic shell landmarks, empty overlay hosts, and the ordered includes. CSS is in `Styles.html`, the single translation dictionary and translation helpers are in `Localization.html`, shared browser utilities are in `BrowserHelpers.html`, and each feature view retains its own partial.
 
+`Components.html` also owns the immediately reused management presentation builders: `buildManagementLayout()`, `buildDetailHeader()`, `buildFormSection()`, and `buildManagementFilterChips()`. These are string-rendering helpers rather than a component framework. Sessions, Members, and Visitor Schedules keep their own records, filters, selection, drafts, event handlers, and `google.script.run` calls in their feature partials.
+
 `App.html` owns `portalData`, the public `currentRouteId`, and a temporary legacy `currentView` value used by views that have not yet migrated to route guards. It also owns the drawer-open and mobile-sheet-open state. `AppShell.html` renders those states but does not make permission decisions. Other partials update portal data through `updatePortalData()` and request a language-change rerender through `rerenderAfterLanguageChange()` rather than assigning App state directly. Availability draft state remains owned by `Availability.html`, the selected Today session remains owned by `Dashboard.html`, and Planning filters and selection remain owned by `UpcomingActivities.html`.
 
 Apps Script requires unique filenames regardless of extension. The generic sheet reader therefore resides in `SheetData.gs`, leaving the `Dashboard` basename available for the frontend partial.
@@ -85,6 +87,10 @@ The active routes are:
 The previous `home`, `dashboard`, and `volunteer` IDs are accepted only through `selectView()` as compatibility aliases for existing event handlers. Attendance is not registered because its view is still a placeholder. Invalid or inaccessible route IDs fall back to the first permitted route, which is `today`.
 
 At 1024 CSS pixels and above, the shell uses a persistent 252-pixel sidebar. Between 768 and 1023 pixels it uses a labelled navigation drawer. Below 768 pixels it uses no more than five role-specific bottom actions. Teacher mobile navigation is Today, Planning, People, Personal, and More. Personal and More open a shared side-panel component containing secondary routes, language controls, and the signed-in account summary.
+
+The three management routes share a second responsive pattern without changing the route registry. At 1200 CSS pixels and above, the filtered record list and detail/editor pane are visible together. From 768 through 1199 pixels, and on mobile below 768 pixels, selecting or creating a record changes the workspace to a focused detail/editor state with an explicit Back action. Filters collapse below 1024 pixels, form fields stack on mobile, and destructive actions remain visually separate from ordinary editing and status changes.
+
+Each management module owns a serializable form draft. `Components.html` exposes a single management navigation guard and accessible Dialog-based confirmation helper. Attempting to leave a dirty editor, use its Back action, or select another record opens a localised discard warning. Changing language rerenders the current route without discarding the module draft. Successful saves clear the guard before reloading data.
 
 ## Authentication flow
 
@@ -201,7 +207,7 @@ The detail payload contains Member ID, name, grade, role, response, private avai
 
 ## Sessions and Events management flow
 
-The Teacher-only `SessionManagement.html` view is separate from the operational Today dashboard. It lists Sessions rows, applies browser-side date and type filters, and uses the shared localisation and date-formatting helpers.
+The Teacher-only `SessionManagement.html` view is separate from the operational Today dashboard. It uses the shared responsive management layout, lists Sessions rows, applies browser-side title, date, type, and status filters, and uses the shared localisation and date-formatting helpers. Desktop shows list and detail/editor together; narrower layouts use a focused detail/editor state.
 
 `ManageSessions.gs` owns session-management business logic. Creates and updates validate the complete form on the server. Session types remain the English values `Regular`, `Event`, and `Cancelled`. End time cannot precede start time. A response deadline after the session begins requires an explicit confirmation flag that the server verifies.
 
@@ -211,7 +217,7 @@ Cancellation preserves the Sessions row, changes `Session Type` to `Cancelled`, 
 
 ## Member management flow
 
-The Teacher-only `MemberManagement.html` view is separate from the operational Today dashboard. It lists active and inactive Members rows and filters them in the browser by name/email search, active status, role, and grade. Join and Leave dates are returned as `YYYY-MM-DD` values and formatted through the shared browser date helper.
+The Teacher-only `MemberManagement.html` view is separate from the operational Today dashboard. It uses the shared responsive management layout, lists active and inactive Members rows, and filters them in the browser by name/email search, active status, role, and grade. Join and Leave dates are returned as `YYYY-MM-DD` values and formatted through the shared browser date helper.
 
 `ManageMembers.gs` owns member-management business logic. Every public read and write first requires an active Teacher. Creates and updates validate the complete form again on the server, normalize emails to lowercase, enforce unique email addresses, preserve exact English role values, and reject a Leave Date earlier than the Join Date. Inactive records without a Leave Date require an explicit warning confirmation when saved through the full edit form.
 
@@ -225,7 +231,7 @@ Permanent deletion is a separate action. While holding the lock, the server coun
 
 “Visitor Schedule” is the user-facing name for rows in `Volunteer Assignments`. The `Volunteer.html` view calls `getMyVolunteerAssignments()`, which derives the signed-in member's Member ID and email and filters rows before mapping them for the browser. Its payload contains assignment and session display fields only; it never includes another member's assignment, member identity, availability, attendance, or private availability note.
 
-Teachers and Club Leaders are routed to `VisitorScheduleManagement.html`. `getVisitorScheduleManagementData()` requires `canManageVolunteers` and returns active upcoming sessions, active eligible Students and Club Leaders, assignment rows, and availability status. The limited manager member payload contains Member ID, name, grade, role, and availability response; it excludes member email and availability Reason.
+Teachers and Club Leaders are routed to `VisitorScheduleManagement.html`. It uses the shared responsive management layout with a session-centric summary, assignment filters, a multi-member create editor, and a single-assignment detail/editor. `getVisitorScheduleManagementData()` requires `canManageVolunteers` and returns active upcoming sessions, active eligible Students and Club Leaders, assignment rows, and availability status. The limited manager member payload contains Member ID, name, grade, role, and availability response; it excludes member email and availability Reason.
 
 Creates may assign multiple eligible members in one locked write. Creates and updates validate the active upcoming session, active eligible member, approved English assignment status, `HH:mm` departure time, and the composite Session ID/Member ID uniqueness. When a member is `Unavailable`, the server returns a confirmation-required result unless the manager explicitly resubmits with the override. `Unsure` and missing responses are returned as notices without blocking the save.
 

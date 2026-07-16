@@ -8,6 +8,7 @@ let activeDialogOnClose = null;
 let activeSidePanelInvoker = null;
 let activeSidePanelOnClose = null;
 let componentKeyboardHandlerBound = false;
+let managementNavigationGuard = null;
 
 function initialiseBaseComponents() {
   if (componentKeyboardHandlerBound) {
@@ -223,6 +224,221 @@ function buildRecordRow(options) {
         : ''}
     </article>
   `;
+}
+
+function buildManagementLayout(options) {
+  const settings = options || {};
+  const focused = settings.focused === true;
+
+  return `
+    <div
+      class="management-layout${focused ? ' detail-focused' : ''}"
+      data-management-layout
+    >
+      <section
+        class="management-list-pane"
+        aria-labelledby="${escapeHtml(
+          settings.listLabelledBy || ''
+        )}"
+      >
+        ${settings.listHtml || ''}
+      </section>
+      <aside
+        class="management-detail-pane"
+        aria-label="${escapeHtml(settings.detailLabel || '')}"
+        tabindex="-1"
+      >
+        ${settings.detailHtml || ''}
+      </aside>
+    </div>
+  `;
+}
+
+function buildDetailHeader(options) {
+  const settings = options || {};
+
+  return `
+    <div class="detail-header-component">
+      ${settings.showBack !== false
+        ? `
+          <button
+            type="button"
+            class="secondary-button management-back-button"
+            data-management-back
+          >
+            ${escapeHtml(settings.backLabel || t('management.back'))}
+          </button>
+        `
+        : ''}
+      <div class="detail-header-row">
+        <div>
+          ${settings.eyebrow
+            ? `<p class="detail-header-eyebrow">${escapeHtml(
+                settings.eyebrow
+              )}</p>`
+            : ''}
+          <h2
+            class="detail-header-title"
+            id="management-detail-heading"
+            tabindex="-1"
+          >
+            ${escapeHtml(settings.title || '')}
+          </h2>
+          ${settings.metaHtml || ''}
+        </div>
+        ${settings.actionsHtml
+          ? `<div class="detail-header-actions">${
+              settings.actionsHtml
+            }</div>`
+          : ''}
+      </div>
+    </div>
+  `;
+}
+
+function buildFormSection(options) {
+  const settings = options || {};
+
+  return `
+    <fieldset class="form-section-component">
+      <legend>${escapeHtml(settings.title || '')}</legend>
+      ${settings.description
+        ? `<p class="form-section-description">${escapeHtml(
+            settings.description
+          )}</p>`
+        : ''}
+      <div class="management-form-grid">
+        ${settings.fieldsHtml || ''}
+      </div>
+    </fieldset>
+  `;
+}
+
+function buildManagementFilterChips(chips) {
+  if (!chips.length) {
+    return '';
+  }
+
+  return `
+    <div class="active-filter-chips" aria-label="${escapeHtml(
+      t('management.activeFilters')
+    )}">
+      ${chips.map(chip => `
+        <span class="filter-chip">${escapeHtml(chip)}</span>
+      `).join('')}
+    </div>
+  `;
+}
+
+function setManagementNavigationGuard(guard) {
+  managementNavigationGuard = guard || null;
+}
+
+function clearManagementNavigationGuard() {
+  managementNavigationGuard = null;
+}
+
+function requestManagementDiscard(continuation, invoker) {
+  if (
+    !managementNavigationGuard ||
+    typeof managementNavigationGuard.isDirty !== 'function' ||
+    !managementNavigationGuard.isDirty()
+  ) {
+    return false;
+  }
+
+  openDialog({
+    title: t('management.unsaved.title'),
+    contentHtml: `<p>${escapeHtml(
+      t('management.unsaved.message')
+    )}</p>`,
+    actionsHtml: `
+      <button
+        type="button"
+        class="secondary-button"
+        id="keep-management-editing"
+      >
+        ${t('management.unsaved.keepEditing')}
+      </button>
+      <button
+        type="button"
+        class="danger-button"
+        id="discard-management-changes"
+      >
+        ${t('management.unsaved.discard')}
+      </button>
+    `,
+    invoker: invoker
+  });
+
+  document.getElementById(
+    'keep-management-editing'
+  ).addEventListener('click', () => closeDialog('keep'));
+  document.getElementById(
+    'discard-management-changes'
+  ).addEventListener('click', () => {
+    const guard = managementNavigationGuard;
+
+    if (guard && typeof guard.discard === 'function') {
+      guard.discard();
+    }
+
+    clearManagementNavigationGuard();
+    closeDialog('discard', false);
+
+    if (typeof continuation === 'function') {
+      continuation();
+    }
+  });
+
+  return true;
+}
+
+function openConfirmationDialog(options) {
+  const settings = options || {};
+  const confirmId = `management-confirm-${Date.now()}`;
+
+  openDialog({
+    title: settings.title || '',
+    contentHtml: settings.contentHtml || '',
+    actionsHtml: `
+      <button
+        type="button"
+        class="secondary-button"
+        id="${confirmId}-cancel"
+      >
+        ${escapeHtml(settings.cancelLabel || t('common.cancel'))}
+      </button>
+      <button
+        type="button"
+        class="${settings.danger ? 'danger-button' : 'primary-button'}"
+        id="${confirmId}"
+      >
+        ${escapeHtml(settings.confirmLabel || t('common.confirm'))}
+      </button>
+    `,
+    invoker: settings.invoker
+  });
+
+  const confirmButton = document.getElementById(confirmId);
+  const cancelButton = document.getElementById(
+    `${confirmId}-cancel`
+  );
+
+  cancelButton.addEventListener('click', () => {
+    closeDialog('cancel');
+  });
+
+  confirmButton.addEventListener('click', () => {
+    const dialog = document.querySelector('.dialog-component');
+    const shouldClose = typeof settings.onConfirm === 'function'
+      ? settings.onConfirm(dialog, confirmButton)
+      : true;
+
+    if (shouldClose !== false) {
+      closeDialog('confirm');
+    }
+  });
 }
 
 function buildPriorityBanner(options) {
