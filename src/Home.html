@@ -1,157 +1,167 @@
+let studentTodayRequestToken = 0;
+let studentTodayAvailability = null;
+let studentTodayAssignments = null;
+
 function renderHome() {
-  const content =
-    document.getElementById('content');
-
-  const user = portalData.user;
-  const notifications =
-    portalData.notifications || [];
-  const sessions =
-    portalData.sessions || [];
-
-  let html = `
-    <section class="card">
-      <h2 class="user-name">
-        ${t('home.welcome', {
-          name: escapeHtml(user.name)
-        })}
-      </h2>
-
-      <p class="user-details">
-        ${escapeHtml(translateBusinessValue(
-          'role',
-          user.role
-        ))}
-        ${user.grade
-          ? ` · ${escapeHtml(user.grade)}`
-          : ''}
-        <br>
-        ${escapeHtml(user.email)}
-      </p>
-    </section>
-
-    <h2 class="section-title">
-      ${t('home.notificationsTitle')}
-    </h2>
-  `;
-
-  if (notifications.length === 0) {
-    html += `
-      <section class="card empty">
-        ${t('home.noNotifications')}
-      </section>
-    `;
-  } else {
-    notifications.forEach(notification => {
-      const display = getNotificationDisplay(
-        notification
-      );
-
-      html += `
-        <article
-          class="notification
-            ${escapeHtml(notification.priority)}"
-        >
-          <p class="notification-title">
-            ${escapeHtml(display.title)}
-          </p>
-
-          <p class="notification-message">
-            ${escapeHtml(display.message)}
-          </p>
-
-          <div class="notification-date">
-            ${escapeHtml(formatDateOnly(
-              notification.dateValue || notification.date
-            ))}
-          </div>
-        </article>
-      `;
-    });
-  }
-
-  html += `
-    <h2 class="section-title">
-      ${t('home.upcomingSessionsTitle')}
-    </h2>
-  `;
-
-  if (sessions.length === 0) {
-    html += `
-      <section class="card empty">
-        ${t('home.noUpcomingSessions')}
-      </section>
-    `;
-  } else {
-    sessions.forEach(session => {
-      const timeText = buildTimeText(
-        session.startTime,
-        session.endTime
-      );
-
-      html += `
-        <section class="card">
-          <div class="session-date">
-            ${escapeHtml(formatDateOnly(
-              session.dateValue || session.date
-            ))}
-          </div>
-
-          <h3 class="session-title">
-            ${escapeHtml(session.title)}
-          </h3>
-
-          <p class="session-details">
-            ${timeText
-              ? escapeHtml(timeText)
-              : t('session.timeNotSpecified')}
-          </p>
-
-          <span class="session-type">
-            ${escapeHtml(translateBusinessValue(
-              'sessionType',
-              session.sessionType
-            ))}
-          </span>
-
-          ${session.responseDeadline
-            ? `
-              <p
-                class="session-details"
-                style="margin-top: 12px;"
-              >
-                ${t('session.responseDeadlineLabel')}
-                ${escapeHtml(
-                  formatDateTime(session.responseDeadline)
-                )}
-              </p>
-            `
-            : ''}
-
-          ${session.notes
-            ? `
-              <div class="notes">
-                ${escapeHtml(session.notes)}
-              </div>
-            `
-            : ''}
-        </section>
-      `;
-    });
-  }
-
+  const content = document.getElementById('content');
+  const token = ++studentTodayRequestToken;
+  studentTodayAvailability = null;
+  studentTodayAssignments = null;
   content.className = '';
-  content.innerHTML = html;
+  content.innerHTML = `${buildPageHeader({
+    title: t('studentToday.title'),
+    supportingText: t('home.welcome', {name: portalData.user.name})
+  })}${buildLoadingState(t('studentToday.loading'))}`;
+
+  google.script.run
+    .withSuccessHandler(data => {
+      if (token !== studentTodayRequestToken || currentRouteId !== 'today') return;
+      studentTodayAvailability = data;
+      finishStudentTodayLoad(token);
+    })
+    .withFailureHandler(() => renderStudentTodayError(token))
+    .getAvailabilityPageData();
+  google.script.run
+    .withSuccessHandler(data => {
+      if (token !== studentTodayRequestToken || currentRouteId !== 'today') return;
+      studentTodayAssignments = data;
+      finishStudentTodayLoad(token);
+    })
+    .withFailureHandler(() => renderStudentTodayError(token))
+    .getMyVolunteerAssignments();
 }
 
+function finishStudentTodayLoad(token) {
+  if (token !== studentTodayRequestToken || !studentTodayAvailability || !studentTodayAssignments) return;
+  renderStudentToday(
+    studentTodayAvailability.sessions || [],
+    studentTodayAssignments.assignments || [],
+    studentTodayAssignments.todayDateValue || getTokyoTodayDateValue()
+  );
+}
+
+function renderStudentToday(sessions, assignments, todayDateValue) {
+  const todaySession = sessions.find(session => session.dateValue === todayDateValue) || null;
+  const nextSession = sessions.find(session => session.dateValue > todayDateValue) || null;
+  const todayAssignment = assignments.find(item =>
+    item.dateValue === todayDateValue &&
+    !['Cancelled', 'Declined'].includes(item.assignmentStatus)
+  ) || null;
+  const todayAvailability = todaySession?.availability || null;
+  const notifications = portalData.notifications || [];
+  const urgent = notifications.find(item => item.priority === 'action') || null;
+  const content = document.getElementById('content');
+
+  content.innerHTML = `
+    ${buildPageHeader({
+      title: t('studentToday.title'),
+      supportingText: t('home.welcome', {name: portalData.user.name})
+    })}
+    ${urgent ? buildPriorityBanner({
+      tone: 'warning',
+      title: t('studentToday.actionRequired'),
+      message: getNotificationDisplay(urgent).message,
+      detailsHtml: `<button type="button" class="primary-button" data-today-notification="${escapeHtml(
+        urgent.sessionId || ''
+      )}" data-notification-type="${escapeHtml(urgent.type || '')}">${t('studentToday.respondNow')}</button>`
+    }) : ''}
+    <div class="student-today-grid">
+      <div class="student-today-primary">
+        <section class="personal-section" aria-labelledby="today-activity-title">
+          <h2 id="today-activity-title">${t('studentToday.activityToday')}</h2>
+          ${todaySession ? buildStudentSessionCard(todaySession, true) : buildEmptyState({
+            title: t('studentToday.noActivityToday'),
+            message: t('studentToday.noActivityTodayHelp')
+          })}
+        </section>
+        ${todayAssignment ? `<section class="personal-section" aria-labelledby="today-assignment-title">
+          <h2 id="today-assignment-title">${t('studentToday.myAssignmentToday')}</h2>
+          ${buildAssignmentCard(todayAssignment, {prominent: true})}
+        </section>` : ''}
+        ${todaySession ? `<section class="personal-section" aria-labelledby="today-response-title">
+          <h2 id="today-response-title">${t('studentToday.availabilityStatus')}</h2>
+          ${buildPersonalActivityCard({
+            title: todaySession.title,
+            statusHtml: buildStatusBadge(
+              getStatusDisplay(todayAvailability?.response || '').label,
+              statusToneForAvailability(todayAvailability?.response || '')
+            ),
+            actionsHtml: `<button type="button" class="secondary-button" data-open-availability="${escapeHtml(
+              todaySession.sessionId
+            )}">${t('availability.editResponse')}</button>`
+          })}
+        </section>` : ''}
+      </div>
+      <aside class="student-today-secondary">
+        <section class="personal-section" aria-labelledby="next-activity-title">
+          <h2 id="next-activity-title">${t('studentToday.nextActivity')}</h2>
+          ${nextSession ? buildStudentSessionCard(nextSession, false) : buildEmptyState({
+            message: t('home.noUpcomingSessions')
+          })}
+        </section>
+        <section class="personal-section" aria-labelledby="today-notifications-title">
+          <div class="personal-section-heading"><h2 id="today-notifications-title">${t('nav.notifications')}</h2>
+            <button type="button" class="text-button" id="view-all-notifications">${t('studentToday.viewAll')}</button></div>
+          ${buildStudentNotificationSummary(notifications, urgent)}
+        </section>
+      </aside>
+    </div>`;
+  initialiseStudentTodayEvents();
+}
+
+function buildStudentSessionCard(session, prominent) {
+  const timeText = buildTimeText(session.startTime, session.endTime);
+  return buildPersonalActivityCard({
+    prominent,
+    eyebrow: formatDateOnly(session.dateValue || session.date),
+    title: session.title,
+    statusHtml: buildStatusBadge(
+      translateBusinessValue('sessionType', session.sessionType),
+      'information'
+    ),
+    metaHtml: `<p class="personal-card-meta">${escapeHtml(
+      timeText || t('session.timeNotSpecified')
+    )}</p>`,
+    bodyHtml: session.notes ? `<div class="personal-card-note"><p>${escapeHtml(session.notes)}</p></div>` : ''
+  });
+}
+
+function buildStudentNotificationSummary(notifications, excluded) {
+  const remaining = notifications.filter(item => item !== excluded).slice(0, 3);
+  if (!remaining.length) return buildEmptyState({message: t('home.noNotifications')});
+  return `<div class="action-list">${remaining.map(item => {
+    const display = getNotificationDisplay(item);
+    return buildActionListItem({
+      eyebrow: item.dateValue ? formatDateOnly(item.dateValue) : '',
+      title: display.title,
+      message: display.message,
+      actionsHtml: `<button type="button" class="secondary-button" data-today-notification="${escapeHtml(
+        item.sessionId || ''
+      )}" data-notification-type="${escapeHtml(item.type || '')}">${t('notifications.open')}</button>`
+    });
+  }).join('')}</div>`;
+}
+
+function initialiseStudentTodayEvents() {
+  document.querySelectorAll('[data-open-availability]').forEach(button =>
+    button.addEventListener('click', () => navigateToPersonalTarget(
+      'availability', {sessionId: button.dataset.openAvailability}
+    ))
+  );
+  document.querySelectorAll('[data-today-notification]').forEach(button =>
+    button.addEventListener('click', () => routeNotificationAction({
+      type: button.dataset.notificationType,
+      sessionId: button.dataset.todayNotification
+    }))
+  );
+  document.getElementById('view-all-notifications')?.addEventListener('click', () =>
+    navigateToRoute('notifications')
+  );
+}
 
 function getNotificationDisplay(notification) {
-  if (
-    notification.type === 'response' &&
-    Object.prototype.hasOwnProperty.call(
-      notification,
-      'sessionTitle'
-    )
-  ) {
+  if (notification.type === 'response' &&
+      Object.prototype.hasOwnProperty.call(notification, 'sessionTitle')) {
     return {
       title: t('notification.availability.title'),
       message: t('notification.availability.message', {
@@ -159,32 +169,28 @@ function getNotificationDisplay(notification) {
       })
     };
   }
-
-  if (
-    notification.type === 'volunteer' &&
-    Object.prototype.hasOwnProperty.call(
-      notification,
-      'activity'
-    )
-  ) {
-    const activity = notification.activity ||
-      t('notification.volunteer.defaultActivity');
-
+  if (notification.type === 'volunteer' &&
+      Object.prototype.hasOwnProperty.call(notification, 'activity')) {
+    const activity = notification.activity || t('notification.volunteer.defaultActivity');
     return {
       title: t('notification.volunteer.title'),
       message: notification.location
         ? t('notification.volunteer.messageWithLocation', {
-            activity: activity,
-            location: notification.location
+            activity, location: notification.location
           })
-        : t('notification.volunteer.message', {
-            activity: activity
-          })
+        : t('notification.volunteer.message', {activity})
     };
   }
-
   return {
     title: notification.title || '',
     message: notification.message || ''
   };
+}
+
+function renderStudentTodayError(token) {
+  if (token !== studentTodayRequestToken || currentRouteId !== 'today') return;
+  const content = document.getElementById('content');
+  content.innerHTML = `${buildPageHeader({title: t('studentToday.title')})}${buildErrorState({
+    message: t('studentToday.error')
+  })}`;
 }

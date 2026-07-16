@@ -22,14 +22,15 @@ Some permissions describe intended features that do not yet have corresponding i
 
 ### Students
 
-The intended student workflow is to:
+The current student workflow is to:
 
 1. Sign in with a school Google Workspace account registered in `Members`.
-2. View active sessions occurring within the next eight weeks.
-3. submit or update `Available`, `Unavailable`, or `Unsure` for a session;
+2. open an action-first Today view for today's activity, personal assignment, availability status, next activity, and urgent notices;
+3. open My Availability, find unanswered sessions first, and submit or update `Available`, `Unavailable`, or `Unsure` in a focused editor;
 4. optionally add a private note of up to 500 characters;
-5. view personal volunteer assignments;
-6. eventually check in for a same-day session.
+5. view the next personal assignment, future assignments, and assignment history;
+6. open read-only Notifications that route to the relevant personal workflow;
+7. eventually check in for a same-day session.
 
 The availability interface and save operation exist. The personal volunteer schedule shows only the signed-in member's assignments. Check-in remains a placeholder.
 
@@ -61,6 +62,10 @@ The following code paths are present:
 - Teacher-only member creation, editing, role changes, activation, deactivation, filtering, and integrity-protected deletion;
 - locked M001-style Member ID generation, normalized unique member emails, final-active-Teacher protection, and strong confirmation before a Teacher removes their own management access;
 - signed-in-member-only volunteer schedule display;
+- an action-first Student Today view composed from signed-in-member-only availability and assignment APIs;
+- a compact, filterable My Availability list with focused editing and unsaved-change protection;
+- a personal assignment schedule divided into next assignment, future assignments, and history;
+- a dedicated read-only Notifications route with actions into Availability, My Assignments, or Today;
 - Teacher and Club Leader visitor-schedule management with multi-member assignment, availability warnings, filtering, locked duplicate prevention, cancellation, and safe future deletion;
 - a shared responsive management workspace for Sessions & Events, Members, and Visitor Schedules: desktop master-detail, focused tablet/mobile detail and editor states, compact filters, inline validation, and accessible confirmation/unsaved-change dialogs;
 - language-neutral date payloads with Japanese and British English browser formatting;
@@ -77,10 +82,8 @@ The initial portal payload is provided by `getPortalData()`, which returns the a
 - Attendance can be read for the dashboard but cannot be recorded through the application.
 - Attendance is not exposed as a working navigation destination while it remains incomplete.
 - Settings management is not implemented.
-- Response deadlines are displayed but not enforced by `saveAvailability()`.
 - English is the canonical frontend source language. A single English/Japanese dictionary supplies client labels, Japanese is the default, and the language selector stores the user's preference in `localStorage`.
 - The frontend is split into HTML partials for styles, localisation, shared browser utilities, application routing, and each view; `Index.html` contains only the document shell and ordered includes.
-- The Phase 1 `notifications` route intentionally renders the existing Home view because notification content has not yet been separated into its own feature view.
 - There is no repository-provided sheet setup, migration, or test suite. Local Apps Script source synchronization is configured through `clasp`.
 
 ## Future planned features

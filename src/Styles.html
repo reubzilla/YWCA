@@ -1545,6 +1545,220 @@ textarea:focus-visible,
     justify-content: flex-start;
   }
 }
+
+/* Phase 4 personal participation workflows */
+.personal-announcement {
+  min-height: 1.5rem;
+  margin-bottom: var(--space-3);
+  color: var(--color-success);
+  font-weight: 700;
+}
+
+.student-today-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(280px, 0.75fr);
+  align-items: start;
+  gap: var(--space-6);
+  margin-top: var(--space-5);
+}
+
+.student-today-primary,
+.student-today-secondary,
+.personal-card-list,
+.action-list {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.personal-section > h2,
+.personal-section-heading h2 {
+  margin: 0 0 var(--space-3);
+  font-size: var(--font-section-title);
+}
+
+.personal-section + .personal-section {
+  margin-top: var(--space-6);
+}
+
+.personal-section-heading,
+.personal-card-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.personal-activity-card,
+.action-list-item {
+  min-width: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-container);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-surface);
+}
+
+.personal-activity-card.prominent {
+  border-width: 2px;
+  border-color: var(--color-primary-action);
+}
+
+.personal-card-eyebrow,
+.action-list-eyebrow,
+.personal-card-meta {
+  margin: 0 0 var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--font-supporting);
+  font-weight: 700;
+}
+
+.personal-card-heading h3,
+.action-list-copy h3 {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.personal-card-actions,
+.action-list-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+
+.personal-card-note {
+  margin-top: var(--space-4);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+}
+
+.personal-card-note p,
+.action-list-copy p {
+  margin: var(--space-1) 0 0;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.personal-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin: var(--space-4) 0 0;
+}
+
+.personal-detail-grid dt {
+  color: var(--color-text-muted);
+  font-size: var(--font-supporting);
+  font-weight: 700;
+}
+
+.personal-detail-grid dd {
+  margin: var(--space-1) 0 0;
+  overflow-wrap: anywhere;
+}
+
+.personal-card-list.history .personal-activity-card {
+  background: #f7f8f9;
+}
+
+.action-list-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-3);
+}
+
+.action-list-actions {
+  grid-column: 1 / -1;
+  margin-top: 0;
+}
+
+.priority-banner-information {
+  border-color: #a8c7df;
+  background: var(--info-bg);
+}
+
+.availability-response-fieldset {
+  margin: 0 0 var(--space-5);
+  padding: 0;
+  border: 0;
+}
+
+.availability-response-fieldset legend {
+  margin-bottom: var(--space-3);
+  font-weight: 700;
+}
+
+.availability-deadline {
+  margin: 0 0 var(--space-4);
+  color: var(--color-text-muted);
+}
+
+.text-button {
+  min-height: var(--touch-target);
+  padding: var(--space-2);
+  border: 0;
+  background: transparent;
+  color: var(--color-primary-action);
+  cursor: pointer;
+  font-weight: 700;
+}
+
+@media (max-width: 1023px) {
+  .student-today-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .student-today-secondary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 767px) {
+  .student-today-grid,
+  .personal-section + .personal-section {
+    margin-top: var(--space-4);
+  }
+
+  .student-today-secondary,
+  .personal-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .personal-card-heading,
+  .personal-section-heading,
+  .action-list-item {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .personal-card-actions,
+  .action-list-actions {
+    justify-content: stretch;
+  }
+
+  .personal-card-actions button,
+  .action-list-actions button {
+    width: 100%;
+  }
+
+  #availability-filter {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
 .dashboard-date {
   margin: 0 0 5px;
   color: var(--secondary);

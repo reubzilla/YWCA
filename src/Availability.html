@@ -1,524 +1,428 @@
+let availabilitySessions = [];
+let availabilityRequestToken = 0;
+let availabilitySaveInProgress = false;
+let availabilityNoticeKey = '';
 const availabilityDrafts = {};
+let availabilityState = {
+  filter: 'needsResponse',
+  selectedId: '',
+  mode: 'list',
+  focused: false,
+  initialDraft: ''
+};
 
 function renderAvailability() {
-  const content =
-    document.getElementById('content');
-
+  const content = document.getElementById('content');
   content.className = '';
-  content.innerHTML = `
-    <h2 class="section-title">
-      ${t('availability.title')}
-    </h2>
+  content.innerHTML = `${buildPageHeader({
+    title: t('availability.title'),
+    supportingText: t('availability.instructions')
+  })}${buildLoadingState(t('availability.loading'))}`;
 
-    <section class="card view-loading">
-      ${t('availability.loading')}
-    </section>
-  `;
-
+  const requestToken = ++availabilityRequestToken;
   google.script.run
-    .withSuccessHandler(renderAvailabilityData)
-    .withFailureHandler(renderAvailabilityError)
+    .withSuccessHandler(data => {
+      if (requestToken !== availabilityRequestToken ||
+          currentRouteId !== 'availability') return;
+      renderAvailabilityData(data);
+    })
+    .withFailureHandler(() => {
+      if (requestToken === availabilityRequestToken) {
+        renderAvailabilityError();
+      }
+    })
     .getAvailabilityPageData();
 }
 
-
 function renderAvailabilityData(data) {
-  const content =
-    document.getElementById('content');
-
-  const sessions = data.sessions || [];
-
-  let html = `
-    <h2 class="section-title">
-      ${t('availability.title')}
-    </h2>
-
-    <section class="card">
-      <p style="margin: 0; line-height: 1.6;">
-        ${t('availability.instructions')}
-      </p>
-    </section>
-  `;
-
-  if (sessions.length === 0) {
-    html += `
-      <section class="card empty">
-        ${t('availability.noSessions')}
-      </section>
-    `;
-
-    content.innerHTML = html;
-    return;
+  availabilitySessions = (data.sessions || []).slice().sort(
+    compareAvailabilitySessions
+  );
+  const target = consumePersonalRouteTarget('availability');
+  if (target?.sessionId && findAvailabilitySession(target.sessionId)) {
+    availabilityState.selectedId = target.sessionId;
+    availabilityState.mode = 'edit';
+    availabilityState.focused = true;
   }
-
-  sessions.forEach(session => {
-    html += buildAvailabilityCard(session);
+  if (availabilityState.selectedId &&
+      !findAvailabilitySession(availabilityState.selectedId)) {
+    availabilityState.selectedId = '';
+    availabilityState.mode = 'list';
+    availabilityState.focused = false;
+  }
+  availabilitySessions.forEach(session => {
+    if (!availabilityDrafts[session.sessionId]) {
+      availabilityDrafts[session.sessionId] = availabilityDraftFromSession(session);
+    }
   });
+  if (availabilityState.mode === 'edit' &&
+      !availabilityState.initialDraft &&
+      availabilityDrafts[availabilityState.selectedId]) {
+    availabilityState.initialDraft = JSON.stringify(
+      availabilityDrafts[availabilityState.selectedId]
+    );
+  }
+  renderAvailabilityWorkspace();
+}
 
-  content.innerHTML = html;
+function compareAvailabilitySessions(a, b) {
+  const rank = session => {
+    const response = session.availability?.response || '';
+    if (!response) return 0;
+    if (response === 'Unsure') return 1;
+    return 2;
+  };
+  return rank(a) - rank(b) ||
+    String(a.dateValue || '').localeCompare(String(b.dateValue || ''));
+}
 
-  sessions.forEach(session => {
-    restoreAvailabilityDraft(session.sessionId);
-    initialiseAvailabilityCard(session.sessionId);
+function renderAvailabilityWorkspace() {
+  const content = document.getElementById('content');
+  const filtered = getFilteredAvailabilitySessions();
+  content.innerHTML = `
+    ${buildPageHeader({
+      title: t('availability.title'),
+      supportingText: t('availability.instructions')
+    })}
+    <div class="personal-announcement" role="status" aria-live="polite">${
+      availabilityNoticeKey ? escapeHtml(t(availabilityNoticeKey)) : ''
+    }</div>
+    ${buildAvailabilityFilters()}
+    ${buildManagementLayout({
+      focused: availabilityState.focused,
+      listLabelledBy: 'availability-list-title',
+      detailLabel: t('availability.editor.regionLabel'),
+      listHtml: `<div class="management-pane-heading">
+        <h2 id="availability-list-title">${t('availability.listTitle')}</h2>
+        ${buildStatusBadge(String(filtered.length), 'neutral')}
+      </div>${buildAvailabilityList(filtered)}`,
+      detailHtml: buildAvailabilityEditor()
+    })}`;
+  availabilityNoticeKey = '';
+  initialiseAvailabilityEvents();
+  registerAvailabilityGuard();
+  focusAvailabilityEditor();
+}
+
+function buildAvailabilityFilters() {
+  return buildFilterBar({
+    label: t('availability.filter.label'),
+    fieldsHtml: `<label class="form-field"><span class="form-label">${t(
+      'availability.filter.show'
+    )}</span><select class="management-input" id="availability-filter">
+      ${['needsResponse', 'upcoming', 'answered', 'events', 'regular'].map(value =>
+        `<option value="${value}" ${availabilityState.filter === value ? 'selected' : ''}>${t(
+          `availability.filter.${value}`
+        )}</option>`
+      ).join('')}</select></label>`
   });
 }
 
+function getFilteredAvailabilitySessions() {
+  return availabilitySessions.filter(session => {
+    const response = session.availability?.response || '';
+    switch (availabilityState.filter) {
+      case 'needsResponse': return !response || response === 'Unsure';
+      case 'answered': return Boolean(response && response !== 'Unsure');
+      case 'events': return session.sessionType === 'Event';
+      case 'regular': return session.sessionType === 'Regular';
+      default: return true;
+    }
+  });
+}
+
+function buildAvailabilityList(sessions) {
+  if (!availabilitySessions.length) {
+    return buildEmptyState({message: t('availability.noSessions')});
+  }
+  if (!sessions.length) {
+    return buildEmptyState({message: t('availability.noMatchingSessions')});
+  }
+  return `<div class="management-record-list">${sessions.map(session => {
+    const response = session.availability?.response || '';
+    const status = getStatusDisplay(response);
+    const urgent = !response && isAvailabilityUrgent(session);
+    return `<div class="management-record${
+      session.sessionId === availabilityState.selectedId ? ' selected' : ''
+    }">${buildRecordRow({
+      title: session.title,
+      metaHtml: `<p class="record-row-meta">${escapeHtml(formatDateOnly(
+        session.dateValue || session.date
+      ))} · ${escapeHtml(translateBusinessValue('sessionType', session.sessionType))}</p>
+      ${session.responseDeadline ? `<p class="record-row-meta">${escapeHtml(t(
+        'session.responseDeadlineWithValue',
+        {deadline: formatDateTime(session.responseDeadline)}
+      ))}</p>` : ''}`,
+      statusHtml: `<div class="record-row-statuses">${urgent
+        ? buildStatusBadge(t('availability.urgent'), 'warning') : ''}${buildStatusBadge(
+          status.label, statusToneForAvailability(response)
+        )}</div>`,
+      actionsHtml: `<button type="button" class="secondary-button" data-availability-edit="${escapeHtml(
+        session.sessionId
+      )}">${t('availability.editResponse')}</button>`
+    })}</div>`;
+  }).join('')}</div>`;
+}
+
+function buildAvailabilityEditor() {
+  const session = findAvailabilitySession(availabilityState.selectedId);
+  if (!session) {
+    return buildEmptyState({message: t('availability.editor.selectPrompt')});
+  }
+  const draft = availabilityDrafts[session.sessionId] || availabilityDraftFromSession(session);
+  const timeText = buildTimeText(session.startTime, session.endTime);
+  return `${buildDetailHeader({
+    title: session.title,
+    eyebrow: formatDateOnly(session.dateValue || session.date),
+    metaHtml: timeText ? `<p class="detail-header-meta">${escapeHtml(timeText)}</p>` : ''
+  })}<form id="availability-editor-form" novalidate>
+    <div class="form-error-summary" id="availability-editor-error" role="alert" tabindex="-1" hidden></div>
+    ${session.responseDeadline ? `<p class="availability-deadline">${escapeHtml(t(
+      'session.responseDeadlineWithValue',
+      {deadline: formatDateTime(session.responseDeadline)}
+    ))}</p>` : ''}
+    <fieldset class="availability-response-fieldset">
+      <legend>${t('availability.responseLegend')}</legend>
+      <div class="response-options" role="radiogroup" id="availability-response-group">${[
+        ['Available', 'availability.status.available'],
+        ['Unavailable', 'availability.status.unavailable'],
+        ['Unsure', 'availability.status.unsure']
+      ].map(([value, key]) => buildResponseOption(
+        session.sessionId, value, t(key), draft.response
+      )).join('')}</div>
+      <span class="field-error" id="availability-response-error"></span>
+    </fieldset>
+    <label class="form-field" for="availability-editor-note">
+      <span class="form-label">${t('availability.privateNoteLabel')}</span>
+      <textarea class="note-input" id="availability-editor-note" maxlength="500"
+        placeholder="${escapeHtml(t('availability.privateNotePlaceholder'))}">${escapeHtml(
+          draft.reason
+        )}</textarea>
+      <span class="form-help">${t('availability.privateNoteHelp')}</span>
+      <span class="character-count" id="availability-editor-count">${t(
+        'availability.characterCount', {count: draft.reason.length, max: 500}
+      )}</span>
+    </label>
+    ${session.notes ? `<div class="notes">${escapeHtml(session.notes)}</div>` : ''}
+    <div class="management-form-actions">
+      <button type="button" class="secondary-button" id="availability-editor-back">${t('management.back')}</button>
+      <button type="submit" class="primary-button" id="availability-editor-save" ${availabilitySaveInProgress ? 'disabled' : ''}>${t(
+        availabilitySaveInProgress ? 'availability.saving' : 'availability.saveButton'
+      )}</button>
+    </div>
+  </form>`;
+}
+
+function buildResponseOption(sessionId, value, label, currentResponse) {
+  const inputId = `response-${sessionId}-${value}`;
+  return `<div class="response-option"><input type="radio" id="${escapeHtml(
+    inputId
+  )}" name="availability-response" value="${escapeHtml(value)}" ${
+    currentResponse === value ? 'checked' : ''
+  }><label for="${escapeHtml(inputId)}">${escapeHtml(label)}</label></div>`;
+}
+
+function initialiseAvailabilityEvents() {
+  document.getElementById('availability-filter')?.addEventListener('change', event => {
+    availabilityState.filter = event.target.value;
+    renderAvailabilityWorkspace();
+  });
+  document.querySelectorAll('[data-availability-edit]').forEach(button => {
+    button.addEventListener('click', event => {
+      const openEditor = () => openAvailabilityEditor(button.dataset.availabilityEdit);
+      if (!requestManagementDiscard(openEditor, event.currentTarget)) openEditor();
+    });
+  });
+  document.querySelector('[data-management-back]')?.addEventListener('click', closeAvailabilityEditor);
+  document.getElementById('availability-editor-back')?.addEventListener('click', closeAvailabilityEditor);
+  document.getElementById('availability-editor-form')?.addEventListener('input', () => {
+    captureAvailabilityDrafts();
+    updateAvailabilityCharacterCount();
+  });
+  document.getElementById('availability-editor-form')?.addEventListener('change', captureAvailabilityDrafts);
+  document.getElementById('availability-editor-form')?.addEventListener('submit', event => {
+    event.preventDefault(); submitAvailability(availabilityState.selectedId);
+  });
+}
+
+function openAvailabilityEditor(sessionId) {
+  const session = findAvailabilitySession(sessionId);
+  if (!session) return;
+  availabilityState.selectedId = sessionId;
+  availabilityState.mode = 'edit';
+  availabilityState.focused = true;
+  const draft = availabilityDrafts[sessionId] || availabilityDraftFromSession(session);
+  availabilityDrafts[sessionId] = {...draft};
+  availabilityState.initialDraft = JSON.stringify(draft);
+  renderAvailabilityWorkspace();
+}
+
+function closeAvailabilityEditor(event) {
+  const finish = () => {
+    availabilityState.mode = 'list';
+    availabilityState.focused = false;
+    availabilityState.initialDraft = '';
+    clearManagementNavigationGuard();
+    renderAvailabilityWorkspace();
+    window.requestAnimationFrame(() => document.querySelector(
+      `[data-availability-edit="${cssEscape(availabilityState.selectedId)}"]`
+    )?.focus({preventScroll: true}));
+  };
+  if (!requestManagementDiscard(finish, event?.currentTarget)) finish();
+}
 
 function captureAvailabilityDrafts() {
-  document
-    .querySelectorAll('.availability-card')
-    .forEach(card => {
-      const sessionId = card.dataset.sessionId;
-
-      const selectedResponse = card.querySelector(
-        'input[type="radio"]:checked'
-      );
-
-      const noteInput = card.querySelector(
-        '.note-input'
-      );
-
-      availabilityDrafts[sessionId] = {
-        response: selectedResponse
-          ? selectedResponse.value
-          : '',
-        reason: noteInput ? noteInput.value : ''
-      };
-    });
+  const form = document.getElementById('availability-editor-form');
+  if (!form || !availabilityState.selectedId) return;
+  const selected = form.querySelector('input[name="availability-response"]:checked');
+  availabilityDrafts[availabilityState.selectedId] = {
+    response: selected ? selected.value : '',
+    reason: document.getElementById('availability-editor-note')?.value || ''
+  };
 }
 
-
-function restoreAvailabilityDraft(sessionId) {
-  const draft = availabilityDrafts[sessionId];
-
-  if (!draft) {
-    return;
-  }
-
-  const noteInput =
-    document.getElementById(`reason-${sessionId}`);
-
-  if (noteInput) {
-    noteInput.value = draft.reason;
-  }
-
-  if (draft.response) {
-    const responseInput = document.querySelector(
-      `input[name="response-${cssEscape(
-        sessionId
-      )}"][value="${cssEscape(draft.response)}"]`
-    );
-
-    if (responseInput) {
-      responseInput.checked = true;
-    }
-  }
-
-  const count =
-    document.getElementById(`count-${sessionId}`);
-
-  if (count) {
-    count.textContent = t(
-      'availability.characterCount',
-      {
-        count: draft.reason.length,
-        max: 500
+function registerAvailabilityGuard() {
+  if (availabilityState.mode !== 'edit') return;
+  setManagementNavigationGuard({
+    isDirty: () => {
+      captureAvailabilityDrafts();
+      return JSON.stringify(availabilityDrafts[availabilityState.selectedId]) !==
+        availabilityState.initialDraft;
+    },
+    discard: () => {
+      if (availabilityState.initialDraft) {
+        availabilityDrafts[availabilityState.selectedId] = JSON.parse(
+          availabilityState.initialDraft
+        );
       }
-    );
-  }
-}
-
-
-function buildAvailabilityCard(session) {
-  const availability =
-    session.availability || {};
-
-  const response =
-    availability.response || '';
-
-  const status = getStatusDisplay(response);
-
-  const timeText = buildTimeText(
-    session.startTime,
-    session.endTime
-  );
-
-  const safeSessionId =
-    escapeHtml(session.sessionId);
-
-  return `
-    <section
-      class="card availability-card"
-      id="availability-card-${safeSessionId}"
-      data-session-id="${safeSessionId}"
-    >
-      <div class="session-date">
-        ${escapeHtml(formatDateOnly(
-          session.dateValue || session.date
-        ))}
-      </div>
-
-      <h3 class="session-title">
-        ${escapeHtml(session.title)}
-      </h3>
-
-      <p class="session-details">
-        ${timeText
-          ? escapeHtml(timeText)
-          : t('session.timeNotSpecified')}
-      </p>
-
-      <span
-        id="status-${safeSessionId}"
-        class="current-status ${status.className}"
-      >
-        ${escapeHtml(status.label)}
-      </span>
-
-      ${session.responseDeadline
-        ? `
-          <p class="session-details" style="margin-top: 12px;">
-            ${t('session.responseDeadlineLabel')}
-            ${escapeHtml(formatDateTime(
-              session.responseDeadline
-            ))}
-          </p>
-        `
-        : ''}
-
-      <div
-        class="response-options"
-        role="radiogroup"
-       aria-label="${escapeHtml(t(
-         'availability.responseGroupAriaLabel',
-         { title: session.title }
-       ))}"
-      >
-        ${buildResponseOption(
-          session.sessionId,
-          'Available',
-          t('availability.status.available'),
-          response
-        )}
-
-        ${buildResponseOption(
-          session.sessionId,
-          'Unavailable',
-          t('availability.status.unavailable'),
-          response
-        )}
-
-        ${buildResponseOption(
-          session.sessionId,
-          'Unsure',
-          t('availability.status.unsure'),
-          response
-        )}
-      </div>
-
-      <label
-        class="form-label"
-        for="reason-${safeSessionId}"
-      >
-        ${t('availability.privateNoteLabel')}
-      </label>
-
-      <textarea
-        class="note-input"
-        id="reason-${safeSessionId}"
-        maxlength="500"
-        placeholder="${escapeHtml(
-          t('availability.privateNotePlaceholder')
-        )}"
-      >${escapeHtml(availability.reason || '')}</textarea>
-
-      <p class="form-help">
-        ${t('availability.privateNoteHelp')}
-      </p>
-
-      <div
-        class="character-count"
-        id="count-${safeSessionId}"
-      >
-        ${t('availability.characterCount', {
-          count: (availability.reason || '').length,
-          max: 500
-        })}
-      </div>
-
-      <div class="form-actions">
-        <button
-          class="primary-button"
-          id="save-${safeSessionId}"
-          type="button"
-        >
-          ${t('availability.saveButton')}
-        </button>
-
-        <span
-          class="save-message"
-          id="message-${safeSessionId}"
-          role="status"
-          aria-live="polite"
-        ></span>
-      </div>
-
-      ${availability.updatedAt
-        ? `
-          <div
-            class="updated-time"
-            id="updated-${safeSessionId}"
-          >
-            ${t('availability.lastUpdated', {
-              updatedAt: escapeHtml(formatDateTime(
-                availability.updatedAt
-              ))
-            })}
-          </div>
-        `
-        : `
-          <div
-            class="updated-time"
-            id="updated-${safeSessionId}"
-          ></div>
-        `}
-
-      ${session.notes
-        ? `
-          <div class="notes">
-            ${escapeHtml(session.notes)}
-          </div>
-        `
-        : ''}
-    </section>
-  `;
-}
-
-
-function buildResponseOption(
-  sessionId,
-  value,
-  label,
-  currentResponse
-) {
-  const inputId =
-    `response-${sessionId}-${value}`;
-
-  const checked =
-    currentResponse === value
-      ? 'checked'
-      : '';
-
-  return `
-    <div class="response-option">
-      <input
-        type="radio"
-        id="${escapeHtml(inputId)}"
-        name="response-${escapeHtml(sessionId)}"
-        value="${escapeHtml(value)}"
-        ${checked}
-      >
-
-      <label for="${escapeHtml(inputId)}">
-        ${escapeHtml(label)}
-      </label>
-    </div>
-  `;
-}
-
-
-function initialiseAvailabilityCard(sessionId) {
-  const saveButton =
-    document.getElementById(`save-${sessionId}`);
-
-  const noteInput =
-    document.getElementById(`reason-${sessionId}`);
-
-  if (!saveButton || !noteInput) {
-    return;
-  }
-
-  saveButton.addEventListener('click', () => {
-    submitAvailability(sessionId);
-  });
-
-  noteInput.addEventListener('input', () => {
-    const count =
-      document.getElementById(`count-${sessionId}`);
-
-    if (count) {
-      count.textContent =
-        t('availability.characterCount', {
-          count: noteInput.value.length,
-          max: 500
-        });
     }
   });
 }
-
 
 function submitAvailability(sessionId) {
-  const selectedResponse =
-    document.querySelector(
-      `input[name="response-${cssEscape(sessionId)}"]:checked`
-    );
-
-  const reasonInput =
-    document.getElementById(`reason-${sessionId}`);
-
-  const saveButton =
-    document.getElementById(`save-${sessionId}`);
-
-  const message =
-    document.getElementById(`message-${sessionId}`);
-
-  if (!selectedResponse) {
-    message.textContent =
-      t('availability.validation.responseRequired');
-
-    message.classList.add('error-message');
+  if (availabilitySaveInProgress) return;
+  captureAvailabilityDrafts();
+  const draft = availabilityDrafts[sessionId];
+  if (!draft?.response) {
+    showAvailabilityEditorError(t('availability.validation.responseRequired'));
     return;
   }
-
-  message.textContent = '';
-  message.classList.remove('error-message');
-
-  saveButton.disabled = true;
-  saveButton.textContent = t('availability.saving');
-
+  document.getElementById('availability-response-group')?.removeAttribute('aria-invalid');
+  document.getElementById('availability-response-group')?.removeAttribute('aria-describedby');
+  availabilitySaveInProgress = true;
+  renderAvailabilityWorkspace();
   google.script.run
-    .withSuccessHandler(result => {
-      handleAvailabilitySaved(
-        result,
-        sessionId
-      );
-    })
-    .withFailureHandler(error => {
-      handleAvailabilitySaveError(
-        error,
-        sessionId
-      );
-    })
+    .withSuccessHandler(result => handleAvailabilitySaved(result, sessionId))
+    .withFailureHandler(() => handleAvailabilitySaveError(sessionId))
     .saveAvailability({
-      sessionId: sessionId,
-      response: selectedResponse.value,
-      reason: reasonInput.value
+      sessionId,
+      response: draft.response,
+      reason: draft.reason
     });
 }
 
-
-function handleAvailabilitySaved(
-  result,
-  sessionId
-) {
-  const saveButton =
-    document.getElementById(`save-${sessionId}`);
-
-  const message =
-    document.getElementById(`message-${sessionId}`);
-
-  const status =
-    document.getElementById(`status-${sessionId}`);
-
-  const updated =
-    document.getElementById(`updated-${sessionId}`);
-
-  const statusDisplay =
-    getStatusDisplay(result.response);
-
-  saveButton.disabled = false;
-  saveButton.textContent = t('availability.saveButton');
-
-  message.classList.remove('error-message');
-  message.textContent = t(
-    result.messageKey || 'availability.saved'
-  );
-
-  status.className =
-    `current-status ${statusDisplay.className}`;
-
-  status.textContent =
-    statusDisplay.label;
-
-  updated.textContent =
-    t('availability.lastUpdated', {
-      updatedAt: formatDateTime(result.updatedAt)
-    });
-
-  /*
-   * Refresh the cached portal information so the Home
-   * notifications are correct when the student returns.
-   */
-  google.script.run
-    .withSuccessHandler(updatePortalData)
-    .withFailureHandler(() => {
-      // The availability has already saved successfully,
-      // so a background refresh failure can be ignored.
-    })
-    .getPortalData();
+function handleAvailabilitySaved(result, sessionId) {
+  availabilitySaveInProgress = false;
+  const session = findAvailabilitySession(sessionId);
+  if (session) {
+    session.availability = {
+      ...(session.availability || {}),
+      response: result.response,
+      reason: result.reason,
+      updatedAt: result.updatedAt
+    };
+  }
+  availabilityDrafts[sessionId] = {
+    response: result.response,
+    reason: result.reason || ''
+  };
+  availabilityState.initialDraft = JSON.stringify(availabilityDrafts[sessionId]);
+  availabilityNoticeKey = result.messageKey || 'availability.saved';
+  clearManagementNavigationGuard();
+  availabilitySessions.sort(compareAvailabilitySessions);
+  availabilityState.mode = 'list';
+  availabilityState.focused = false;
+  renderAvailabilityWorkspace();
+  google.script.run.withSuccessHandler(updatePortalData).withFailureHandler(() => {}).getPortalData();
 }
 
-
-function handleAvailabilitySaveError(
-  error,
-  sessionId
-) {
-  const saveButton =
-    document.getElementById(`save-${sessionId}`);
-
-  const message =
-    document.getElementById(`message-${sessionId}`);
-
-  saveButton.disabled = false;
-  saveButton.textContent = t('availability.saveButton');
-
-  message.classList.add('error-message');
-  message.textContent = t(
-    'availability.error.saveFailed'
-  );
+function handleAvailabilitySaveError() {
+  availabilitySaveInProgress = false;
+  renderAvailabilityWorkspace();
+  showAvailabilityEditorError(t('availability.error.saveFailed'));
 }
 
-
-function renderAvailabilityError(error) {
-  const content =
-    document.getElementById('content');
-
-  content.innerHTML = `
-    <h2 class="section-title">
-      ${t('availability.title')}
-    </h2>
-
-    <section class="error">
-      ${escapeHtml(t('availability.error.loadFailed'))}
-    </section>
-  `;
+function showAvailabilityEditorError(message) {
+  const summary = document.getElementById('availability-editor-error');
+  const field = document.getElementById('availability-response-error');
+  if (summary) {
+    summary.hidden = false;
+    summary.textContent = message;
+    summary.focus({preventScroll: true});
+  }
+  if (field) field.textContent = message;
+  const group = document.getElementById('availability-response-group');
+  if (group) {
+    group.setAttribute('aria-invalid', 'true');
+    group.setAttribute('aria-describedby', 'availability-response-error');
+  }
 }
 
+function updateAvailabilityCharacterCount() {
+  const input = document.getElementById('availability-editor-note');
+  const count = document.getElementById('availability-editor-count');
+  if (input && count) count.textContent = t('availability.characterCount', {
+    count: input.value.length, max: 500
+  });
+}
+
+function availabilityDraftFromSession(session) {
+  return {
+    response: session.availability?.response || '',
+    reason: session.availability?.reason || ''
+  };
+}
+
+function isAvailabilityUrgent(session) {
+  if (!session.responseDeadline) return true;
+  const deadline = new Date(session.responseDeadline);
+  return !isNaN(deadline.getTime()) && deadline.getTime() - Date.now() <= 72 * 60 * 60 * 1000;
+}
+
+function statusToneForAvailability(response) {
+  if (response === 'Available') return 'success';
+  if (response === 'Unavailable') return 'danger';
+  if (response === 'Unsure' || !response) return 'warning';
+  return 'neutral';
+}
+
+function findAvailabilitySession(sessionId) {
+  return availabilitySessions.find(session => session.sessionId === sessionId) || null;
+}
+
+function focusAvailabilityEditor() {
+  if (!availabilityState.focused) return;
+  window.requestAnimationFrame(() => document.getElementById(
+    'management-detail-heading'
+  )?.focus({preventScroll: true}));
+}
+
+function renderAvailabilityError() {
+  clearManagementNavigationGuard();
+  const content = document.getElementById('content');
+  content.innerHTML = `${buildPageHeader({title: t('availability.title')})}${buildErrorState({
+    message: t('availability.error.loadFailed')
+  })}`;
+}
 
 function getStatusDisplay(response) {
-  switch (response) {
-    case 'Available':
-      return {
-        label: t('availability.status.available'),
-        className: 'available'
-      };
-
-    case 'Unavailable':
-      return {
-        label: t('availability.status.unavailable'),
-        className: 'unavailable'
-      };
-
-    case 'Unsure':
-      return {
-        label: t('availability.status.unsure'),
-        className: 'unsure'
-      };
-
-    default:
-      return {
-        label: t('availability.status.noResponse'),
-        className: 'no-response'
-      };
-  }
+  const keys = {
+    Available: 'availability.status.available',
+    Unavailable: 'availability.status.unavailable',
+    Unsure: 'availability.status.unsure'
+  };
+  return {
+    label: t(keys[response] || 'availability.status.noResponse'),
+    className: String(response || 'no-response').toLowerCase()
+  };
 }

@@ -174,6 +174,7 @@ Place frontend code in the appropriate HTML partial:
 - `Components.html`
 - `AppShell.html`
 - `Home.html`
+- `PersonalNotifications.html`
 - `Availability.html`
 - `UpcomingActivities.html`
 - `Dashboard.html`

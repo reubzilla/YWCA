@@ -226,6 +226,95 @@ function buildRecordRow(options) {
   `;
 }
 
+function buildActionListItem(options) {
+  const settings = options || {};
+
+  return `
+    <article class="action-list-item">
+      <div class="action-list-copy">
+        ${settings.eyebrow
+          ? `<p class="action-list-eyebrow">${escapeHtml(settings.eyebrow)}</p>`
+          : ''}
+        <h3>${escapeHtml(settings.title || '')}</h3>
+        ${settings.message
+          ? `<p>${escapeHtml(settings.message)}</p>`
+          : ''}
+      </div>
+      ${settings.statusHtml || ''}
+      ${settings.actionsHtml
+        ? `<div class="action-list-actions">${settings.actionsHtml}</div>`
+        : ''}
+    </article>
+  `;
+}
+
+function buildPersonalActivityCard(options) {
+  const settings = options || {};
+
+  return `
+    <article${settings.id ? ` id="${escapeHtml(settings.id)}"` : ''} class="personal-activity-card${
+      settings.prominent ? ' prominent' : ''
+    }">
+      ${settings.eyebrow
+        ? `<p class="personal-card-eyebrow">${escapeHtml(settings.eyebrow)}</p>`
+        : ''}
+      <div class="personal-card-heading">
+        <h3>${escapeHtml(settings.title || '')}</h3>
+        ${settings.statusHtml || ''}
+      </div>
+      ${settings.metaHtml || ''}
+      ${settings.bodyHtml || ''}
+      ${settings.actionsHtml
+        ? `<div class="personal-card-actions">${settings.actionsHtml}</div>`
+        : ''}
+    </article>
+  `;
+}
+
+function buildAssignmentCard(assignment, options) {
+  const settings = options || {};
+  const cancelled = ['Cancelled', 'Declined'].includes(
+    assignment.assignmentStatus
+  );
+
+  return buildPersonalActivityCard({
+    id: settings.id || '',
+    prominent: settings.prominent,
+    eyebrow: settings.eyebrow || (
+      assignment.dateValue
+        ? formatDateOnly(assignment.dateValue)
+        : t('volunteer.sessionUnavailable')
+    ),
+    title: assignment.sessionTitle || t('volunteer.sessionUnavailable'),
+    statusHtml: buildStatusBadge(
+      translateBusinessValue(
+        'assignmentStatus',
+        assignment.assignmentStatus
+      ),
+      cancelled ? 'neutral' : 'information'
+    ),
+    metaHtml: `
+      <dl class="personal-detail-grid">
+        <div><dt>${t('volunteer.activity')}</dt><dd>${escapeHtml(
+          assignment.activity || t('volunteer.notSet')
+        )}</dd></div>
+        <div><dt>${t('volunteer.location')}</dt><dd>${escapeHtml(
+          assignment.location || t('volunteer.notSet')
+        )}</dd></div>
+        <div><dt>${t('volunteer.departureTime')}</dt><dd>${escapeHtml(
+          assignment.departureTime || t('volunteer.notSet')
+        )}</dd></div>
+      </dl>
+    `,
+    bodyHtml: assignment.notes
+      ? `<div class="personal-card-note"><strong>${t(
+          'volunteer.notes'
+        )}</strong><p>${escapeHtml(assignment.notes)}</p></div>`
+      : '',
+    actionsHtml: settings.actionsHtml || ''
+  });
+}
+
 function buildManagementLayout(options) {
   const settings = options || {};
   const focused = settings.focused === true;

@@ -7,6 +7,7 @@ let currentView = 'home';
 let isNavigationDrawerOpen = false;
 let isMoreMenuOpen = false;
 let activeMobileMenu = '';
+let pendingPersonalRouteTarget = null;
 
 const STUDENT_ROLE = 'Student';
 const CLUB_LEADER_ROLE = 'Club Leader';
@@ -16,6 +17,9 @@ const ROUTE_REGISTRY = Object.freeze([
   Object.freeze({
     id: 'today',
     labelKey: 'nav.today',
+    labelKeyByRole: Object.freeze({
+      'Club Leader': 'nav.todayOverview'
+    }),
     roles: Object.freeze([
       STUDENT_ROLE,
       CLUB_LEADER_ROLE,
@@ -143,11 +147,8 @@ const ROUTE_REGISTRY = Object.freeze([
   }),
   Object.freeze({
     id: 'availability',
-    labelKey: 'nav.availability',
-    labelKeyByRole: Object.freeze({
-      'Club Leader': 'nav.myAvailability',
-      Teacher: 'nav.myAvailability'
-    }),
+    labelKey: 'nav.myAvailability',
+    mobileLabelKey: 'nav.availabilityShort',
     roles: Object.freeze([
       STUDENT_ROLE,
       CLUB_LEADER_ROLE,
@@ -326,6 +327,13 @@ function navigateToRoute(routeId, options) {
     return;
   }
 
+  if (
+    pendingPersonalRouteTarget &&
+    pendingPersonalRouteTarget.routeId !== route.id
+  ) {
+    pendingPersonalRouteTarget = null;
+  }
+
   if (isNavigationDrawerOpen) {
     closeNavigationDrawer(false);
   }
@@ -358,6 +366,44 @@ function navigateToRoute(routeId, options) {
       }
     });
   }
+}
+
+function navigateToPersonalTarget(routeId, target) {
+  const route = getPermittedRoute(routeId);
+  if (!route) {
+    pendingPersonalRouteTarget = null;
+    navigateToRoute(getFirstPermittedRoute().id);
+    return;
+  }
+  pendingPersonalRouteTarget = {
+    routeId: route.id,
+    ...(target || {})
+  };
+  navigateToRoute(route.id);
+}
+
+function consumePersonalRouteTarget(routeId) {
+  if (!pendingPersonalRouteTarget ||
+      pendingPersonalRouteTarget.routeId !== routeId) return null;
+  const target = pendingPersonalRouteTarget;
+  pendingPersonalRouteTarget = null;
+  return target;
+}
+
+function routeNotificationAction(notification) {
+  if (notification?.type === 'response') {
+    navigateToPersonalTarget('availability', {
+      sessionId: notification.sessionId || ''
+    });
+    return;
+  }
+  if (notification?.type === 'volunteer') {
+    navigateToPersonalTarget('assignments', {
+      sessionId: notification.sessionId || ''
+    });
+    return;
+  }
+  navigateToRoute('today');
 }
 
 /**
@@ -559,7 +605,6 @@ function renderAssignmentsRoute() {
 }
 
 function renderNotificationsRoute() {
-  // Notifications remain part of Home until the Phase 4 view redesign.
-  currentView = 'home';
-  renderHome();
+  currentView = 'notifications';
+  renderNotifications();
 }

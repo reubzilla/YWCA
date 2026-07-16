@@ -1,0 +1,52 @@
+function renderNotifications() {
+  const content = document.getElementById('content');
+  const notifications = portalData.notifications || [];
+  const actionable = notifications.filter(item => item.priority === 'action');
+  const information = notifications.filter(item => item.priority !== 'action');
+
+  content.className = '';
+  content.innerHTML = `
+    ${buildPageHeader({
+      title: t('notifications.title'),
+      supportingText: t('notifications.intro')
+    })}
+    ${!notifications.length ? buildEmptyState({message: t('notifications.empty')}) : `
+      <section class="personal-section" aria-labelledby="actionable-notifications-title">
+        <h2 id="actionable-notifications-title">${t('notifications.actionable')}</h2>
+        ${buildNotificationList(actionable, t('notifications.noActionable'))}
+      </section>
+      <section class="personal-section" aria-labelledby="information-notifications-title">
+        <h2 id="information-notifications-title">${t('notifications.information')}</h2>
+        ${buildNotificationList(information, t('notifications.noInformation'))}
+      </section>
+    `}`;
+
+  document.querySelectorAll('[data-notification-index]').forEach(button => {
+    button.addEventListener('click', () => {
+      const notification = notifications[Number(button.dataset.notificationIndex)];
+      if (notification) routeNotificationAction(notification);
+    });
+  });
+}
+
+function buildNotificationList(items, emptyMessage) {
+  if (!items.length) return buildEmptyState({message: emptyMessage});
+  const all = portalData.notifications || [];
+  return `<div class="action-list">${items.map(notification => {
+    const display = getNotificationDisplay(notification);
+    return buildActionListItem({
+      eyebrow: notification.dateValue ? formatDateOnly(notification.dateValue) : '',
+      title: display.title,
+      message: display.message,
+      statusHtml: buildStatusBadge(
+        t(notification.priority === 'action'
+          ? 'notifications.actionable'
+          : 'notifications.information'),
+        notification.priority === 'action' ? 'warning' : 'information'
+      ),
+      actionsHtml: `<button type="button" class="secondary-button" data-notification-index="${all.indexOf(
+        notification
+      )}">${t('notifications.open')}</button>`
+    });
+  }).join('')}</div>`;
+}

@@ -4,6 +4,33 @@ This document records the frontend routes and the manual acceptance baseline bef
 
 The English document is canonical. The Japanese document mirrors its structure.
 
+## Phase 4 current experience
+
+The route tables below preserve the Phase 0 baseline for regression history. The current Phase 4 route map supersedes those navigation descriptions:
+
+| Route ID | Student | Club Leader | Teacher | Current purpose |
+|---|---:|---:|---:|---|
+| `today` | Yes | Yes | Yes | Action-first personal Today for Students; club-wide operational Today for Club Leaders and Teachers |
+| `availability` | Yes | Yes | Yes | Personal My Availability list and focused response editor |
+| `assignments` | Yes | Yes | Yes | Signed-in member's next, future, and historical assignments |
+| `notifications` | Yes | Yes | Yes | Read-only personal notifications with actions into personal routes |
+| `visitor-coordination` | No | Yes | Yes | Club Leader and Teacher visitor assignment management |
+| `planning` | No | Yes | Yes | Club-wide Upcoming Activities planning |
+| `sessions` | No | No | Yes | Teacher-only Sessions & Events management |
+| `members` | No | No | Yes | Teacher-only Members management |
+
+Student mobile navigation is Today, Availability, Assignments, and Notifications. Club Leader mobile navigation is Today, Visitors, Planning, Personal, and More. Personal assignment and availability routes remain separate from visitor coordination and club-wide planning.
+
+Phase 4 adds these acceptance requirements:
+
+- Student Today places urgent actions before today's activity and personal assignment.
+- Availability renders one compact list and one focused editor rather than every full response form.
+- No response sorts before Unsure, followed by answered sessions; dates remain chronological inside each group.
+- My Assignments separates the next assignment, future assignments, and history.
+- Notifications route response notices to Availability and assignment notices to My Assignments.
+- Club Leader operational and personal navigation remain visibly separate.
+- Student-facing APIs return only the authenticated member's availability, private note, and assignments.
+
 ## Current frontend routes
 
 Frontend route visibility is not an authorization boundary. Server-side Apps Script functions must continue to authenticate the signed-in member and enforce permissions independently.

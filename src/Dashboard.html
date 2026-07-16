@@ -76,6 +76,7 @@ function renderEmptyTodayDashboard() {
       supportingText: formatDateOnly(dashboardTodayDateValue),
       actionsHtml: buildTodayRefreshButton()
     })}
+    ${buildOperationsContextBanner()}
     ${buildEmptyState({
       title: t('dashboard.noSessionToday'),
       message: t('dashboard.noSessionTodayHelp')
@@ -168,6 +169,8 @@ function renderDashboardSession(data) {
       ].filter(Boolean).join(' · '),
       actionsHtml: buildTodayHeaderActions(session.sessionId)
     })}
+
+    ${buildOperationsContextBanner()}
 
     ${session.notes
       ? `<div class="today-session-note">${escapeHtml(
@@ -276,6 +279,18 @@ function buildTodayRefreshButton() {
   `;
 }
 
+function buildOperationsContextBanner() {
+  if (portalData?.user?.role !== CLUB_LEADER_ROLE) return '';
+  return buildPriorityBanner({
+    tone: 'information',
+    title: t('dashboard.operationsContext.title'),
+    message: t('dashboard.operationsContext.message'),
+    detailsHtml: `<button type="button" class="secondary-button" id="open-personal-participation">${t(
+      'dashboard.operationsContext.openPersonal'
+    )}</button>`
+  });
+}
+
 function initialiseTodayWorkspaceEvents() {
   const selector = document.getElementById(
     'dashboard-session-selector'
@@ -285,6 +300,9 @@ function initialiseTodayWorkspaceEvents() {
   );
   const visitorButton = document.getElementById(
     'open-visitor-schedules'
+  );
+  const personalButton = document.getElementById(
+    'open-personal-participation'
   );
 
   if (selector) {
@@ -318,6 +336,12 @@ function initialiseTodayWorkspaceEvents() {
   if (visitorButton) {
     visitorButton.addEventListener('click', () => {
       navigateToRoute('visitor-coordination');
+    });
+  }
+
+  if (personalButton) {
+    personalButton.addEventListener('click', () => {
+      navigateToRoute('availability');
     });
   }
 }

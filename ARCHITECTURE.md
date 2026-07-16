@@ -29,7 +29,8 @@ This document describes the code currently in the repository. Sections explicitl
     ├── BrowserHelpers.html Shared browser utility functions
     ├── Components.html  Shared presentation primitives and overlay helpers
     ├── AppShell.html    Responsive shell and navigation rendering
-    ├── Home.html        Home view rendering
+    ├── Home.html        Action-first Student Today rendering
+    ├── PersonalNotifications.html Dedicated personal Notifications view
     ├── Availability.html Availability rendering, saving, and event handlers
     ├── UpcomingActivities.html Future availability list and detail view
     ├── Dashboard.html   Management dashboard rendering and event handlers
@@ -59,13 +60,13 @@ This requires an Apps Script HTML file named `Index`. `src/Index.html` matches t
 
 ## HTML partial and include mechanism
 
-`include_(filename)` in `Code.gs` reads the raw contents of a trusted Apps Script HTML template for inclusion in the evaluated `Index` template. `Index.html` includes `Styles` inside its `<style>` element. Its application `<script>` then includes `BrowserHelpers`, `Localization`, `Components`, `Home`, `Availability`, `UpcomingActivities`, `Dashboard`, `Volunteer`, `VisitorScheduleManagement`, `Attendance`, `SessionManagement`, `MemberManagement`, `AppShell`, and `App` in that order.
+`include_(filename)` in `Code.gs` reads the raw contents of a trusted Apps Script HTML template for inclusion in the evaluated `Index` template. `Index.html` includes `Styles` inside its `<style>` element. Its application `<script>` then includes `BrowserHelpers`, `Localization`, `Components`, `Home`, `PersonalNotifications`, `Availability`, `UpcomingActivities`, `Dashboard`, `Volunteer`, `VisitorScheduleManagement`, `Attendance`, `SessionManagement`, `MemberManagement`, `AppShell`, and `App` in that order.
 
 Browser helpers load before localisation because localisation rendering uses shared HTML escaping. Components load after localisation so their accessible controls can use translated labels. View functions load before `AppShell.html` and `App.html`; the route registry is therefore created only after every renderer has been declared. `Index.html` contains semantic shell landmarks, empty overlay hosts, and the ordered includes. CSS is in `Styles.html`, the single translation dictionary and translation helpers are in `Localization.html`, shared browser utilities are in `BrowserHelpers.html`, and each feature view retains its own partial.
 
 `Components.html` also owns the immediately reused management presentation builders: `buildManagementLayout()`, `buildDetailHeader()`, `buildFormSection()`, and `buildManagementFilterChips()`. These are string-rendering helpers rather than a component framework. Sessions, Members, and Visitor Schedules keep their own records, filters, selection, drafts, event handlers, and `google.script.run` calls in their feature partials.
 
-`App.html` owns `portalData`, the public `currentRouteId`, and a temporary legacy `currentView` value used by views that have not yet migrated to route guards. It also owns the drawer-open and mobile-sheet-open state. `AppShell.html` renders those states but does not make permission decisions. Other partials update portal data through `updatePortalData()` and request a language-change rerender through `rerenderAfterLanguageChange()` rather than assigning App state directly. Availability draft state remains owned by `Availability.html`, the selected Today session remains owned by `Dashboard.html`, and Planning filters and selection remain owned by `UpcomingActivities.html`.
+`App.html` owns `portalData`, the public `currentRouteId`, a temporary legacy `currentView`, and one pending in-memory personal route target. It also owns the drawer-open and mobile-sheet-open state. `AppShell.html` renders those states but does not make permission decisions. Notification actions can target an Availability or personal Assignment Session ID without introducing URL routing. Availability owns its filters, selection, focused editor, and drafts; Volunteer owns personal assignment grouping; Dashboard owns the selected operational Today session; and Upcoming Activities owns Planning filters and selection.
 
 Apps Script requires unique filenames regardless of extension. The generic sheet reader therefore resides in `SheetData.gs`, leaving the `Dashboard` basename available for the frontend partial.
 
@@ -75,16 +76,18 @@ Apps Script requires unique filenames regardless of extension. The generic sheet
 
 The active routes are:
 
-- `today`: Home for Students and the operational Today workspace for Club Leaders and Teachers;
+- `today`: an action-first personal Today view for Students and the operational Today workspace for Club Leaders and Teachers;
 - `visitor-coordination`: existing Visitor Schedule management for Club Leaders and Teachers;
 - `planning`: the independent Upcoming Activities Planning view;
 - `sessions`: Teacher-only Session management;
 - `members`: Teacher-only Member management, labelled People in the shell;
 - `availability`: the signed-in member's Availability view;
 - `assignments`: the signed-in member's personal Volunteer Assignment view;
-- `notifications`: a Phase 1 adapter to Home, where personal notifications still render.
+- `notifications`: the signed-in member's dedicated read-only notification list, with actions into personal routes.
 
 The previous `home`, `dashboard`, and `volunteer` IDs are accepted only through `selectView()` as compatibility aliases for existing event handlers. Attendance is not registered because its view is still a placeholder. Invalid or inaccessible route IDs fall back to the first permitted route, which is `today`.
+
+Students receive only `today`, `availability`, `assignments`, and `notifications`. Club Leaders have separate operational routes (`today`, `visitor-coordination`, and `planning`) and personal routes (`availability`, `assignments`, and `notifications`). Personal assignments never share a route with visitor management, and personal availability never shares a route with club-wide planning.
 
 At 1024 CSS pixels and above, the shell uses a persistent 252-pixel sidebar. Between 768 and 1023 pixels it uses a labelled navigation drawer. Below 768 pixels it uses no more than five role-specific bottom actions. Teacher mobile navigation is Today, Planning, People, Personal, and More. Personal and More open a shared side-panel component containing secondary routes, language controls, and the signed-in account summary.
 
@@ -134,6 +137,12 @@ DOMContentLoaded
 
 `getPortalData()` authenticates the current member and returns that member's profile, role-derived permissions, notifications, and upcoming sessions. It does not return other members' records.
 
+## Personal Today and notification flow
+
+For a Student, the `today` renderer combines the cached `getPortalData()` payload with `getAvailabilityPageData()` and `getMyVolunteerAssignments()`. The two additional APIs independently derive the signed-in member server-side. Student Today therefore shows only that member's response, private note state, and assignments. It orders urgent response action, today's session, today's assignment, today's availability, the next session, and a short notification summary.
+
+`PersonalNotifications.html` separates the cached personal notifications by priority. Existing structured `type` and `sessionId` values provide in-memory SPA actions: response notices target the Availability editor, volunteer notices target My Assignments, and an unknown type falls back to Today. There is no read-state persistence, URL routing, new sheet, or expanded notification payload.
+
 
 Subsequent views independently request availability or dashboard data. Spreadsheet `Date` objects are converted to language-neutral strings before being returned to the browser. Date-only values use `YYYY-MM-DD`, time-only values use `HH:mm`, and date-time values include the `Asia/Tokyo` offset. The browser formats these values for `ja-JP` or `en-GB` when rendering.
 
@@ -143,14 +152,15 @@ Subsequent views independently request availability or dashboard data. Spreadshe
 2. The server authenticates the current member.
 3. It obtains active, non-cancelled sessions within `CONFIG.UPCOMING_WEEKS`.
 4. It reads availability rows and attaches matching responses using `Member ID` or normalized email.
-5. The browser renders radio options and an optional note.
-6. On save, the browser sends only `sessionId`, `response`, and `reason` to `saveAvailability()`.
-7. The server derives identity again, validates the input object, session ID, allowed response, and 500-character limit.
-8. `getEditableSession_()` requires an active, non-cancelled session dated today or later.
-9. A script lock protects the read/modify/write operation.
-10. The first matching row is replaced, preserving its original `Submitted At`; otherwise a row is appended.
-11. The server returns the saved values and a machine-readable update timestamp with the `Asia/Tokyo` offset.
-12. The browser updates the card and attempts to refresh cached home data through the missing `getPortalData()` function.
+5. The browser sorts No response first, then `Unsure`, then answered sessions, while preserving chronological order within each group.
+6. A compact list can be filtered by response need or session type; selecting a session opens one focused editor with radio options and an optional note.
+7. On save, the browser sends only `sessionId`, `response`, and `reason` to `saveAvailability()`.
+8. The server derives identity again, validates the input object, session ID, allowed response, and 500-character limit.
+9. `getEditableSession_()` requires an active, non-cancelled session dated today or later and enforces a configured response deadline.
+10. A script lock protects the read/modify/write operation.
+11. The first matching row is replaced, preserving its original `Submitted At`; otherwise a row is appended.
+12. The server returns the saved values and a machine-readable update timestamp with the `Asia/Tokyo` offset.
+13. The browser updates local list state, returns to the list, and refreshes cached portal notifications in the background.
 
 
 Known limitation: duplicate availability rows are not prevented. When updating an existing row, columns not managed by `saveAvailability()` are preserved.

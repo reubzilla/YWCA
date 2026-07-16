@@ -1,119 +1,87 @@
+let personalAssignments = [];
+let personalAssignmentsToday = '';
+let personalAssignmentRequestToken = 0;
+
 function renderVolunteer() {
   const content = document.getElementById('content');
-
   content.className = '';
-  content.innerHTML = `
-    <h2 class="section-title">
-      ${t('volunteer.title')}
-    </h2>
-
-    <section class="card view-loading">
-      ${t('volunteer.loading')}
-    </section>
-  `;
-
+  content.innerHTML = `${buildPageHeader({
+    title: t('volunteer.title'), supportingText: t('volunteer.intro')
+  })}${buildLoadingState(t('volunteer.loading'))}`;
+  const token = ++personalAssignmentRequestToken;
   google.script.run
-    .withSuccessHandler(renderVolunteerAssignments)
-    .withFailureHandler(renderVolunteerError)
+    .withSuccessHandler(data => {
+      if (token !== personalAssignmentRequestToken || currentRouteId !== 'assignments') return;
+      renderVolunteerAssignments(data);
+    })
+    .withFailureHandler(() => {
+      if (token === personalAssignmentRequestToken) renderVolunteerError();
+    })
     .getMyVolunteerAssignments();
 }
 
 function renderVolunteerAssignments(data) {
+  personalAssignments = data.assignments || [];
+  personalAssignmentsToday = data.todayDateValue || getTokyoTodayDateValue();
+  const target = consumePersonalRouteTarget('assignments');
+  const targetSessionId = target?.sessionId || '';
+  const groups = groupPersonalAssignments(personalAssignments, personalAssignmentsToday);
   const content = document.getElementById('content');
-  const assignments = data.assignments || [];
-
   content.innerHTML = `
-    <h2 class="section-title">
-      ${t('volunteer.title')}
-    </h2>
-
-    <p class="view-intro">
-      ${t('volunteer.intro')}
-    </p>
-
-    ${assignments.length === 0
-      ? `
-        <section class="card empty">
-          ${t('volunteer.empty')}
-        </section>
-      `
-      : assignments.map(buildVolunteerAssignmentCard).join('')}
-  `;
+    ${buildPageHeader({title: t('volunteer.title'), supportingText: t('volunteer.intro')})}
+    ${!personalAssignments.length ? buildEmptyState({message: t('volunteer.empty')}) : `
+      ${groups.next ? `<section class="personal-section" aria-labelledby="next-assignment-title">
+        <h2 id="next-assignment-title">${t('volunteer.nextAssignment')}</h2>
+        ${buildAssignmentCard(groups.next, {
+          prominent: true,
+          id: `personal-assignment-${groups.next.sessionId}`
+        })}
+      </section>` : ''}
+      ${groups.future.length ? `<section class="personal-section" aria-labelledby="future-assignments-title">
+        <h2 id="future-assignments-title">${t('volunteer.futureAssignments')}</h2>
+        <div class="personal-card-list">${groups.future.map(assignment =>
+          buildAssignmentCard(assignment, {
+            prominent: assignment.sessionId === targetSessionId,
+            id: `personal-assignment-${assignment.sessionId}`
+          })
+        ).join('')}</div>
+      </section>` : ''}
+      ${groups.history.length ? `<section class="personal-section" aria-labelledby="assignment-history-title">
+        <h2 id="assignment-history-title">${t('volunteer.history')}</h2>
+        <div class="personal-card-list history">${groups.history.map(assignment =>
+          buildAssignmentCard(assignment, {
+            prominent: assignment.sessionId === targetSessionId,
+            id: `personal-assignment-${assignment.sessionId}`
+          })
+        ).join('')}</div>
+      </section>` : ''}
+    `}`;
+  if (targetSessionId) {
+    window.requestAnimationFrame(() => document.getElementById(
+      `personal-assignment-${targetSessionId}`
+    )?.scrollIntoView({block: 'center'}));
+  }
 }
 
-function buildVolunteerAssignmentCard(assignment) {
-  const date = assignment.dateValue
-    ? formatDateOnly(assignment.dateValue)
-    : t('volunteer.sessionUnavailable');
-  const title = assignment.sessionTitle ||
-    t('volunteer.sessionUnavailable');
-
-  return `
-    <article class="card volunteer-assignment-card">
-      <div class="volunteer-assignment-header">
-        <div>
-          <div class="session-date">
-            ${escapeHtml(date)}
-          </div>
-          <h3 class="session-title">
-            ${escapeHtml(title)}
-          </h3>
-        </div>
-
-        <span class="assignment-status">
-          ${escapeHtml(translateBusinessValue(
-            'assignmentStatus',
-            assignment.assignmentStatus
-          ))}
-        </span>
-      </div>
-
-      <dl class="volunteer-detail-grid">
-        <div>
-          <dt>${t('volunteer.activity')}</dt>
-          <dd>${escapeHtml(
-            assignment.activity || t('volunteer.notSet')
-          )}</dd>
-        </div>
-        <div>
-          <dt>${t('volunteer.location')}</dt>
-          <dd>${escapeHtml(
-            assignment.location || t('volunteer.notSet')
-          )}</dd>
-        </div>
-        <div>
-          <dt>${t('volunteer.departureTime')}</dt>
-          <dd>${escapeHtml(
-            assignment.departureTime
-              ? formatTime(assignment.departureTime)
-              : t('volunteer.notSet')
-          )}</dd>
-        </div>
-      </dl>
-
-      ${assignment.notes
-        ? `
-          <div class="notes volunteer-student-notes">
-            <strong>${t('volunteer.notes')}</strong><br>
-            ${escapeHtml(assignment.notes)}
-          </div>
-        `
-        : ''}
-    </article>
-  `;
+function groupPersonalAssignments(assignments, todayDateValue) {
+  const active = assignments.filter(item =>
+    item.dateValue >= todayDateValue &&
+    !['Cancelled', 'Declined'].includes(item.assignmentStatus)
+  );
+  const next = active[0] || null;
+  return {
+    next,
+    future: next ? active.slice(1) : active,
+    history: assignments.filter(item =>
+      item.dateValue < todayDateValue ||
+      ['Cancelled', 'Declined'].includes(item.assignmentStatus)
+    )
+  };
 }
 
 function renderVolunteerError() {
   const content = document.getElementById('content');
-
-  content.className = '';
-  content.innerHTML = `
-    <h2 class="section-title">
-      ${t('volunteer.title')}
-    </h2>
-
-    <section class="error">
-      ${t('volunteer.error.loadFailed')}
-    </section>
-  `;
+  content.innerHTML = `${buildPageHeader({title: t('volunteer.title')})}${buildErrorState({
+    message: t('volunteer.error.loadFailed')
+  })}`;
 }
