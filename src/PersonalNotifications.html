@@ -1,6 +1,8 @@
 function renderNotifications() {
   const content = document.getElementById('content');
-  const notifications = portalData.notifications || [];
+  const notifications = filterCurrentNotifications(
+    portalData.notifications
+  );
   const actionable = notifications.filter(item => item.priority === 'action');
   const information = notifications.filter(item => item.priority !== 'action');
 
@@ -31,7 +33,7 @@ function renderNotifications() {
 
 function buildNotificationList(items, emptyMessage) {
   if (!items.length) return buildEmptyState({message: emptyMessage});
-  const all = portalData.notifications || [];
+  const all = filterCurrentNotifications(portalData.notifications);
   return `<div class="action-list">${items.map(notification => {
     const display = getNotificationDisplay(notification);
     return buildActionListItem({

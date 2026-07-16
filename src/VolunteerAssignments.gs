@@ -22,10 +22,7 @@ function getMyVolunteerAssignments() {
   ).trim();
   const email = normalizeVolunteerEmail_(member.Email);
   const sessionsById = getVisitorSessionsById_();
-  const todayDateValue = formatDateOnly_(
-    new Date(),
-    getTimeZone_()
-  );
+  const todayDateValue = getTodayDateValue_();
   const assignments = sheetData.values
     .slice(1)
     .filter(row => {
@@ -72,10 +69,7 @@ function getVisitorScheduleManagementData() {
   const attendanceRows = getSheetObjects_(
     CONFIG.SHEETS.ATTENDANCE
   );
-  const todayDateValue = formatDateOnly_(
-    new Date(),
-    getTimeZone_()
-  );
+  const todayDateValue = getTodayDateValue_();
   const sessionsById = Object.fromEntries(
     sessionRows.map(row => [
       String(row['Session ID'] || '').trim(),
@@ -583,10 +577,10 @@ function deleteVolunteerAssignment(submission) {
       return volunteerDeleteBlocked_('sessionMissing');
     }
 
-    const sessionDate = parseSheetDate_(session.Date);
-    const today = startOfDay_(new Date());
-
-    if (!sessionDate || sessionDate <= today) {
+    if (
+      classifySessionDate_(session.Date) !==
+        SESSION_DATE_CLASSIFICATIONS_.UPCOMING
+    ) {
       return volunteerDeleteBlocked_('historicalAssignment');
     }
 
@@ -836,14 +830,16 @@ function getValidatedVolunteerContext_(sessionId, memberIds) {
 
 
 function isVisitorSessionAssignable_(session) {
-  const sessionDate = parseSheetDate_(session.Date);
+  const dateClassification = classifySessionDate_(session.Date);
   const sessionType = String(
     session['Session Type'] || ''
   ).trim();
 
   return Boolean(
-    sessionDate &&
-    sessionDate >= startOfDay_(new Date()) &&
+    (
+      dateClassification === SESSION_DATE_CLASSIFICATIONS_.TODAY ||
+      dateClassification === SESSION_DATE_CLASSIFICATIONS_.UPCOMING
+    ) &&
     isTrue_(session.Active) &&
     sessionType !== CONFIG.SESSION_TYPES.CANCELLED
   );
@@ -993,6 +989,9 @@ function mapPersonalVolunteerAssignment_(row, sessionsById) {
     dateValue: session
       ? formatDateOnly_(session.Date, getTimeZone_())
       : '',
+    dateClassification: session
+      ? classifySessionDate_(session.Date)
+      : '',
     sessionTitle: session ? String(session.Title || '') : '',
     activity: String(row.Activity || ''),
     location: String(row.Location || ''),
@@ -1103,8 +1102,8 @@ function mapManagedVolunteerAssignment_(
       isEligibleVolunteerMember_(member)
     ),
     canDelete: Boolean(
-      dateValue &&
-      dateValue > todayDateValue &&
+      classifySessionDate_(dateValue, todayDateValue) ===
+        SESSION_DATE_CLASSIFICATIONS_.UPCOMING &&
       !hasAttendance
     ),
     hasAttendance: hasAttendance
@@ -1204,12 +1203,20 @@ function buildVolunteerAssignmentRow_(sessionId, member, value) {
 
 
 function compareVolunteerAssignments_(a, b, todayDateValue) {
-  const aUpcoming = Boolean(
-    a.dateValue && a.dateValue >= todayDateValue
+  const aClassification = classifySessionDate_(
+    a.dateValue,
+    todayDateValue
   );
-  const bUpcoming = Boolean(
-    b.dateValue && b.dateValue >= todayDateValue
+  const bClassification = classifySessionDate_(
+    b.dateValue,
+    todayDateValue
   );
+  const aUpcoming =
+    aClassification === SESSION_DATE_CLASSIFICATIONS_.TODAY ||
+    aClassification === SESSION_DATE_CLASSIFICATIONS_.UPCOMING;
+  const bUpcoming =
+    bClassification === SESSION_DATE_CLASSIFICATIONS_.TODAY ||
+    bClassification === SESSION_DATE_CLASSIFICATIONS_.UPCOMING;
 
   if (aUpcoming !== bUpcoming) {
     return aUpcoming ? -1 : 1;

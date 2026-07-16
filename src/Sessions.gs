@@ -4,19 +4,17 @@
  * @return {Object[]}
  */
 function getTodaySessions_() {
-  const today = startOfDay_(new Date());
   const timeZone = getTimeZone_();
 
   return getSheetObjects_(CONFIG.SHEETS.SESSIONS)
     .filter(row => {
-      const sessionDate = parseSheetDate_(row.Date);
       const sessionType = String(
         row['Session Type'] || ''
       ).trim();
 
       return (
-        sessionDate &&
-        sessionDate.getTime() === today.getTime() &&
+        classifySessionDate_(row.Date) ===
+          SESSION_DATE_CLASSIFICATIONS_.TODAY &&
         isTrue_(row.Active) &&
         sessionType !== CONFIG.SESSION_TYPES.CANCELLED
       );

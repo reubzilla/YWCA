@@ -15,10 +15,7 @@ function getDashboardData() {
       role: String(member.Role || '')
     },
 
-    todayDateValue: formatDateOnly_(
-      new Date(),
-      getTimeZone_()
-    ),
+    todayDateValue: getTodayDateValue_(),
 
     sessions: todaySessions,
 

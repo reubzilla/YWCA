@@ -1,4 +1,6 @@
 let availabilitySessions = [];
+let availabilityHistorySessions = [];
+let availabilityTodayDateValue = '';
 let availabilityRequestToken = 0;
 let availabilitySaveInProgress = false;
 let availabilityNoticeKey = '';
@@ -35,9 +37,30 @@ function renderAvailability() {
 }
 
 function renderAvailabilityData(data) {
-  availabilitySessions = (data.sessions || []).slice().sort(
+  availabilityTodayDateValue = data.todayDateValue ||
+    getTokyoTodayDateValue();
+  const returnedSessions = data.sessions || [];
+  const returnedHistory = data.history || [];
+  availabilitySessions = returnedSessions.filter(
+    isEditableAvailabilitySession
+  ).slice().sort(
     compareAvailabilitySessions
   );
+  availabilityHistorySessions = [...returnedHistory, ...returnedSessions.filter(
+    session => !isEditableAvailabilitySession(session)
+  )]
+    .filter((session, index, sessions) =>
+      classifyAvailabilitySession(session) ===
+        DATE_CLASSIFICATIONS.PAST &&
+      sessions.findIndex(item =>
+        item.sessionId === session.sessionId
+      ) === index
+    )
+    .sort((a, b) =>
+      String(b.dateValue || '').localeCompare(
+        String(a.dateValue || '')
+      )
+    );
   const target = consumePersonalRouteTarget('availability');
   if (target?.sessionId && findAvailabilitySession(target.sessionId)) {
     availabilityState.selectedId = target.sessionId;
@@ -97,7 +120,8 @@ function renderAvailabilityWorkspace() {
         ${buildStatusBadge(String(filtered.length), 'neutral')}
       </div>${buildAvailabilityList(filtered)}`,
       detailHtml: buildAvailabilityEditor()
-    })}`;
+    })}
+    ${buildAvailabilityHistory()}`;
   availabilityNoticeKey = '';
   initialiseAvailabilityEvents();
   registerAvailabilityGuard();
@@ -123,6 +147,8 @@ function getFilteredAvailabilitySessions() {
     const response = session.availability?.response || '';
     switch (availabilityState.filter) {
       case 'needsResponse': return !response || response === 'Unsure';
+      case 'upcoming': return classifyAvailabilitySession(session) ===
+        DATE_CLASSIFICATIONS.UPCOMING;
       case 'answered': return Boolean(response && response !== 'Unsure');
       case 'events': return session.sessionType === 'Event';
       case 'regular': return session.sessionType === 'Regular';
@@ -166,7 +192,7 @@ function buildAvailabilityList(sessions) {
 
 function buildAvailabilityEditor() {
   const session = findAvailabilitySession(availabilityState.selectedId);
-  if (!session) {
+  if (!session || !isEditableAvailabilitySession(session)) {
     return buildEmptyState({message: t('availability.editor.selectPrompt')});
   }
   const draft = availabilityDrafts[session.sessionId] || availabilityDraftFromSession(session);
@@ -247,7 +273,7 @@ function initialiseAvailabilityEvents() {
 
 function openAvailabilityEditor(sessionId) {
   const session = findAvailabilitySession(sessionId);
-  if (!session) return;
+  if (!session || !isEditableAvailabilitySession(session)) return;
   availabilityState.selectedId = sessionId;
   availabilityState.mode = 'edit';
   availabilityState.focused = true;
@@ -301,6 +327,13 @@ function registerAvailabilityGuard() {
 
 function submitAvailability(sessionId) {
   if (availabilitySaveInProgress) return;
+  const session = findAvailabilitySession(sessionId);
+  if (!session || !isEditableAvailabilitySession(session)) {
+    showAvailabilityEditorError(
+      t('availability.history.responseUnavailable')
+    );
+    return;
+  }
   captureAvailabilityDrafts();
   const draft = availabilityDrafts[sessionId];
   if (!draft?.response) {
@@ -398,6 +431,55 @@ function statusToneForAvailability(response) {
 
 function findAvailabilitySession(sessionId) {
   return availabilitySessions.find(session => session.sessionId === sessionId) || null;
+}
+
+function classifyAvailabilitySession(session) {
+  return classifyDateOnlyValue(
+    session?.dateValue || session?.date || '',
+    availabilityTodayDateValue || getTokyoTodayDateValue()
+  );
+}
+
+function isEditableAvailabilitySession(session) {
+  const classification = classifyAvailabilitySession(session);
+
+  return classification === DATE_CLASSIFICATIONS.TODAY ||
+    classification === DATE_CLASSIFICATIONS.UPCOMING;
+}
+
+function buildAvailabilityHistory() {
+  return `<section class="personal-section availability-history" aria-labelledby="availability-history-title">
+    <div class="personal-section-heading">
+      <h2 id="availability-history-title">${t('availability.history.label')}</h2>
+      ${buildStatusBadge(t('availability.history.title'), 'neutral')}
+    </div>
+    ${availabilityHistorySessions.length
+      ? `<div class="personal-card-list history">${availabilityHistorySessions.map(
+          buildAvailabilityHistoryCard
+        ).join('')}</div>`
+      : buildEmptyState({message: t('availability.history.empty')})}
+  </section>`;
+}
+
+function buildAvailabilityHistoryCard(session) {
+  const availability = session.availability || {};
+  const status = getStatusDisplay(availability.response || '');
+
+  return buildPersonalActivityCard({
+    eyebrow: formatDateOnly(session.dateValue || session.date),
+    title: session.title,
+    statusHtml: `<div class="record-row-statuses">${buildStatusBadge(
+      status.label,
+      statusToneForAvailability(availability.response || '')
+    )}${buildStatusBadge(t('availability.history.ended'), 'neutral')}</div>`,
+    bodyHtml: `<p class="personal-card-meta">${t(
+      'availability.history.responseUnavailable'
+    )}</p>${availability.reason
+      ? `<div class="personal-card-note"><strong>${t(
+          'availability.privateNoteLabel'
+        )}</strong><p>${escapeHtml(availability.reason)}</p></div>`
+      : ''}`
+  });
 }
 
 function focusAvailabilityEditor() {

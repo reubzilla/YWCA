@@ -8,6 +8,118 @@ function getTimeZone_() {
 }
 
 
+const SESSION_DATE_CLASSIFICATIONS_ = Object.freeze({
+  TODAY: 'Today',
+  UPCOMING: 'Upcoming',
+  PAST: 'Past'
+});
+
+
+/**
+ * Returns a validated calendar-date value in the application time zone.
+ * Date-only strings are parsed explicitly and never through UTC defaults.
+ *
+ * @param {*} value
+ * @return {string}
+ */
+function getDateOnlyValue_(value) {
+  if (!value) {
+    return '';
+  }
+
+  if (value instanceof Date && !isNaN(value.getTime())) {
+    return Utilities.formatDate(
+      value,
+      getTimeZone_(),
+      'yyyy-MM-dd'
+    );
+  }
+
+  const text = String(value).trim();
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) {
+    const parsedDateOnly = new Date(`${text}T00:00:00+09:00`);
+
+    return !isNaN(parsedDateOnly.getTime()) &&
+      Utilities.formatDate(
+        parsedDateOnly,
+        getTimeZone_(),
+        'yyyy-MM-dd'
+      ) === text
+      ? text
+      : '';
+  }
+
+  const parsed = new Date(text);
+
+  return isNaN(parsed.getTime())
+    ? ''
+    : Utilities.formatDate(
+        parsed,
+        getTimeZone_(),
+        'yyyy-MM-dd'
+      );
+}
+
+
+/**
+ * Returns today's calendar date in Asia/Tokyo.
+ *
+ * @return {string}
+ */
+function getTodayDateValue_() {
+  return getDateOnlyValue_(new Date());
+}
+
+
+/**
+ * Classifies a session date against the Tokyo calendar date.
+ *
+ * @param {*} value
+ * @param {string=} todayDateValue
+ * @return {string}
+ */
+function classifySessionDate_(value, todayDateValue) {
+  const dateValue = getDateOnlyValue_(value);
+  const todayValue = getDateOnlyValue_(
+    todayDateValue || getTodayDateValue_()
+  );
+
+  if (!dateValue || !todayValue) {
+    return '';
+  }
+
+  if (dateValue === todayValue) {
+    return SESSION_DATE_CLASSIFICATIONS_.TODAY;
+  }
+
+  return dateValue > todayValue
+    ? SESSION_DATE_CLASSIFICATIONS_.UPCOMING
+    : SESSION_DATE_CLASSIFICATIONS_.PAST;
+}
+
+
+/**
+ * Adds whole calendar days to a YYYY-MM-DD Tokyo date.
+ * Asia/Tokyo has no daylight-saving transition.
+ *
+ * @param {string} dateValue
+ * @param {number} days
+ * @return {string}
+ */
+function addDaysToDateValue_(dateValue, days) {
+  const parsed = parseDateOnlyInput_(dateValue);
+
+  if (!parsed || !Number.isFinite(Number(days))) {
+    return '';
+  }
+
+  return getDateOnlyValue_(new Date(
+    parsed.getTime() + Number(days) * 24 * 60 * 60 * 1000
+  ));
+}
+
+
 /**
  * Converts checkbox and text values into Boolean values.
  *
@@ -32,21 +144,11 @@ function isTrue_(value) {
  * @return {Date|null}
  */
 function parseSheetDate_(value) {
-  if (value instanceof Date && !isNaN(value.getTime())) {
-    return startOfDay_(value);
-  }
+  const dateValue = getDateOnlyValue_(value);
 
-  if (!value) {
-    return null;
-  }
-
-  const parsed = new Date(value);
-
-  if (isNaN(parsed.getTime())) {
-    return null;
-  }
-
-  return startOfDay_(parsed);
+  return dateValue
+    ? new Date(`${dateValue}T00:00:00+09:00`)
+    : null;
 }
 
 
@@ -140,9 +242,7 @@ function parseTokyoDateTimeInput_(value) {
  * @return {Date}
  */
 function startOfDay_(date) {
-  const result = new Date(date);
-  result.setHours(0, 0, 0, 0);
-  return result;
+  return parseSheetDate_(date);
 }
 
 
@@ -178,17 +278,8 @@ function formatTime_(value, timeZone) {
  * @return {string}
  */
 function formatDateOnly_(value, timeZone) {
-  const date = parseSheetDate_(value);
-
-  if (!date) {
-    return value ? String(value) : '';
-  }
-
-  return Utilities.formatDate(
-    date,
-    timeZone,
-    'yyyy-MM-dd'
-  );
+  return getDateOnlyValue_(value) ||
+    (value ? String(value) : '');
 }
 
 

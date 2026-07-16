@@ -80,7 +80,12 @@ function handleUpcomingActivitiesLoaded(data) {
   upcomingActivitiesMinimumDateValue =
     upcomingActivitiesMinimumDateValue ||
     data.range.fromDateValue;
-  upcomingActivitySessions = data.sessions || [];
+  const todayDateValue = getTokyoTodayDateValue();
+  upcomingActivitySessions = (data.sessions || []).filter(session =>
+    classifyDateOnlyValue(session.dateValue, todayDateValue) ===
+      DATE_CLASSIFICATIONS.UPCOMING &&
+    session.sessionType !== 'Cancelled'
+  );
   upcomingActivitySessionTypes = data.sessionTypes || [];
 
   if (
@@ -658,6 +663,14 @@ function renderUpcomingActivityDetail(data) {
   }
 
   const session = data.session;
+
+  if (
+    classifyDateOnlyValue(session.dateValue) !==
+      DATE_CLASSIFICATIONS.UPCOMING
+  ) {
+    renderUpcomingActivityDetailError('sessionNotAvailable');
+    return;
+  }
   const summary = data.summary;
   const groups = data.groups;
   const timeText = buildTimeText(

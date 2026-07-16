@@ -23,14 +23,14 @@ function getPortalData() {
 
 
 /**
- * Returns upcoming sessions together with the current
- * member's existing availability responses.
+ * Returns editable current/future sessions and read-only history with
+ * the current member's existing availability responses.
  *
  * @return {Object}
  */
 function getAvailabilityPageData() {
   const member = getCurrentMember_();
-  const sessions = getUpcomingSessions_(
+  const sessionGroups = getAvailabilitySessions_(
     CONFIG.UPCOMING_WEEKS
   );
 
@@ -75,17 +75,21 @@ function getAvailabilityPageData() {
     };
   });
 
+  const attachAvailability = session => ({
+    ...session,
+    availability:
+      responsesBySession[session.sessionId] || {
+        response: '',
+        reason: '',
+        submittedAt: '',
+        updatedAt: ''
+      }
+  });
+
   return {
-    sessions: sessions.map(session => ({
-      ...session,
-      availability:
-        responsesBySession[session.sessionId] || {
-          response: '',
-          reason: '',
-          submittedAt: '',
-          updatedAt: ''
-        }
-    }))
+    sessions: sessionGroups.sessions.map(attachAvailability),
+    history: sessionGroups.history.map(attachAvailability),
+    todayDateValue: getTodayDateValue_()
   };
 }
 
@@ -295,7 +299,6 @@ function saveAvailability(submission) {
  * @return {Object|null}
  */
 function getEditableSession_(sessionId) {
-  const today = startOfDay_(new Date());
   const now = new Date();
 
   return getSheetObjects_(
@@ -305,9 +308,7 @@ function getEditableSession_(sessionId) {
       session['Session ID'] || ''
     ).trim();
 
-    const sessionDate = parseSheetDate_(
-      session.Date
-    );
+    const dateClassification = classifySessionDate_(session.Date);
 
     const sessionType = String(
       session['Session Type'] || ''
@@ -319,8 +320,10 @@ function getEditableSession_(sessionId) {
 
     return (
       rowSessionId === sessionId &&
-      sessionDate &&
-      sessionDate >= today &&
+      (
+        dateClassification === SESSION_DATE_CLASSIFICATIONS_.TODAY ||
+        dateClassification === SESSION_DATE_CLASSIFICATIONS_.UPCOMING
+      ) &&
       isTrue_(session.Active) &&
       sessionType !==
         CONFIG.SESSION_TYPES.CANCELLED &&

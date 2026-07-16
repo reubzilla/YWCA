@@ -135,7 +135,7 @@ DOMContentLoaded
   → render Home for Students or Today Dashboard for managers
 ```
 
-`getPortalData()` authenticates the current member and returns that member's profile, role-derived permissions, notifications, and upcoming sessions. It does not return other members' records.
+`getPortalData()` authenticates the current member and returns that member's profile, role-derived permissions, notifications, and current/future sessions. It does not return other members' records. Server session queries classify spreadsheet dates against a shared `Asia/Tokyo` calendar value as `Today`, `Upcoming`, or `Past`; they do not depend on UTC parsing of `YYYY-MM-DD` strings.
 
 ## Personal Today and notification flow
 
@@ -150,17 +150,18 @@ Subsequent views independently request availability or dashboard data. Spreadshe
 
 1. The availability view calls `getAvailabilityPageData()`.
 2. The server authenticates the current member.
-3. It obtains active, non-cancelled sessions within `CONFIG.UPCOMING_WEEKS`.
+3. It obtains active, non-cancelled Today and Upcoming sessions within `CONFIG.UPCOMING_WEEKS`, plus active past sessions in a separate history collection.
 4. It reads availability rows and attaches matching responses using `Member ID` or normalized email.
-5. The browser sorts No response first, then `Unsure`, then answered sessions, while preserving chronological order within each group.
-6. A compact list can be filtered by response need or session type; selecting a session opens one focused editor with radio options and an optional note.
-7. On save, the browser sends only `sessionId`, `response`, and `reason` to `saveAvailability()`.
-8. The server derives identity again, validates the input object, session ID, allowed response, and 500-character limit.
-9. `getEditableSession_()` requires an active, non-cancelled session dated today or later and enforces a configured response deadline.
-10. A script lock protects the read/modify/write operation.
-11. The first matching row is replaced, preserving its original `Submitted At`; otherwise a row is appended.
-12. The server returns the saved values and a machine-readable update timestamp with the `Asia/Tokyo` offset.
-13. The browser updates local list state, returns to the list, and refreshes cached portal notifications in the background.
+5. The browser defensively classifies returned date-only values against the current Tokyo date. Only Today and Upcoming sessions enter the editable collection.
+6. The browser sorts No response first, then `Unsure`, then answered editable sessions, while preserving chronological order within each group.
+7. A compact list can be filtered by response need or session type; selecting a session opens one focused editor with radio options and an optional note. Past sessions render separately with the signed-in member's final response and private note but no controls.
+8. On save, the browser sends only `sessionId`, `response`, and `reason` to `saveAvailability()`.
+9. The server derives identity again, validates the input object, session ID, allowed response, and 500-character limit.
+10. `getEditableSession_()` requires the shared classification to be `Today` or `Upcoming`, requires an active non-cancelled session, and enforces a configured response deadline.
+11. A script lock protects the read/modify/write operation.
+12. The first matching row is replaced, preserving its original `Submitted At`; otherwise a row is appended.
+13. The server returns the saved values and a machine-readable update timestamp with the `Asia/Tokyo` offset.
+14. The browser updates local list state, returns to the list, and refreshes cached portal notifications in the background.
 
 
 Known limitation: duplicate availability rows are not prevented. When updating an existing row, columns not managed by `saveAvailability()` are preserved.
@@ -204,7 +205,7 @@ Upcoming Activities is a separate management Planning route. Today remains the d
 
 1. `getUpcomingActivities(filters)` requires `canViewAllAvailability`.
 2. The server validates machine-readable date filters and an optional exact English Session Type.
-3. It selects active `Regular` and `Event` sessions after today. An empty request defaults to tomorrow through the existing eight-week configuration.
+3. It selects only active `Regular` and `Event` sessions classified as `Upcoming`. Today remains in the Today workspace, and an empty request defaults to tomorrow through the existing eight-week configuration.
 4. Active Students and Club Leaders come from `getActiveAttendingMembers_()`; inactive members and Teachers are excluded consistently with Today.
 5. Availability and Volunteer Assignment rows are loaded once and indexed by Session ID.
 6. Each session receives `Available`, `Unavailable`, `Unsure`, No response, assigned visitor, and conflict counts, plus the existing machine-readable response deadline from the shared session mapper.
@@ -239,7 +240,7 @@ Permanent deletion is a separate action. While holding the lock, the server coun
 
 ## Visitor Schedule management flow
 
-“Visitor Schedule” is the user-facing name for rows in `Volunteer Assignments`. The `Volunteer.html` view calls `getMyVolunteerAssignments()`, which derives the signed-in member's Member ID and email and filters rows before mapping them for the browser. Its payload contains assignment and session display fields only; it never includes another member's assignment, member identity, availability, attendance, or private availability note.
+“Visitor Schedule” is the user-facing name for rows in `Volunteer Assignments`. The `Volunteer.html` view calls `getMyVolunteerAssignments()`, which derives the signed-in member's Member ID and email and filters rows before mapping them for the browser. Its payload contains assignment and session display fields only; it never includes another member's assignment, member identity, availability, attendance, or private availability note. The personal view uses the shared Tokyo date classification to keep today's assignments in a current section, strictly future assignments in Next/Future, and past, cancelled, declined, or undated assignments in History.
 
 Teachers and Club Leaders are routed to `VisitorScheduleManagement.html`. It uses the shared responsive management layout with a session-centric summary, assignment filters, a multi-member create editor, and a single-assignment detail/editor. `getVisitorScheduleManagementData()` requires `canManageVolunteers` and returns active upcoming sessions, active eligible Students and Club Leaders, assignment rows, and availability status. The limited manager member payload contains Member ID, name, grade, role, and availability response; it excludes member email and availability Reason.
 

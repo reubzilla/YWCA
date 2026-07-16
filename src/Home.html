@@ -41,14 +41,28 @@ function finishStudentTodayLoad(token) {
 }
 
 function renderStudentToday(sessions, assignments, todayDateValue) {
-  const todaySession = sessions.find(session => session.dateValue === todayDateValue) || null;
-  const nextSession = sessions.find(session => session.dateValue > todayDateValue) || null;
+  const currentSessions = sessions.filter(session => [
+    DATE_CLASSIFICATIONS.TODAY,
+    DATE_CLASSIFICATIONS.UPCOMING
+  ].includes(classifyDateOnlyValue(
+    session.dateValue,
+    todayDateValue
+  )));
+  const todaySession = currentSessions.find(
+    session => session.dateValue === todayDateValue
+  ) || null;
+  const nextSession = currentSessions.find(
+    session => session.dateValue > todayDateValue
+  ) || null;
   const todayAssignment = assignments.find(item =>
     item.dateValue === todayDateValue &&
     !['Cancelled', 'Declined'].includes(item.assignmentStatus)
   ) || null;
   const todayAvailability = todaySession?.availability || null;
-  const notifications = portalData.notifications || [];
+  const notifications = filterCurrentNotifications(
+    portalData.notifications,
+    todayDateValue
+  );
   const urgent = notifications.find(item => item.priority === 'action') || null;
   const content = document.getElementById('content');
 

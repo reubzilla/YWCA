@@ -16,6 +16,11 @@ function cssEscape(value) {
 }
 
 const DATE_DISPLAY_TIME_ZONE = 'Asia/Tokyo';
+const DATE_CLASSIFICATIONS = Object.freeze({
+  TODAY: 'Today',
+  UPCOMING: 'Upcoming',
+  PAST: 'Past'
+});
 
 function getDateDisplayLocale() {
   return activeLocale === 'ja'
@@ -82,6 +87,35 @@ function getTokyoTodayDateValue() {
   );
 
   return `${values.year}-${values.month}-${values.day}`;
+}
+
+function classifyDateOnlyValue(value, todayDateValue) {
+  const date = parseDateOnlyValue(value);
+  const todayValue = todayDateValue || getTokyoTodayDateValue();
+  const today = parseDateOnlyValue(todayValue);
+
+  if (!date || !today) return '';
+  if (String(value) === todayValue) return DATE_CLASSIFICATIONS.TODAY;
+
+  return String(value) > todayValue
+    ? DATE_CLASSIFICATIONS.UPCOMING
+    : DATE_CLASSIFICATIONS.PAST;
+}
+
+function filterCurrentNotifications(notifications, todayDateValue) {
+  const todayValue = todayDateValue || getTokyoTodayDateValue();
+
+  return (notifications || []).filter(notification => {
+    if (!notification.dateValue) return true;
+
+    return [
+      DATE_CLASSIFICATIONS.TODAY,
+      DATE_CLASSIFICATIONS.UPCOMING
+    ].includes(classifyDateOnlyValue(
+      notification.dateValue,
+      todayValue
+    ));
+  });
 }
 
 function formatTime(value) {

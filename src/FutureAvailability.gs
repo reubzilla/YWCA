@@ -160,13 +160,16 @@ function validateUpcomingActivityFilters_(filters) {
     return futureAvailabilityFailure_('toDateInvalid');
   }
 
-  if (fromDate > toDate) {
+  if (fromDateValue > toDateValue) {
     return futureAvailabilityFailure_('dateRangeInvalid');
   }
 
-  const tomorrow = getFutureAvailabilityStartDate_();
+  const tomorrowDateValue = getFutureAvailabilityStartDate_();
 
-  if (fromDate < tomorrow || toDate < tomorrow) {
+  if (
+    fromDateValue < tomorrowDateValue ||
+    toDateValue < tomorrowDateValue
+  ) {
     return futureAvailabilityFailure_('dateBeforeTomorrow');
   }
 
@@ -182,8 +185,6 @@ function validateUpcomingActivityFilters_(filters) {
     value: {
       fromDateValue: fromDateValue,
       toDateValue: toDateValue,
-      fromDate: fromDate,
-      toDate: toDate,
       sessionType: sessionType
     }
   };
@@ -196,35 +197,26 @@ function validateUpcomingActivityFilters_(filters) {
  * @return {Object}
  */
 function getDefaultUpcomingActivityRange_() {
-  const fromDate = getFutureAvailabilityStartDate_();
-  const toDate = startOfDay_(new Date());
-
-  toDate.setDate(
-    toDate.getDate() + CONFIG.UPCOMING_WEEKS * 7
+  const fromDateValue = getFutureAvailabilityStartDate_();
+  const toDateValue = addDaysToDateValue_(
+    getTodayDateValue_(),
+    CONFIG.UPCOMING_WEEKS * 7
   );
 
   return {
-    fromDateValue: formatDateOnly_(
-      fromDate,
-      getTimeZone_()
-    ),
-    toDateValue: formatDateOnly_(
-      toDate,
-      getTimeZone_()
-    )
+    fromDateValue: fromDateValue,
+    toDateValue: toDateValue
   };
 }
 
 
 /**
- * Returns tomorrow at the application date boundary.
+ * Returns tomorrow as an Asia/Tokyo calendar-date value.
  *
- * @return {Date}
+ * @return {string}
  */
 function getFutureAvailabilityStartDate_() {
-  const tomorrow = startOfDay_(new Date());
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  return tomorrow;
+  return addDaysToDateValue_(getTodayDateValue_(), 1);
 }
 
 
@@ -241,14 +233,14 @@ function getFutureAvailabilitySessionRows_(filters) {
         return false;
       }
 
-      const sessionDate = parseSheetDate_(row.Date);
+      const sessionDateValue = getDateOnlyValue_(row.Date);
       const sessionType = String(
         row['Session Type'] || ''
       ).trim();
 
       return (
-        sessionDate >= filters.fromDate &&
-        sessionDate <= filters.toDate &&
+        sessionDateValue >= filters.fromDateValue &&
+        sessionDateValue <= filters.toDateValue &&
         (
           !filters.sessionType ||
           sessionType === filters.sessionType
@@ -256,7 +248,9 @@ function getFutureAvailabilitySessionRows_(filters) {
       );
     })
     .sort((a, b) =>
-      parseSheetDate_(a.Date) - parseSheetDate_(b.Date) ||
+      getDateOnlyValue_(a.Date).localeCompare(
+        getDateOnlyValue_(b.Date)
+      ) ||
       getTimeSortValue_(a['Start Time']) -
         getTimeSortValue_(b['Start Time']) ||
       String(a['Session ID'] || '').localeCompare(
@@ -273,14 +267,13 @@ function getFutureAvailabilitySessionRows_(filters) {
  * @return {boolean}
  */
 function isFutureAvailabilitySession_(row) {
-  const sessionDate = parseSheetDate_(row.Date);
   const sessionType = String(
     row['Session Type'] || ''
   ).trim();
 
   return Boolean(
-    sessionDate &&
-    sessionDate >= getFutureAvailabilityStartDate_() &&
+    classifySessionDate_(row.Date) ===
+      SESSION_DATE_CLASSIFICATIONS_.UPCOMING &&
     isTrue_(row.Active) &&
     FUTURE_AVAILABILITY_SESSION_TYPES_.includes(sessionType)
   );

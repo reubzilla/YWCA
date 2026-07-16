@@ -25,27 +25,31 @@ function getNotifications_(member) {
     .trim()
     .toLowerCase();
 
-  const today = startOfDay_(new Date());
-  const limit = new Date(today);
-
-  limit.setDate(
-    limit.getDate() + CONFIG.NOTIFICATION_DAYS
+  const todayDateValue = getTodayDateValue_();
+  const limitDateValue = addDaysToDateValue_(
+    todayDateValue,
+    CONFIG.NOTIFICATION_DAYS
   );
 
   const relevantSessions = sessionRows
     .filter(session => {
-      const date = parseSheetDate_(session.Date);
+      const dateValue = getDateOnlyValue_(session.Date);
+      const classification = classifySessionDate_(
+        dateValue,
+        todayDateValue
+      );
 
-      return date &&
-        date >= today &&
-        date <= limit &&
+      return dateValue &&
+        classification !== SESSION_DATE_CLASSIFICATIONS_.PAST &&
+        dateValue <= limitDateValue &&
         isTrue_(session.Active) &&
         String(session['Session Type'] || '') !==
           CONFIG.SESSION_TYPES.CANCELLED;
     })
     .sort((a, b) =>
-      parseSheetDate_(a.Date) -
-      parseSheetDate_(b.Date)
+      getDateOnlyValue_(a.Date).localeCompare(
+        getDateOnlyValue_(b.Date)
+      )
     );
 
   const notifications = [];
@@ -55,7 +59,7 @@ function getNotifications_(member) {
       session['Session ID'] || ''
     ).trim();
 
-    const sessionDate = parseSheetDate_(session.Date);
+    const sessionDateValue = getDateOnlyValue_(session.Date);
 
     const response = availabilityRows.find(row =>
       String(row['Session ID'] || '').trim() === sessionId &&
@@ -74,9 +78,10 @@ function getNotifications_(member) {
         priority: 'action',
         sessionTitle: String(session.Title || ''),
         sessionId: sessionId,
-        dateValue: formatDateOnly_(
-          sessionDate,
-          getTimeZone_()
+        dateValue: sessionDateValue,
+        dateClassification: classifySessionDate_(
+          sessionDateValue,
+          todayDateValue
         )
       });
     }
@@ -96,9 +101,10 @@ function getNotifications_(member) {
         activity: activity,
         location: location,
         sessionId: sessionId,
-        dateValue: formatDateOnly_(
-          sessionDate,
-          getTimeZone_()
+        dateValue: sessionDateValue,
+        dateClassification: classifySessionDate_(
+          sessionDateValue,
+          todayDateValue
         )
       });
     }

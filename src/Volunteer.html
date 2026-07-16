@@ -30,6 +30,15 @@ function renderVolunteerAssignments(data) {
   content.innerHTML = `
     ${buildPageHeader({title: t('volunteer.title'), supportingText: t('volunteer.intro')})}
     ${!personalAssignments.length ? buildEmptyState({message: t('volunteer.empty')}) : `
+      ${groups.today.length ? `<section class="personal-section" aria-labelledby="today-assignments-title">
+        <h2 id="today-assignments-title">${t('volunteer.todayAssignment')}</h2>
+        <div class="personal-card-list">${groups.today.map(assignment =>
+          buildAssignmentCard(assignment, {
+            prominent: true,
+            id: `personal-assignment-${assignment.sessionId}`
+          })
+        ).join('')}</div>
+      </section>` : ''}
       ${groups.next ? `<section class="personal-section" aria-labelledby="next-assignment-title">
         <h2 id="next-assignment-title">${t('volunteer.nextAssignment')}</h2>
         ${buildAssignmentCard(groups.next, {
@@ -65,16 +74,28 @@ function renderVolunteerAssignments(data) {
 
 function groupPersonalAssignments(assignments, todayDateValue) {
   const active = assignments.filter(item =>
-    item.dateValue >= todayDateValue &&
     !['Cancelled', 'Declined'].includes(item.assignmentStatus)
   );
-  const next = active[0] || null;
+  const today = active.filter(item =>
+    classifyDateOnlyValue(item.dateValue, todayDateValue) ===
+      DATE_CLASSIFICATIONS.TODAY
+  );
+  const future = active.filter(item =>
+    classifyDateOnlyValue(item.dateValue, todayDateValue) ===
+      DATE_CLASSIFICATIONS.UPCOMING
+  );
+  const next = future[0] || null;
+
   return {
+    today,
     next,
-    future: next ? active.slice(1) : active,
+    future: next ? future.slice(1) : future,
     history: assignments.filter(item =>
-      item.dateValue < todayDateValue ||
-      ['Cancelled', 'Declined'].includes(item.assignmentStatus)
+      ['Cancelled', 'Declined'].includes(item.assignmentStatus) ||
+      ![
+        DATE_CLASSIFICATIONS.TODAY,
+        DATE_CLASSIFICATIONS.UPCOMING
+      ].includes(classifyDateOnlyValue(item.dateValue, todayDateValue))
     )
   };
 }

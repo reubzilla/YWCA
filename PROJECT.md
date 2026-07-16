@@ -63,19 +63,20 @@ The following code paths are present:
 - locked M001-style Member ID generation, normalized unique member emails, final-active-Teacher protection, and strong confirmation before a Teacher removes their own management access;
 - signed-in-member-only volunteer schedule display;
 - an action-first Student Today view composed from signed-in-member-only availability and assignment APIs;
-- a compact, filterable My Availability list with focused editing and unsaved-change protection;
-- a personal assignment schedule divided into next assignment, future assignments, and history;
+- a compact, filterable My Availability list with focused editing, unsaved-change protection, and read-only past-activity history;
+- a personal assignment schedule divided into today's assignment, next assignment, future assignments, and history;
 - a dedicated read-only Notifications route with actions into Availability, My Assignments, or Today;
 - Teacher and Club Leader visitor-schedule management with multi-member assignment, availability warnings, filtering, locked duplicate prevention, cancellation, and safe future deletion;
 - a shared responsive management workspace for Sessions & Events, Members, and Visitor Schedules: desktop master-detail, focused tablet/mobile detail and editor states, compact filters, inline validation, and accessible confirmation/unsaved-change dialogs;
 - language-neutral date payloads with Japanese and British English browser formatting;
+- shared Asia/Tokyo calendar classification for Today, Upcoming, and Past session behavior;
 - a role-aware single-page route registry that separates personal assignments from manager visitor coordination;
 - a responsive application shell with a persistent desktop sidebar, tablet drawer, and role-specific mobile navigation;
 - semantic design tokens and small framework-free base UI components;
 - responsive, framework-free HTML, CSS, and browser JavaScript.
 
 
-The initial portal payload is provided by `getPortalData()`, which returns the authenticated member's profile, permissions, notifications, and upcoming sessions.
+The initial portal payload is provided by `getPortalData()`, which returns the authenticated member's profile, permissions, notifications, and active current/future sessions.
 
 ## Incomplete features
 - Student, QR, and manual attendance check-in are not implemented.
