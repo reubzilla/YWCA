@@ -129,6 +129,11 @@ function renderSessionManagementWorkspace() {
         <div id="managed-session-list">
           ${buildManagedSessionList(filtered)}
         </div>
+        ${sessionManagementState.filters.historyScope !== 'archive'
+          ? `<button type="button" class="secondary-button session-archive-button" id="session-show-archive">${t(
+              'sessions.showOlderSessions'
+            )}</button>`
+          : ''}
         ${sessionManagementPage.hasMore
           ? `<button type="button" class="secondary-button" id="session-load-more" ${
               sessionManagementLoadingMore ? 'disabled' : ''
@@ -318,13 +323,67 @@ function getFilteredManagedSessions() {
 }
 
 function buildManagedSessionList(sessions) {
-  if (!sessions.length) {
-    return buildEmptyState({
-      message: t('management.noMatchingRecords')
-    });
-  }
+  const groups = groupManagedSessionsByLifecycle(sessions);
 
-  return `<div class="management-record-list">${sessions.map(session => {
+  return `<div class="session-lifecycle-sections">
+    ${buildManagedSessionSection(
+      'today',
+      'sessions.section.today',
+      'sessions.empty.today',
+      groups.Today
+    )}
+    ${buildManagedSessionSection(
+      'upcoming',
+      'sessions.section.upcoming',
+      'sessions.empty.upcoming',
+      groups.Upcoming
+    )}
+    ${groups.Cancelled.length ? buildManagedSessionSection(
+      'cancelled',
+      'sessions.section.cancelled',
+      '',
+      groups.Cancelled
+    ) : ''}
+    ${buildManagedSessionSection(
+      'past',
+      'sessions.section.recent',
+      'sessions.empty.recent',
+      groups.Past
+    )}
+  </div>`;
+}
+
+function groupManagedSessionsByLifecycle(sessions) {
+  const groups = {
+    Today: [], Upcoming: [], Past: [], Cancelled: []
+  };
+
+  sessions.forEach(session => {
+    if (groups[session.lifecycle]) {
+      groups[session.lifecycle].push(session);
+    }
+  });
+
+  return groups;
+}
+
+function buildManagedSessionSection(id, titleKey, emptyKey, sessions) {
+  const headingId = `managed-session-${id}-title`;
+
+  return `<section class="session-lifecycle-section session-lifecycle-${id}" aria-labelledby="${headingId}">
+    <div class="session-lifecycle-heading">
+      <h3 id="${headingId}">${t(titleKey)}</h3>
+      ${buildStatusBadge(String(sessions.length), 'neutral')}
+    </div>
+    ${sessions.length
+      ? `<div class="management-record-list">${sessions.map(
+          buildManagedSessionRow
+        ).join('')}</div>`
+      : buildEmptyState({message: t(emptyKey)})}
+  </section>`;
+}
+
+function buildManagedSessionRow(session) {
     const timeText = buildTimeText(
       session.startTime,
       session.endTime
@@ -332,10 +391,21 @@ function buildManagedSessionList(sessions) {
     const selected =
       session.sessionId === sessionManagementState.selectedId;
 
-    return `<div class="management-record${
+    const readOnly = isManagedSessionReadOnly(session);
+    const actionKey = readOnly
+      ? 'sessions.action.viewRecord'
+      : 'management.viewDetails';
+    const actionLabelKey = readOnly
+      ? 'sessions.action.viewRecordLabel'
+      : 'sessions.action.viewDetailsLabel';
+
+    return `<div class="management-record session-record-${String(
+      session.lifecycle || ''
+    ).toLowerCase()}${
       selected ? ' selected' : ''
     }">${buildRecordRow({
       title: session.title,
+      headingLevel: 4,
       metaHtml: `
         <p class="record-row-meta">
           ${escapeHtml(formatDateOnly(session.dateValue))}
@@ -355,21 +425,48 @@ function buildManagedSessionList(sessions) {
             )}</p>`
           : ''}
       `,
-      statusHtml: buildStatusBadge(
-        t(session.active ? 'sessions.active' : 'sessions.inactive'),
-        session.active ? 'success' : 'neutral'
-      ),
+      statusHtml: `<div class="record-row-statuses">${buildStatusBadge(
+        t(getManagedSessionLifecycleKey(session.lifecycle)),
+        getManagedSessionLifecycleTone(session.lifecycle)
+      )}${buildStatusBadge(
+          t(session.active ? 'sessions.active' : 'sessions.inactive'),
+          session.active ? 'success' : 'neutral'
+        )}</div>`,
       actionsHtml: `
         <button
           type="button"
-          class="secondary-button"
+          class="${readOnly ? 'secondary-button' : 'primary-button'}"
           data-session-view="${escapeHtml(session.sessionId)}"
+          aria-label="${escapeHtml(t(actionLabelKey, {
+            title: session.title
+          }))}"
         >
-          ${t('management.viewDetails')}
+          ${t(actionKey)}
         </button>
       `
     })}</div>`;
-  }).join('')}</div>`;
+}
+
+function getManagedSessionLifecycleKey(lifecycle) {
+  const keys = {
+    Today: 'sessions.lifecycle.today',
+    Upcoming: 'sessions.lifecycle.upcoming',
+    Past: 'sessions.lifecycle.past',
+    Cancelled: 'sessions.lifecycle.cancelled'
+  };
+
+  return keys[lifecycle] || 'sessions.lifecycle.past';
+}
+
+function getManagedSessionLifecycleTone(lifecycle) {
+  if (lifecycle === 'Today') return 'information';
+  if (lifecycle === 'Upcoming') return 'success';
+  if (lifecycle === 'Cancelled') return 'danger';
+  return 'neutral';
+}
+
+function isManagedSessionReadOnly(session) {
+  return ['Past', 'Cancelled'].includes(session.lifecycle);
 }
 
 function buildManagedSessionDetailPane() {
@@ -394,6 +491,7 @@ function buildManagedSessionDetailPane() {
     session.startTime,
     session.endTime
   );
+  const readOnly = isManagedSessionReadOnly(session);
 
   return `
     ${buildDetailHeader({
@@ -403,7 +501,7 @@ function buildManagedSessionDetailPane() {
       metaHtml: `<p class="detail-header-meta">${escapeHtml(
         translateBusinessValue('sessionType', session.sessionType)
       )}${timeText ? ` · ${escapeHtml(timeText)}` : ''}</p>`,
-      actionsHtml: `
+      actionsHtml: readOnly ? '' : `
         <button
           type="button"
           class="secondary-button"
@@ -435,19 +533,22 @@ function buildManagedSessionDetailPane() {
           ? formatDateTime(session.responseDeadline)
           : t('members.date.notSet')
       )}</dd></div>
-      <div><dt>${t('sessions.filter.status')}</dt><dd>${
+      <div><dt>${t('sessions.filter.status')}</dt><dd><div class="record-row-statuses">${
         buildStatusBadge(
+          t(getManagedSessionLifecycleKey(session.lifecycle)),
+          getManagedSessionLifecycleTone(session.lifecycle)
+        ) + buildStatusBadge(
           t(session.active ? 'sessions.active' : 'sessions.inactive'),
           session.active ? 'success' : 'neutral'
         )
-      }</dd></div>
+      }</div></dd></div>
     </dl>
     ${session.notes
       ? `<section class="management-detail-section"><h3>${t(
           'sessions.form.notes'
         )}</h3><p>${escapeHtml(session.notes)}</p></section>`
       : ''}
-    ${session.sessionType !== 'Cancelled'
+    ${!readOnly && session.sessionType !== 'Cancelled'
       ? `<section class="management-safe-zone">
           <p>${t('sessions.dialog.cancelPreserves')}</p>
           <button
@@ -457,7 +558,7 @@ function buildManagedSessionDetailPane() {
           >${t('sessions.action.cancel')}</button>
         </section>`
       : ''}
-    <section class="management-danger-zone">
+    ${!readOnly ? `<section class="management-danger-zone">
       <h3>${t('management.dangerZone')}</h3>
       <p>${t('sessions.danger.explanation')}</p>
         <button
@@ -465,7 +566,7 @@ function buildManagedSessionDetailPane() {
           class="danger-button"
           data-session-delete="${escapeHtml(session.sessionId)}"
         >${t('management.deletePermanently')}</button>
-    </section>
+    </section>` : ''}
   `;
 }
 
@@ -689,6 +790,15 @@ function initialiseSessionManagementEvents() {
       sessionManagementLoadingMore = true;
       renderSessionManagementWorkspace();
       loadSessionManagementData(true);
+    }
+  );
+  document.getElementById('session-show-archive')?.addEventListener(
+    'click',
+    () => {
+      sessionManagementState.filters.historyScope = 'archive';
+      sessionManagementState.filters.fromDate = '';
+      sessionManagementState.filters.toDate = '';
+      loadSessionManagementData();
     }
   );
 

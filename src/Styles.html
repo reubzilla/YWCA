@@ -1349,6 +1349,54 @@ textarea:focus-visible,
   border: 0;
 }
 
+.session-lifecycle-sections {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.session-lifecycle-section {
+  min-width: 0;
+}
+
+.session-lifecycle-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-2);
+}
+
+.session-lifecycle-heading h3 {
+  margin: 0;
+  font-size: var(--font-section-title);
+}
+
+.session-lifecycle-today .management-record-list {
+  border-color: #8ab4f8;
+  box-shadow: 0 0 0 1px #d2e3fc;
+}
+
+.session-record-today {
+  background: #eef6ff;
+}
+
+.session-record-past {
+  background: #f7f8f9;
+}
+
+.session-record-past .record-row-title,
+.session-record-past .record-row-meta {
+  color: #4b5157;
+}
+
+.session-record-cancelled {
+  background: #fff7f6;
+}
+
+.session-archive-button {
+  margin-top: var(--space-4);
+}
+
 .management-detail-section,
 .management-safe-zone,
 .management-danger-zone {

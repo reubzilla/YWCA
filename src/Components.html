@@ -205,13 +205,14 @@ function buildFilterBar(options) {
 
 function buildRecordRow(options) {
   const settings = options || {};
+  const headingTag = settings.headingLevel === 4 ? 'h4' : 'h3';
 
   return `
     <article class="record-row">
       <div class="record-row-main">
-        <h3 class="record-row-title">
+        <${headingTag} class="record-row-title">
           ${escapeHtml(settings.title || '')}
-        </h3>
+        </${headingTag}>
         ${settings.metaHtml || ''}
       </div>
       ${settings.statusHtml || ''}

@@ -10,6 +10,13 @@ const SESSION_MANAGEMENT_HEADERS_ = Object.freeze([
   'Notes'
 ]);
 
+const MANAGED_SESSION_LIFECYCLES_ = Object.freeze({
+  TODAY: 'Today',
+  UPCOMING: 'Upcoming',
+  PAST: 'Past',
+  CANCELLED: 'Cancelled'
+});
+
 /**
  * Returns one server-filtered page for the Teacher management view.
  *
@@ -83,20 +90,66 @@ function getSessionManagementData(filters) {
 
 
 function compareManagedSessions_(a, b, todayDateValue) {
-  const aUpcoming = a.dateValue >= todayDateValue;
-  const bUpcoming = b.dateValue >= todayDateValue;
+  const aLifecycle = a.lifecycle ||
+    classifyManagedSessionLifecycle_(a, todayDateValue);
+  const bLifecycle = b.lifecycle ||
+    classifyManagedSessionLifecycle_(b, todayDateValue);
+  const ranks = {
+    [MANAGED_SESSION_LIFECYCLES_.TODAY]: 0,
+    [MANAGED_SESSION_LIFECYCLES_.UPCOMING]: 1,
+    [MANAGED_SESSION_LIFECYCLES_.CANCELLED]: 2,
+    [MANAGED_SESSION_LIFECYCLES_.PAST]: 3
+  };
+  const rankComparison = ranks[aLifecycle] - ranks[bLifecycle];
 
-  if (aUpcoming !== bUpcoming) {
-    return aUpcoming ? -1 : 1;
+  if (rankComparison) {
+    return rankComparison;
   }
 
-  const dateComparison = aUpcoming
+  if (aLifecycle === MANAGED_SESSION_LIFECYCLES_.TODAY) {
+    return a.startTime.localeCompare(b.startTime) ||
+      a.sessionId.localeCompare(b.sessionId);
+  }
+
+  const dateComparison = aLifecycle ===
+    MANAGED_SESSION_LIFECYCLES_.UPCOMING
     ? a.dateValue.localeCompare(b.dateValue)
     : b.dateValue.localeCompare(a.dateValue);
 
   return dateComparison ||
     a.startTime.localeCompare(b.startTime) ||
     a.sessionId.localeCompare(b.sessionId);
+}
+
+
+/**
+ * Classifies a managed session using the Tokyo calendar and existing
+ * cancellation rules. Administrative inactivity takes precedence over
+ * the calendar classification.
+ *
+ * @param {Object} session
+ * @param {string=} todayDateValue
+ * @return {string}
+ */
+function classifyManagedSessionLifecycle_(session, todayDateValue) {
+  const sessionType = String(
+    session.sessionType || session['Session Type'] || ''
+  ).trim();
+  const active = Object.prototype.hasOwnProperty.call(session, 'active')
+    ? session.active === true
+    : isTrue_(session.Active);
+
+  if (
+    !active ||
+    sessionType === CONFIG.SESSION_TYPES.CANCELLED
+  ) {
+    return MANAGED_SESSION_LIFECYCLES_.CANCELLED;
+  }
+
+  return classifySessionDate_(
+    session.dateValue || session.Date,
+    todayDateValue
+  );
 }
 
 
@@ -605,7 +658,8 @@ function buildSessionRowObject_(sessionId, value) {
 function mapManagedSessionForClient_(row, timeZone) {
   return {
     ...mapSessionForClient_(row, timeZone),
-    active: isTrue_(row.Active)
+    active: isTrue_(row.Active),
+    lifecycle: classifyManagedSessionLifecycle_(row)
   };
 }
 
