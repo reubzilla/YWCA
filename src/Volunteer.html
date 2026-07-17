@@ -1,8 +1,18 @@
 let personalAssignments = [];
 let personalAssignmentsToday = '';
 let personalAssignmentRequestToken = 0;
+let personalAssignmentHistoryPage = {
+  nextOffset: 0, hasMore: false, includesOlder: false
+};
+let personalAssignmentHistoryLoading = false;
+let personalAssignmentHistoryErrorKey = '';
 
 function renderVolunteer() {
+  personalAssignmentHistoryLoading = false;
+  personalAssignmentHistoryErrorKey = '';
+  personalAssignmentHistoryPage = {
+    nextOffset: 0, hasMore: false, includesOlder: false
+  };
   const content = document.getElementById('content');
   content.className = '';
   content.innerHTML = `${buildPageHeader({
@@ -23,6 +33,8 @@ function renderVolunteer() {
 function renderVolunteerAssignments(data) {
   personalAssignments = data.assignments || [];
   personalAssignmentsToday = data.todayDateValue || getTokyoTodayDateValue();
+  personalAssignmentHistoryPage = data.historyPage ||
+    personalAssignmentHistoryPage;
   const target = consumePersonalRouteTarget('assignments');
   const targetSessionId = target?.sessionId || '';
   const groups = groupPersonalAssignments(personalAssignments, personalAssignmentsToday);
@@ -55,21 +67,108 @@ function renderVolunteerAssignments(data) {
           })
         ).join('')}</div>
       </section>` : ''}
-      ${groups.history.length ? `<section class="personal-section" aria-labelledby="assignment-history-title">
-        <h2 id="assignment-history-title">${t('volunteer.history')}</h2>
-        <div class="personal-card-list history">${groups.history.map(assignment =>
+      ${groups.history.length || personalAssignmentHistoryPage.hasMore
+        ? `<section class="personal-section" aria-labelledby="assignment-history-title">
+        <h2 id="assignment-history-title">${t('history.recent')}</h2>
+        ${groups.history.length ? `<p class="record-row-meta">${escapeHtml(t(
+          'history.showingMostRecent', {count: groups.history.length}
+        ))}</p><div class="personal-card-list history">${groups.history.map(assignment =>
           buildAssignmentCard(assignment, {
             prominent: assignment.sessionId === targetSessionId,
             id: `personal-assignment-${assignment.sessionId}`
           })
-        ).join('')}</div>
+        ).join('')}</div>` : ''}
+        ${personalAssignmentHistoryErrorKey
+          ? `<p class="error" role="alert">${escapeHtml(t(
+              personalAssignmentHistoryErrorKey
+            ))}</p>` : ''}
+        ${personalAssignmentHistoryPage.hasMore
+          ? `<button type="button" class="secondary-button" id="assignment-load-older" ${
+              personalAssignmentHistoryLoading ? 'disabled' : ''
+            }>${t(personalAssignmentHistoryLoading
+              ? 'history.loadingOlder'
+              : personalAssignmentHistoryPage.includesOlder
+                ? 'history.loadMore'
+                : 'history.showOlderActivities')}</button>`
+          : personalAssignmentHistoryPage.includesOlder
+            ? `<p class="record-row-meta">${t('history.noOlderActivities')}</p>`
+            : ''}
       </section>` : ''}
     `}`;
+  document.getElementById('assignment-load-older')?.addEventListener(
+    'click',
+    loadOlderPersonalAssignments
+  );
   if (targetSessionId) {
     window.requestAnimationFrame(() => document.getElementById(
       `personal-assignment-${targetSessionId}`
     )?.scrollIntoView({block: 'center'}));
   }
+}
+
+function loadOlderPersonalAssignments() {
+  if (
+    personalAssignmentHistoryLoading ||
+    !personalAssignmentHistoryPage.hasMore
+  ) {
+    return;
+  }
+
+  personalAssignmentHistoryLoading = true;
+  personalAssignmentHistoryErrorKey = '';
+  renderVolunteerAssignments({
+    assignments: personalAssignments,
+    todayDateValue: personalAssignmentsToday,
+    historyPage: personalAssignmentHistoryPage
+  });
+  const requestToken = personalAssignmentRequestToken;
+  const currentHistoryCount = groupPersonalAssignments(
+    personalAssignments,
+    personalAssignmentsToday
+  ).history.length;
+
+  google.script.run
+    .withSuccessHandler(data => {
+      if (
+        requestToken !== personalAssignmentRequestToken ||
+        currentRouteId !== 'assignments'
+      ) {
+        return;
+      }
+
+      const knownSessionIds = new Set(
+        personalAssignments.map(item => item.sessionId)
+      );
+      (data.assignments || []).forEach(item => {
+        if (!knownSessionIds.has(item.sessionId)) {
+          personalAssignments.push(item);
+        }
+      });
+      personalAssignmentHistoryPage = data.historyPage || {
+        nextOffset: currentHistoryCount,
+        hasMore: false,
+        includesOlder: true
+      };
+      personalAssignmentHistoryLoading = false;
+      renderVolunteerAssignments({
+        assignments: personalAssignments,
+        todayDateValue: personalAssignmentsToday,
+        historyPage: personalAssignmentHistoryPage
+      });
+    })
+    .withFailureHandler(() => {
+      personalAssignmentHistoryLoading = false;
+      personalAssignmentHistoryErrorKey = 'history.loadOlderFailed';
+      renderVolunteerAssignments({
+        assignments: personalAssignments,
+        todayDateValue: personalAssignmentsToday,
+        historyPage: personalAssignmentHistoryPage
+      });
+    })
+    .getMyVolunteerAssignments({
+      includeOlder: true,
+      historyOffset: currentHistoryCount
+    });
 }
 
 function groupPersonalAssignments(assignments, todayDateValue) {

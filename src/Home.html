@@ -20,7 +20,7 @@ function renderHome() {
       finishStudentTodayLoad(token);
     })
     .withFailureHandler(() => renderStudentTodayError(token))
-    .getAvailabilityPageData();
+    .getAvailabilityPageData({includeHistory: false});
   google.script.run
     .withSuccessHandler(data => {
       if (token !== studentTodayRequestToken || currentRouteId !== 'today') return;
@@ -28,7 +28,7 @@ function renderHome() {
       finishStudentTodayLoad(token);
     })
     .withFailureHandler(() => renderStudentTodayError(token))
-    .getMyVolunteerAssignments();
+    .getMyVolunteerAssignments({includeHistory: false});
 }
 
 function finishStudentTodayLoad(token) {

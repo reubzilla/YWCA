@@ -12,10 +12,14 @@ const VOLUNTEER_ASSIGNMENT_HEADERS_ = Object.freeze([
 /**
  * Returns only the signed-in member's volunteer assignments.
  *
+ * @param {Object=} options
  * @return {Object}
  */
-function getMyVolunteerAssignments() {
+function getMyVolunteerAssignments(options) {
   const member = requireVolunteerScheduleViewer_();
+  const input = options && typeof options === 'object'
+    ? options
+    : {};
   const sheetData = getVolunteerAssignmentSheet_();
   const memberId = String(
     member['Member ID'] || ''
@@ -23,7 +27,7 @@ function getMyVolunteerAssignments() {
   const email = normalizeVolunteerEmail_(member.Email);
   const sessionsById = getVisitorSessionsById_();
   const todayDateValue = getTodayDateValue_();
-  const assignments = sheetData.values
+  const allAssignments = sheetData.values
     .slice(1)
     .filter(row => {
       const object = rowToObject_(sheetData.headers, row);
@@ -41,9 +45,47 @@ function getMyVolunteerAssignments() {
         todayDateValue
       )
     );
+  const currentAssignments = allAssignments.filter(item =>
+    isCurrentPersonalVolunteerAssignment_(item, todayDateValue)
+  );
+  const allHistory = allAssignments.filter(item =>
+    !isCurrentPersonalVolunteerAssignment_(item, todayDateValue)
+  );
+  const includeHistory = input.includeHistory !== false;
+  const includeOlder = input.includeOlder === true;
+  const recentStartDateValue = addDaysToDateValue_(
+    todayDateValue,
+    -CONFIG.STUDENT_HISTORY_DAYS
+  );
+  const historySource = !includeHistory
+    ? []
+    : includeOlder
+      ? allHistory
+      : allHistory.filter(item =>
+          item.dateValue && item.dateValue >= recentStartDateValue
+        );
+  const historyPage = buildHistoryPage_(
+    historySource,
+    input.historyOffset,
+    CONFIG.STUDENT_HISTORY_PAGE_SIZE
+  );
+  const hasOlderOutsideRecentWindow = includeHistory && !includeOlder &&
+    allHistory.some(item =>
+      !item.dateValue || item.dateValue < recentStartDateValue
+    );
 
   return {
-    assignments: assignments,
+    assignments: currentAssignments.concat(historyPage.items),
+    historyPage: {
+      offset: historyPage.offset,
+      nextOffset: historyPage.nextOffset,
+      hasMore: historyPage.hasMore || hasOlderOutsideRecentWindow,
+      total: includeHistory
+        ? includeOlder ? historyPage.total : allHistory.length
+        : 0,
+      includesOlder: includeOlder,
+      recentDays: CONFIG.STUDENT_HISTORY_DAYS
+    },
     todayDateValue: todayDateValue
   };
 }
@@ -55,10 +97,15 @@ function getMyVolunteerAssignments() {
  * Private availability reasons, attendance details, and member
  * emails are deliberately excluded from the response.
  *
+ * @param {Object=} filters
  * @return {Object}
  */
-function getVisitorScheduleManagementData() {
+function getVisitorScheduleManagementData(filters) {
   requireVolunteerManagerAccess_();
+  const query = resolveManagementHistoryQuery_(filters);
+  const input = filters && typeof filters === 'object'
+    ? filters
+    : {};
 
   const sheetData = getVolunteerAssignmentSheet_();
   const sessionRows = getSheetObjects_(CONFIG.SHEETS.SESSIONS);
@@ -98,11 +145,18 @@ function getVisitorScheduleManagementData() {
       a.name.localeCompare(b.name, 'ja') ||
       a.memberId.localeCompare(b.memberId)
     );
-  const assignments = sheetData.values
+  const allAssignments = sheetData.values
     .slice(1)
     .filter(row => row.some(cell => cell !== ''))
+    .map(row => rowToObject_(sheetData.headers, row))
+    .filter(row => matchesVisitorAssignmentRowQuery_(
+      row,
+      input,
+      query,
+      sessionsById
+    ))
     .map(row => mapManagedVolunteerAssignment_(
-      rowToObject_(sheetData.headers, row),
+      row,
       sessionsById,
       memberRows,
       availabilityRows,
@@ -116,14 +170,99 @@ function getVisitorScheduleManagementData() {
         todayDateValue
       )
     );
+  const assignmentsInRange = allAssignments.filter(item =>
+    matchesVisitorManagementQuery_(item, input)
+  );
+  const assignmentPage = buildHistoryPage_(
+    assignmentsInRange,
+    query.offset,
+    query.limit
+  );
 
   return {
     sessions: upcomingSessions,
     members: eligibleMembers,
-    assignments: assignments,
+    assignments: assignmentPage.items,
     assignmentStatuses: getVolunteerAssignmentStatuses_(),
+    historyQuery: {
+      historyScope: query.historyScope,
+      fromDateValue: query.fromDateValue,
+      toDateValue: query.toDateValue,
+      schoolYear: query.schoolYear
+    },
+    page: {
+      offset: assignmentPage.offset,
+      nextOffset: assignmentPage.nextOffset,
+      hasMore: assignmentPage.hasMore,
+      total: assignmentPage.total
+    },
     todayDateValue: todayDateValue
   };
+}
+
+
+function isCurrentPersonalVolunteerAssignment_(item, todayDateValue) {
+  if (
+    [
+      CONFIG.ASSIGNMENT_STATUSES.CANCELLED,
+      CONFIG.ASSIGNMENT_STATUSES.DECLINED
+    ].includes(item.assignmentStatus)
+  ) {
+    return false;
+  }
+
+  const classification = classifySessionDate_(
+    item.dateValue,
+    todayDateValue
+  );
+
+  return classification === SESSION_DATE_CLASSIFICATIONS_.TODAY ||
+    classification === SESSION_DATE_CLASSIFICATIONS_.UPCOMING;
+}
+
+
+function matchesVisitorManagementQuery_(item, filters) {
+  return Boolean(
+    (!filters.conflictsOnly || item.availability === CONFIG.AVAILABILITY.UNAVAILABLE) &&
+    (!filters.activeOnly || ![
+      CONFIG.ASSIGNMENT_STATUSES.CANCELLED,
+      CONFIG.ASSIGNMENT_STATUSES.DECLINED
+    ].includes(item.assignmentStatus))
+  );
+}
+
+
+function matchesVisitorAssignmentRowQuery_(
+  row,
+  filters,
+  query,
+  sessionsById
+) {
+  const sessionId = String(row['Session ID'] || '').trim();
+  const requestedSessionId = String(filters.sessionId || '').trim();
+  const session = sessionsById[sessionId];
+  const dateValue = session ? getDateOnlyValue_(session.Date) : '';
+  const activity = String(filters.activity || '').trim().toLowerCase();
+  const location = String(filters.location || '').trim().toLowerCase();
+  const status = String(filters.status || '').trim();
+
+  if (requestedSessionId && sessionId !== requestedSessionId) {
+    return false;
+  }
+
+  if (
+    !requestedSessionId &&
+    !isDateInHistoryQuery_(dateValue, query) &&
+    !(query.historyScope === HISTORY_SCOPES_.ARCHIVE && !dateValue)
+  ) {
+    return false;
+  }
+
+  return Boolean(
+    (!activity || String(row.Activity || '').toLowerCase().includes(activity)) &&
+    (!location || String(row.Location || '').toLowerCase().includes(location)) &&
+    (!status || String(row['Assignment Status'] || '').trim() === status)
+  );
 }
 
 
@@ -836,10 +975,7 @@ function isVisitorSessionAssignable_(session) {
   ).trim();
 
   return Boolean(
-    (
-      dateClassification === SESSION_DATE_CLASSIFICATIONS_.TODAY ||
-      dateClassification === SESSION_DATE_CLASSIFICATIONS_.UPCOMING
-    ) &&
+    dateClassification === SESSION_DATE_CLASSIFICATIONS_.UPCOMING &&
     isTrue_(session.Active) &&
     sessionType !== CONFIG.SESSION_TYPES.CANCELLED
   );
@@ -1231,6 +1367,12 @@ function compareVolunteerAssignments_(a, b, todayDateValue) {
     String(a.memberName || '').localeCompare(
       String(b.memberName || ''),
       'ja'
+    ) ||
+    String(a.sessionId || '').localeCompare(
+      String(b.sessionId || '')
+    ) ||
+    String(a.memberId || '').localeCompare(
+      String(b.memberId || '')
     );
 }
 

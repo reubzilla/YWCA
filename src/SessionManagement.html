@@ -3,8 +3,12 @@ let managedSessionTypes = [];
 let sessionSaveInProgress = false;
 let sessionActionInProgress = false;
 let sessionManagementNoticeKey = '';
+let sessionManagementPage = {nextOffset: 0, hasMore: false, total: 0};
+let sessionManagementLoadingMore = false;
+let sessionManagementSchoolYear = {fromDateValue: '', toDateValue: ''};
 let sessionManagementState = {
   filters: {
+    historyScope: 'currentSchoolYear',
     search: '',
     fromDate: '',
     toDate: '',
@@ -34,16 +38,39 @@ function renderSessionManagement() {
   loadSessionManagementData();
 }
 
-function loadSessionManagementData() {
+function loadSessionManagementData(append = false) {
+  const filters = sessionManagementState.filters;
+  const offset = append ? sessionManagementPage.nextOffset : 0;
   google.script.run
-    .withSuccessHandler(renderSessionManagementData)
+    .withSuccessHandler(data => renderSessionManagementData(data, append))
     .withFailureHandler(renderSessionManagementError)
-    .getSessionManagementData();
+    .getSessionManagementData({
+      historyScope: filters.historyScope,
+      fromDateValue: filters.fromDate,
+      toDateValue: filters.toDate,
+      search: filters.search,
+      sessionType: filters.sessionType,
+      status: filters.status,
+      offset: offset
+    });
 }
 
-function renderSessionManagementData(data) {
-  managedSessions = data.sessions || [];
+function renderSessionManagementData(data, append = false) {
+  const returnedSessions = data.sessions || [];
+  managedSessions = append
+    ? managedSessions.concat(returnedSessions.filter(session =>
+        !managedSessions.some(existing =>
+          existing.sessionId === session.sessionId
+        )
+      ))
+    : returnedSessions;
   managedSessionTypes = data.sessionTypes || [];
+  sessionManagementPage = data.page || {
+    nextOffset: managedSessions.length, hasMore: false, total: managedSessions.length
+  };
+  sessionManagementSchoolYear = data.historyQuery?.schoolYear ||
+    sessionManagementSchoolYear;
+  sessionManagementLoadingMore = false;
 
   if (
     sessionManagementState.selectedId &&
@@ -102,6 +129,15 @@ function renderSessionManagementWorkspace() {
         <div id="managed-session-list">
           ${buildManagedSessionList(filtered)}
         </div>
+        ${sessionManagementPage.hasMore
+          ? `<button type="button" class="secondary-button" id="session-load-more" ${
+              sessionManagementLoadingMore ? 'disabled' : ''
+            }>${t(sessionManagementLoadingMore
+              ? 'history.loadingOlder'
+              : 'history.loadMore')}</button>`
+          : sessionManagementPage.offset > 0
+            ? `<p class="record-row-meta">${t('history.noOlderActivities')}</p>`
+            : ''}
       `,
       detailHtml: buildManagedSessionDetailPane()
     })}
@@ -129,6 +165,12 @@ function buildSessionFilters() {
         ${buildFilterBar({
           label: t('sessions.filter.label'),
           fieldsHtml: `
+            <label class="form-field">
+              <span class="form-label">${t('history.scope')}</span>
+              <select class="management-input" id="session-filter-history-scope">
+                ${buildHistoryScopeOptions(filters.historyScope)}
+              </select>
+            </label>
             <label class="form-field">
               <span class="form-label">${t(
                 'sessions.filter.search'
@@ -223,7 +265,17 @@ function buildSessionFilterChips() {
   if (filters.search) {
     chips.push(filters.search);
   }
-  if (filters.fromDate || filters.toDate) {
+  chips.push(t(
+    filters.historyScope === 'archive'
+      ? 'history.archive'
+      : filters.historyScope === 'custom'
+        ? 'history.customDateRange'
+        : 'history.currentSchoolYear'
+  ));
+  if (
+    filters.historyScope === 'custom' &&
+    (filters.fromDate || filters.toDate)
+  ) {
     chips.push(t('management.dateRange', {
       from: filters.fromDate
         ? formatDateOnly(filters.fromDate)
@@ -251,24 +303,18 @@ function buildSessionFilterChips() {
 }
 
 function countSessionActiveFilters() {
-  return Object.values(sessionManagementState.filters)
-    .filter(Boolean).length;
+  const filters = sessionManagementState.filters;
+  return [
+    filters.search,
+    filters.sessionType,
+    filters.status,
+    filters.historyScope === 'custom' && filters.fromDate,
+    filters.historyScope === 'custom' && filters.toDate
+  ].filter(Boolean).length;
 }
 
 function getFilteredManagedSessions() {
-  const filters = sessionManagementState.filters;
-  const search = filters.search.trim().toLowerCase();
-
-  return managedSessions.filter(session =>
-    (!search || session.title.toLowerCase().includes(search)) &&
-    (!filters.fromDate || session.dateValue >= filters.fromDate) &&
-    (!filters.toDate || session.dateValue <= filters.toDate) &&
-    (!filters.sessionType ||
-      session.sessionType === filters.sessionType) &&
-    (!filters.status ||
-      (filters.status === 'active' && session.active) ||
-      (filters.status === 'inactive' && !session.active))
-  );
+  return managedSessions;
 }
 
 function buildManagedSessionList(sessions) {
@@ -605,21 +651,46 @@ function initialiseSessionManagementEvents() {
   filterForm.addEventListener('submit', event => {
     event.preventDefault();
     sessionManagementState.filters = {
+      historyScope: document.getElementById(
+        'session-filter-history-scope'
+      ).value,
       search: document.getElementById('session-filter-search').value,
       fromDate: document.getElementById('session-filter-from').value,
       toDate: document.getElementById('session-filter-to').value,
       sessionType: document.getElementById('session-filter-type').value,
       status: document.getElementById('session-filter-status').value
     };
-    renderSessionManagementWorkspace();
+    if (
+      sessionManagementState.filters.historyScope === 'custom' &&
+      !sessionManagementState.filters.fromDate &&
+      !sessionManagementState.filters.toDate
+    ) {
+      sessionManagementState.filters.fromDate =
+        sessionManagementSchoolYear.fromDateValue || '';
+      sessionManagementState.filters.toDate =
+        sessionManagementSchoolYear.toDateValue || '';
+    }
+    loadSessionManagementData();
   });
   document.getElementById('clear-session-filters')
     .addEventListener('click', () => {
       sessionManagementState.filters = {
-        search: '', fromDate: '', toDate: '', sessionType: '', status: ''
+        historyScope: 'currentSchoolYear', search: '', fromDate: '',
+        toDate: '', sessionType: '', status: ''
       };
-      renderSessionManagementWorkspace();
+      loadSessionManagementData();
     });
+  document.getElementById('session-load-more')?.addEventListener(
+    'click',
+    () => {
+      if (sessionManagementLoadingMore || !sessionManagementPage.hasMore) {
+        return;
+      }
+      sessionManagementLoadingMore = true;
+      renderSessionManagementWorkspace();
+      loadSessionManagementData(true);
+    }
+  );
 
   document.querySelectorAll('[data-session-view]').forEach(button => {
     button.addEventListener('click', event => {
@@ -1041,6 +1112,7 @@ function focusManagementDetailIfNeeded() {
 }
 
 function renderSessionManagementError() {
+  sessionManagementLoadingMore = false;
   const content = document.getElementById('content');
   content.className = '';
   content.innerHTML = `
@@ -1057,5 +1129,5 @@ function renderSessionManagementError() {
     })}
   `;
   document.getElementById('retry-sessions')
-    .addEventListener('click', loadSessionManagementData);
+    .addEventListener('click', () => loadSessionManagementData());
 }

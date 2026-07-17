@@ -62,6 +62,19 @@
         'common.close': 'Close',
         'common.cancel': 'Cancel',
         'common.confirm': 'Confirm',
+        'history.recent': 'Recent history',
+        'history.archive': 'Archive',
+        'history.showOlderActivities': 'Show older activities',
+        'history.loadMore': 'Load more',
+        'history.noOlderActivities': 'No older activities',
+        'history.currentSchoolYear': 'Current school year',
+        'history.customDateRange': 'Custom date range',
+        'history.olderRecords': 'Older records',
+        'history.showingMostRecent':
+          'Showing the most recent {count} records',
+        'history.scope': 'History period',
+        'history.loadingOlder': 'Loading older activities…',
+        'history.loadOlderFailed': 'Older activities could not be loaded.',
         'management.back': 'Back',
         'management.create': 'Create',
         'management.edit': 'Edit',
@@ -777,6 +790,18 @@
         'common.close': '閉じる',
         'common.cancel': 'キャンセル',
         'common.confirm': '確認',
+        'history.recent': '最近の履歴',
+        'history.archive': 'アーカイブ',
+        'history.showOlderActivities': '以前の活動を表示',
+        'history.loadMore': 'さらに読み込む',
+        'history.noOlderActivities': 'これより前の活動はありません',
+        'history.currentSchoolYear': '現在の学校年度',
+        'history.customDateRange': '期間を指定',
+        'history.olderRecords': '過去の記録',
+        'history.showingMostRecent': '最近の{count}件を表示しています',
+        'history.scope': '履歴の期間',
+        'history.loadingOlder': '以前の活動を読み込んでいます…',
+        'history.loadOlderFailed': '以前の活動を読み込めませんでした。',
         'management.back': '戻る',
         'management.create': '新規作成',
         'management.edit': '編集',
@@ -1501,6 +1526,16 @@
       const key = groupKeys[value];
 
       return key ? t(key) : String(value || '');
+    }
+
+    function buildHistoryScopeOptions(selectedScope) {
+      return [
+        ['currentSchoolYear', 'history.currentSchoolYear'],
+        ['archive', 'history.archive'],
+        ['custom', 'history.customDateRange']
+      ].map(([value, key]) => `<option value="${value}" ${
+        value === selectedScope ? 'selected' : ''
+      }>${t(key)}</option>`).join('');
     }
 
     function initialiseLanguageSelector() {

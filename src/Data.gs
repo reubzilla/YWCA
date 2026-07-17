@@ -21,7 +21,7 @@ function getUpcomingSessions_(weeksAhead) {
       );
 
       return dateValue &&
-        classification !== SESSION_DATE_CLASSIFICATIONS_.PAST &&
+        classification === SESSION_DATE_CLASSIFICATIONS_.UPCOMING &&
         dateValue <= finalDateValue;
     })
     .sort((a, b) =>
@@ -39,17 +39,53 @@ function getUpcomingSessions_(weeksAhead) {
  * returned separately and is always read-only in the browser.
  *
  * @param {number} weeksAhead
+ * @param {Object=} historyOptions
  * @return {Object}
  */
-function getAvailabilitySessions_(weeksAhead) {
+function getAvailabilitySessions_(weeksAhead, historyOptions) {
   const timeZone = getTimeZone_();
   const todayDateValue = getTodayDateValue_();
+  const options = historyOptions && typeof historyOptions === 'object'
+    ? historyOptions
+    : {};
+  const includeHistory = options.includeHistory !== false;
+  const includeOlder = options.includeOlder === true;
+  const historyOffset = normalizeHistoryOffset_(options.historyOffset);
+  const recentHistoryStart = addDaysToDateValue_(
+    todayDateValue,
+    -CONFIG.STUDENT_HISTORY_DAYS
+  );
   const finalDateValue = addDaysToDateValue_(
     todayDateValue,
     weeksAhead * 7
   );
   const mapped = getActiveSessionRows_()
     .map(row => mapSessionForClient_(row, timeZone));
+  const allHistory = mapped
+    .filter(session =>
+      session.dateClassification ===
+        SESSION_DATE_CLASSIFICATIONS_.PAST
+    )
+    .sort((a, b) =>
+      b.dateValue.localeCompare(a.dateValue) ||
+      a.sessionId.localeCompare(b.sessionId)
+    );
+  const historySource = !includeHistory
+    ? []
+    : includeOlder
+      ? allHistory
+      : allHistory.filter(session =>
+          session.dateValue >= recentHistoryStart
+        );
+  const historyPage = buildHistoryPage_(
+    historySource,
+    historyOffset,
+    CONFIG.STUDENT_HISTORY_PAGE_SIZE
+  );
+  const hasOlderOutsideRecentWindow = includeHistory && !includeOlder &&
+    allHistory.some(session =>
+      session.dateValue < recentHistoryStart
+    );
 
   return {
     sessions: mapped
@@ -61,14 +97,17 @@ function getAvailabilitySessions_(weeksAhead) {
       .sort((a, b) =>
         a.dateValue.localeCompare(b.dateValue)
       ),
-    history: mapped
-      .filter(session =>
-        session.dateClassification ===
-          SESSION_DATE_CLASSIFICATIONS_.PAST
-      )
-      .sort((a, b) =>
-        b.dateValue.localeCompare(a.dateValue)
-      )
+    history: historyPage.items,
+    historyPage: {
+      offset: historyPage.offset,
+      nextOffset: historyPage.nextOffset,
+      hasMore: historyPage.hasMore || hasOlderOutsideRecentWindow,
+      total: includeHistory
+        ? includeOlder ? historyPage.total : allHistory.length
+        : 0,
+      includesOlder: includeOlder,
+      recentDays: CONFIG.STUDENT_HISTORY_DAYS
+    }
   };
 }
 

@@ -26,12 +26,14 @@ function getPortalData() {
  * Returns editable current/future sessions and read-only history with
  * the current member's existing availability responses.
  *
+ * @param {Object=} options
  * @return {Object}
  */
-function getAvailabilityPageData() {
+function getAvailabilityPageData(options) {
   const member = getCurrentMember_();
   const sessionGroups = getAvailabilitySessions_(
-    CONFIG.UPCOMING_WEEKS
+    CONFIG.UPCOMING_WEEKS,
+    options
   );
 
   const memberId = String(
@@ -45,6 +47,11 @@ function getAvailabilityPageData() {
   const responseRows = getSheetObjects_(
     CONFIG.SHEETS.AVAILABILITY
   );
+  const returnedSessionIds = new Set(
+    sessionGroups.sessions
+      .concat(sessionGroups.history)
+      .map(session => session.sessionId)
+  );
 
   const responsesBySession = {};
 
@@ -57,7 +64,7 @@ function getAvailabilityPageData() {
       row['Session ID'] || ''
     ).trim();
 
-    if (!sessionId) {
+    if (!sessionId || !returnedSessionIds.has(sessionId)) {
       return;
     }
 
@@ -89,6 +96,7 @@ function getAvailabilityPageData() {
   return {
     sessions: sessionGroups.sessions.map(attachAvailability),
     history: sessionGroups.history.map(attachAvailability),
+    historyPage: sessionGroups.historyPage,
     todayDateValue: getTodayDateValue_()
   };
 }

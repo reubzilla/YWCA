@@ -3,6 +3,11 @@ let availabilityHistorySessions = [];
 let availabilityTodayDateValue = '';
 let availabilityRequestToken = 0;
 let availabilitySaveInProgress = false;
+let availabilityHistoryLoading = false;
+let availabilityHistoryPage = {
+  nextOffset: 0, hasMore: false, includesOlder: false
+};
+let availabilityHistoryErrorKey = '';
 let availabilityNoticeKey = '';
 const availabilityDrafts = {};
 let availabilityState = {
@@ -14,6 +19,11 @@ let availabilityState = {
 };
 
 function renderAvailability() {
+  availabilityHistoryLoading = false;
+  availabilityHistoryErrorKey = '';
+  availabilityHistoryPage = {
+    nextOffset: 0, hasMore: false, includesOlder: false
+  };
   const content = document.getElementById('content');
   content.className = '';
   content.innerHTML = `${buildPageHeader({
@@ -41,6 +51,7 @@ function renderAvailabilityData(data) {
     getTokyoTodayDateValue();
   const returnedSessions = data.sessions || [];
   const returnedHistory = data.history || [];
+  availabilityHistoryPage = data.historyPage || availabilityHistoryPage;
   availabilitySessions = returnedSessions.filter(
     isEditableAvailabilitySession
   ).slice().sort(
@@ -269,6 +280,10 @@ function initialiseAvailabilityEvents() {
   document.getElementById('availability-editor-form')?.addEventListener('submit', event => {
     event.preventDefault(); submitAvailability(availabilityState.selectedId);
   });
+  document.getElementById('availability-load-older')?.addEventListener(
+    'click',
+    loadOlderAvailabilityHistory
+  );
 }
 
 function openAvailabilityEditor(sessionId) {
@@ -451,14 +466,82 @@ function buildAvailabilityHistory() {
   return `<section class="personal-section availability-history" aria-labelledby="availability-history-title">
     <div class="personal-section-heading">
       <h2 id="availability-history-title">${t('availability.history.label')}</h2>
-      ${buildStatusBadge(t('availability.history.title'), 'neutral')}
+      ${buildStatusBadge(t('history.recent'), 'neutral')}
     </div>
+    ${availabilityHistorySessions.length ? `<p class="record-row-meta">${escapeHtml(t(
+      'history.showingMostRecent',
+      {count: availabilityHistorySessions.length}
+    ))}</p>` : ''}
     ${availabilityHistorySessions.length
       ? `<div class="personal-card-list history">${availabilityHistorySessions.map(
           buildAvailabilityHistoryCard
         ).join('')}</div>`
       : buildEmptyState({message: t('availability.history.empty')})}
+    ${availabilityHistoryErrorKey ? `<p class="error" role="alert">${escapeHtml(t(
+      availabilityHistoryErrorKey
+    ))}</p>` : ''}
+    ${availabilityHistoryPage.hasMore
+      ? `<button type="button" class="secondary-button" id="availability-load-older" ${
+          availabilityHistoryLoading ? 'disabled' : ''
+        }>${t(availabilityHistoryLoading
+          ? 'history.loadingOlder'
+          : availabilityHistoryPage.includesOlder
+            ? 'history.loadMore'
+            : 'history.showOlderActivities')}</button>`
+      : availabilityHistoryPage.includesOlder
+        ? `<p class="record-row-meta">${t('history.noOlderActivities')}</p>`
+        : ''}
   </section>`;
+}
+
+function loadOlderAvailabilityHistory() {
+  if (availabilityHistoryLoading || !availabilityHistoryPage.hasMore) {
+    return;
+  }
+
+  availabilityHistoryLoading = true;
+  availabilityHistoryErrorKey = '';
+  renderAvailabilityWorkspace();
+  const requestToken = availabilityRequestToken;
+
+  google.script.run
+    .withSuccessHandler(data => {
+      if (
+        requestToken !== availabilityRequestToken ||
+        currentRouteId !== 'availability'
+      ) {
+        return;
+      }
+
+      const existingIds = new Set(
+        availabilityHistorySessions.map(session => session.sessionId)
+      );
+      (data.history || []).forEach(session => {
+        if (!existingIds.has(session.sessionId)) {
+          availabilityHistorySessions.push(session);
+        }
+      });
+      availabilityHistorySessions.sort((a, b) =>
+        String(b.dateValue || '').localeCompare(String(a.dateValue || '')) ||
+        String(a.sessionId || '').localeCompare(String(b.sessionId || ''))
+      );
+      availabilityHistoryPage = data.historyPage || {
+        nextOffset: availabilityHistorySessions.length,
+        hasMore: false,
+        includesOlder: true
+      };
+      availabilityHistoryLoading = false;
+      renderAvailabilityWorkspace();
+    })
+    .withFailureHandler(() => {
+      availabilityHistoryLoading = false;
+      availabilityHistoryErrorKey = 'history.loadOlderFailed';
+      renderAvailabilityWorkspace();
+    })
+    .getAvailabilityPageData({
+      includeOlder: true,
+      historyOffset: availabilityHistorySessions.length
+    });
 }
 
 function buildAvailabilityHistoryCard(session) {

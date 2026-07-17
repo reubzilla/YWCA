@@ -5,8 +5,12 @@ let visitorAssignmentStatuses = [];
 let visitorAssignmentSaveInProgress = false;
 let visitorAssignmentActionInProgress = false;
 let visitorScheduleNotice = null;
+let visitorManagementPage = {nextOffset: 0, hasMore: false, total: 0};
+let visitorManagementLoadingMore = false;
+let visitorManagementSchoolYear = {fromDateValue: '', toDateValue: ''};
 let visitorManagementState = {
   filters: {
+    historyScope: 'currentSchoolYear',
     sessionId: '', fromDate: '', toDate: '', activity: '',
     location: '', status: '', conflictsOnly: false, activeOnly: false
   },
@@ -23,26 +27,52 @@ function renderVisitorScheduleManagement() {
   loadVisitorScheduleManagementData();
 }
 
-function loadVisitorScheduleManagementData() {
+function loadVisitorScheduleManagementData(append = false) {
+  const f = visitorManagementState.filters;
   google.script.run
-    .withSuccessHandler(renderVisitorScheduleManagementData)
+    .withSuccessHandler(data =>
+      renderVisitorScheduleManagementData(data, append)
+    )
     .withFailureHandler(renderVisitorScheduleManagementError)
-    .getVisitorScheduleManagementData();
+    .getVisitorScheduleManagementData({
+      historyScope: f.historyScope,
+      fromDateValue: f.fromDate,
+      toDateValue: f.toDate,
+      sessionId: f.sessionId,
+      activity: f.activity,
+      location: f.location,
+      status: f.status,
+      conflictsOnly: f.conflictsOnly,
+      activeOnly: f.activeOnly,
+      offset: append ? visitorManagementPage.nextOffset : 0
+    });
 }
 
-function renderVisitorScheduleManagementData(data) {
+function renderVisitorScheduleManagementData(data, append = false) {
   visitorScheduleSessions = data.sessions || [];
   visitorScheduleMembers = data.members || [];
-  visitorScheduleAssignments = data.assignments || [];
+  const returnedAssignments = data.assignments || [];
+  visitorScheduleAssignments = append
+    ? visitorScheduleAssignments.concat(returnedAssignments.filter(item =>
+        !visitorScheduleAssignments.some(existing =>
+          visitorAssignmentKey(existing) === visitorAssignmentKey(item)
+        )
+      ))
+    : returnedAssignments;
   visitorAssignmentStatuses = data.assignmentStatuses || [];
+  visitorManagementPage = data.page || {
+    nextOffset: visitorScheduleAssignments.length,
+    hasMore: false,
+    total: visitorScheduleAssignments.length
+  };
+  visitorManagementSchoolYear = data.historyQuery?.schoolYear ||
+    visitorManagementSchoolYear;
+  visitorManagementLoadingMore = false;
   if (visitorManagementState.selectedKey &&
       !findVisitorAssignmentByKey(visitorManagementState.selectedKey)) {
     visitorManagementState.selectedKey = '';
     visitorManagementState.mode = 'list';
     visitorManagementState.focused = false;
-  }
-  if (!visitorManagementState.filters.sessionId && visitorScheduleSessions.length) {
-    visitorManagementState.filters.sessionId = visitorScheduleSessions[0].sessionId;
   }
   renderVisitorManagementWorkspace();
 }
@@ -70,7 +100,16 @@ function renderVisitorManagementWorkspace() {
       listHtml: `<div class="management-pane-heading">
           <h2 id="visitor-assignment-list-title">${t('visitors.listTitle')}</h2>
           ${buildStatusBadge(String(filtered.length), 'neutral')}
-        </div><div id="visitor-assignment-list">${buildVisitorAssignmentList(filtered)}</div>`,
+        </div><div id="visitor-assignment-list">${buildVisitorAssignmentList(filtered)}</div>
+        ${visitorManagementPage.hasMore
+          ? `<button type="button" class="secondary-button" id="visitor-load-more" ${
+              visitorManagementLoadingMore ? 'disabled' : ''
+            }>${t(visitorManagementLoadingMore
+              ? 'history.loadingOlder'
+              : 'history.loadMore')}</button>`
+          : visitorManagementPage.offset > 0
+            ? `<p class="record-row-meta">${t('history.noOlderActivities')}</p>`
+            : ''}`,
       detailHtml: buildVisitorDetailPane()
     })}`;
   visitorScheduleNotice = null;
@@ -83,10 +122,13 @@ function buildVisitorFilters() {
   const f = visitorManagementState.filters;
   return `<details class="management-filter-disclosure" open>
     <summary>${t('management.filters')} ${buildStatusBadge(
-      String(Object.values(f).filter(Boolean).length), 'neutral')}</summary>
+      String(countVisitorActiveFilters()), 'neutral')}</summary>
     <form id="visitor-filter-form">${buildFilterBar({
       label: t('visitors.filter.label'),
       fieldsHtml: `
+        <label class="form-field"><span class="form-label">${t('history.scope')}</span>
+          <select class="management-input" id="visitor-filter-history-scope">
+            ${buildHistoryScopeOptions(f.historyScope)}</select></label>
         <label class="form-field"><span class="form-label">${t('visitors.filter.session')}</span>
           <select class="management-input" id="visitor-filter-session">
             <option value="">${t('visitors.filter.allSessions')}</option>
@@ -112,12 +154,33 @@ function buildVisitorFilters() {
     })}</form></details>`;
 }
 
+function countVisitorActiveFilters() {
+  const f = visitorManagementState.filters;
+  return [
+    f.sessionId,
+    f.activity,
+    f.location,
+    f.status,
+    f.conflictsOnly,
+    f.activeOnly,
+    f.historyScope === 'custom' && f.fromDate,
+    f.historyScope === 'custom' && f.toDate
+  ].filter(Boolean).length;
+}
+
 function buildVisitorFilterChips() {
   const f = visitorManagementState.filters;
   const chips = [];
   const session = visitorScheduleSessions.find(item => item.sessionId === f.sessionId);
   if (session) chips.push(`${formatDateOnly(session.dateValue)} · ${session.title}`);
-  if (f.fromDate || f.toDate) chips.push(t('management.dateRange', {
+  chips.push(t(
+    f.historyScope === 'archive'
+      ? 'history.archive'
+      : f.historyScope === 'custom'
+        ? 'history.customDateRange'
+        : 'history.currentSchoolYear'
+  ));
+  if (f.historyScope === 'custom' && (f.fromDate || f.toDate)) chips.push(t('management.dateRange', {
     from: f.fromDate ? formatDateOnly(f.fromDate) : t('management.any'),
     to: f.toDate ? formatDateOnly(f.toDate) : t('management.any')
   }));
@@ -144,18 +207,7 @@ function buildVisitorSessionSummary() {
 }
 
 function getFilteredVisitorAssignments() {
-  const f = visitorManagementState.filters;
-  const activity = f.activity.trim().toLowerCase();
-  const location = f.location.trim().toLowerCase();
-  return visitorScheduleAssignments.filter(item =>
-    (!f.sessionId || item.sessionId === f.sessionId) &&
-    (!f.fromDate || item.dateValue >= f.fromDate) &&
-    (!f.toDate || item.dateValue <= f.toDate) &&
-    (!activity || String(item.activity || '').toLowerCase().includes(activity)) &&
-    (!location || String(item.location || '').toLowerCase().includes(location)) &&
-    (!f.status || item.assignmentStatus === f.status) &&
-    (!f.conflictsOnly || item.availability === 'Unavailable') &&
-    (!f.activeOnly || isActiveVisitorAssignment(item)));
+  return visitorScheduleAssignments;
 }
 
 function buildVisitorAssignmentList(assignments) {
@@ -310,11 +362,17 @@ function initialiseVisitorManagementEvents() {
     }
   });
   document.getElementById('visitor-filter-form')?.addEventListener('submit', event => {
-    event.preventDefault(); captureVisitorFilters(); renderVisitorManagementWorkspace();
+    event.preventDefault(); captureVisitorFilters(); loadVisitorScheduleManagementData();
   });
   document.getElementById('clear-visitor-filters')?.addEventListener('click', () => {
-    visitorManagementState.filters = {sessionId: '', fromDate: '', toDate: '', activity: '', location: '', status: '', conflictsOnly: false, activeOnly: false};
+    visitorManagementState.filters = {historyScope: 'currentSchoolYear', sessionId: '', fromDate: '', toDate: '', activity: '', location: '', status: '', conflictsOnly: false, activeOnly: false};
+    loadVisitorScheduleManagementData();
+  });
+  document.getElementById('visitor-load-more')?.addEventListener('click', () => {
+    if (visitorManagementLoadingMore || !visitorManagementPage.hasMore) return;
+    visitorManagementLoadingMore = true;
     renderVisitorManagementWorkspace();
+    loadVisitorScheduleManagementData(true);
   });
   document.querySelectorAll('[data-visitor-view]').forEach(button => button.addEventListener('click', event => {
     const openDetail = () => {
@@ -349,6 +407,9 @@ function initialiseVisitorManagementEvents() {
 
 function captureVisitorFilters() {
   visitorManagementState.filters = {
+    historyScope: document.getElementById(
+      'visitor-filter-history-scope'
+    ).value,
     sessionId: document.getElementById('visitor-filter-session').value,
     fromDate: document.getElementById('visitor-filter-from').value,
     toDate: document.getElementById('visitor-filter-to').value,
@@ -358,6 +419,16 @@ function captureVisitorFilters() {
     conflictsOnly: document.getElementById('visitor-filter-conflicts').checked,
     activeOnly: document.getElementById('visitor-filter-active').checked
   };
+  if (
+    visitorManagementState.filters.historyScope === 'custom' &&
+    !visitorManagementState.filters.fromDate &&
+    !visitorManagementState.filters.toDate
+  ) {
+    visitorManagementState.filters.fromDate =
+      visitorManagementSchoolYear.fromDateValue || '';
+    visitorManagementState.filters.toDate =
+      visitorManagementSchoolYear.toDateValue || '';
+  }
 }
 
 function captureVisitorDraft() {
@@ -603,6 +674,7 @@ function focusVisitorDetailIfNeeded() {
 }
 
 function renderVisitorScheduleManagementError() {
+  visitorManagementLoadingMore = false;
   clearManagementNavigationGuard();
   const content = document.getElementById('content'); content.className = '';
   content.innerHTML = `${buildPageHeader({title: t('visitors.title')})}${buildErrorState({message: t('visitors.error.loadFailed')})}`;

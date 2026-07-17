@@ -11,12 +11,17 @@ const SESSION_MANAGEMENT_HEADERS_ = Object.freeze([
 ]);
 
 /**
- * Returns all sessions for the Teacher management view.
+ * Returns one server-filtered page for the Teacher management view.
  *
+ * @param {Object=} filters
  * @return {Object}
  */
-function getSessionManagementData() {
+function getSessionManagementData(filters) {
   requireSessionTeacherAccess_();
+  const input = filters && typeof filters === 'object'
+    ? filters
+    : {};
+  const query = resolveManagementHistoryQuery_(input);
 
   const timeZone = getTimeZone_();
   const todayDateValue = formatDateOnly_(
@@ -25,12 +30,25 @@ function getSessionManagementData() {
   );
   getSessionManagementSheet_();
 
+  const search = String(input.search || '').trim().toLowerCase();
+  const sessionType = String(input.sessionType || '').trim();
+  const status = String(input.status || '').trim();
   const sessions = getSheetObjects_(
     CONFIG.SHEETS.SESSIONS
   )
+    .filter(row =>
+      isDateInHistoryQuery_(getDateOnlyValue_(row.Date), query)
+    )
     .map(row => mapManagedSessionForClient_(
       row,
       timeZone
+    ))
+    .filter(session => Boolean(
+      (!search || session.title.toLowerCase().includes(search)) &&
+      (!sessionType || session.sessionType === sessionType) &&
+      (!status ||
+        (status === 'active' && session.active) ||
+        (status === 'inactive' && !session.active))
     ))
     .sort((a, b) =>
       compareManagedSessions_(
@@ -39,10 +57,27 @@ function getSessionManagementData() {
         todayDateValue
       )
     );
+  const page = buildHistoryPage_(
+    sessions,
+    query.offset,
+    query.limit
+  );
 
   return {
-    sessions: sessions,
-    sessionTypes: getSessionManagementTypes_()
+    sessions: page.items,
+    sessionTypes: getSessionManagementTypes_(),
+    historyQuery: {
+      historyScope: query.historyScope,
+      fromDateValue: query.fromDateValue,
+      toDateValue: query.toDateValue,
+      schoolYear: query.schoolYear
+    },
+    page: {
+      offset: page.offset,
+      nextOffset: page.nextOffset,
+      hasMore: page.hasMore,
+      total: page.total
+    }
   };
 }
 
