@@ -5,6 +5,7 @@ let attendanceReturnFocusMemberId = '';
 let attendancePendingAnnouncement = '';
 let attendanceHistoryRequestToken = 0;
 let attendanceHistorySessionRequestToken = 0;
+const attendanceCollapsedGrades = new Set();
 let attendanceHistoryState = {
   historyScope: 'currentSchoolYear',
   fromDateValue: '',
@@ -25,6 +26,8 @@ function buildTeacherAttendanceWorkspace(data, options) {
   const settings = options || {};
   const summary = data.summary || {};
   const members = data.members || [];
+  const gradeGroups = buildAttendanceGradeGroups(members);
+  const rosterContext = settings.history === true ? 'history' : 'today';
   const canBulk = settings.history !== true && data.editable !== false;
   const expectedNotRecorded = members.filter(member =>
     member.availability !== 'Unavailable' && !member.attendance
@@ -103,9 +106,14 @@ function buildTeacherAttendanceWorkspace(data, options) {
 
       ${members.length > 0
         ? `
-          <div class="attendance-roster" role="list">
-            ${members.map(member =>
-              buildAttendanceRosterRow(member, data.editable !== false)
+          <div class="attendance-grade-list">
+            ${gradeGroups.map(group =>
+              buildAttendanceGradeSection(
+                group,
+                data.session.sessionId,
+                rosterContext,
+                data.editable !== false
+              )
             ).join('')}
           </div>
         `
@@ -117,12 +125,198 @@ function buildTeacherAttendanceWorkspace(data, options) {
 }
 
 
+function buildAttendanceGradeGroups(members) {
+  const groupedMembers = new Map(
+    [6, 5, 4, 3, 2, 1].map(grade => [grade, []])
+  );
+
+  (members || []).forEach((member, originalIndex) => {
+    const grade = getAttendanceGradeNumber(member.grade);
+
+    if (groupedMembers.has(grade)) {
+      groupedMembers.get(grade).push({ member, originalIndex });
+    }
+  });
+
+  return [6, 5, 4, 3, 2, 1]
+    .map(grade => {
+      const entries = groupedMembers.get(grade);
+
+      entries.sort((a, b) =>
+        String(a.member.name || '').localeCompare(
+          String(b.member.name || ''),
+          'ja'
+        ) || String(a.member.memberId || '').localeCompare(
+          String(b.member.memberId || '')
+        ) || a.originalIndex - b.originalIndex
+      );
+
+      const gradeMembers = entries.map(entry => entry.member);
+
+      return {
+        grade: grade,
+        members: gradeMembers,
+        summary: buildAttendanceGradeSummary(gradeMembers)
+      };
+    })
+    .filter(group => group.members.length > 0);
+}
+
+
+function getAttendanceGradeNumber(value) {
+  const match = String(value || '').trim().match(
+    /^(?:Grade\s*)?([1-6])(?:\s*年(?:生)?)?$/i
+  );
+
+  return match ? Number(match[1]) : 0;
+}
+
+
+function buildAttendanceGradeSummary(members) {
+  const summary = {
+    present: 0,
+    late: 0,
+    absent: 0,
+    excused: 0,
+    notRecorded: 0
+  };
+  const keys = {
+    Present: 'present',
+    Late: 'late',
+    Absent: 'absent',
+    Excused: 'excused'
+  };
+
+  members.forEach(member => {
+    const summaryKey = member.attendance
+      ? keys[member.attendance.status]
+      : 'notRecorded';
+
+    if (summaryKey) {
+      summary[summaryKey] += 1;
+    }
+  });
+
+  return summary;
+}
+
+
+function buildAttendanceGradeSection(
+  group,
+  sessionId,
+  context,
+  editable
+) {
+  const gradeLabel = t('attendance.grade.name', {
+    grade: group.grade
+  });
+  const stateKey = getAttendanceGradeStateKey(
+    context,
+    sessionId,
+    group.grade
+  );
+  const collapsed = attendanceCollapsedGrades.has(stateKey);
+  const panelId = `attendance-grade-${context}-${sessionId}-${group.grade}`;
+  const summary = group.summary;
+
+  return `
+    <section
+      class="attendance-grade-section${collapsed ? ' is-collapsed' : ''}"
+      data-attendance-grade-section
+      data-attendance-grade-state-key="${escapeHtml(stateKey)}"
+    >
+      <div class="attendance-grade-header">
+        <div class="attendance-grade-heading">
+          <h3>${escapeHtml(gradeLabel)}</h3>
+          <span>${escapeHtml(t('attendance.grade.memberCount', {
+            count: group.members.length
+          }))}</span>
+        </div>
+
+        <div
+          class="attendance-grade-summary"
+          aria-label="${escapeHtml(t('attendance.grade.summaryLabel', {
+            grade: gradeLabel
+          }))}"
+        >
+          ${buildAttendanceGradeSummaryItem(
+            summary.present,
+            'attendance.status.present',
+            'success'
+          )}
+          ${buildAttendanceGradeSummaryItem(
+            summary.late,
+            'attendance.status.late',
+            'warning'
+          )}
+          ${buildAttendanceGradeSummaryItem(
+            summary.absent,
+            'attendance.status.absent',
+            'danger'
+          )}
+          ${buildAttendanceGradeSummaryItem(
+            summary.excused,
+            'attendance.status.excused',
+            'neutral'
+          )}
+          ${buildAttendanceGradeSummaryItem(
+            summary.notRecorded,
+            'attendance.status.notRecorded',
+            summary.notRecorded > 0 ? 'warning' : 'neutral'
+          )}
+        </div>
+
+        <button
+          type="button"
+          class="attendance-grade-toggle icon-button"
+          data-attendance-grade-toggle
+          aria-expanded="${String(!collapsed)}"
+          aria-controls="${escapeHtml(panelId)}"
+          aria-label="${escapeHtml(t(
+            collapsed
+              ? 'attendance.grade.expand'
+              : 'attendance.grade.collapse',
+            { grade: gradeLabel }
+          ))}"
+        >
+          <span aria-hidden="true">⌄</span>
+        </button>
+      </div>
+
+      <div class="attendance-grade-members" id="${escapeHtml(panelId)}">
+        <div class="attendance-roster" role="list">
+          ${group.members.map(member =>
+            buildAttendanceRosterRow(member, editable)
+          ).join('')}
+        </div>
+      </div>
+    </section>
+  `;
+}
+
+
+function buildAttendanceGradeSummaryItem(value, labelKey, tone) {
+  return `
+    <span class="attendance-grade-summary-item attendance-grade-${escapeHtml(
+      tone
+    )}">
+      <strong>${escapeHtml(value)}</strong>
+      ${escapeHtml(t(labelKey))}
+    </span>
+  `;
+}
+
+
+function getAttendanceGradeStateKey(context, sessionId, grade) {
+  return `${context}:${sessionId}:${grade}`;
+}
+
+
 function buildAttendanceRosterRow(member, editable) {
   const attendance = member.attendance || null;
   const status = attendance ? attendance.status : '';
   const visitor = member.volunteer || null;
   const meta = [
-    member.grade,
     getDashboardAvailabilityLabel(member.availability)
   ].filter(Boolean);
 
@@ -211,6 +405,41 @@ function initialiseTeacherAttendanceEvents(data, context) {
         if (member) {
           openAttendanceEditor(member, button);
         }
+      });
+    }
+  );
+
+  document.querySelectorAll('[data-attendance-grade-toggle]').forEach(
+    button => {
+      button.addEventListener('click', () => {
+        const section = button.closest(
+          '[data-attendance-grade-section]'
+        );
+
+        if (!section) return;
+
+        const stateKey = section.dataset.attendanceGradeStateKey;
+        const collapsed = section.classList.toggle('is-collapsed');
+        const gradeLabel = section.querySelector(
+          '.attendance-grade-heading h3'
+        )?.textContent || '';
+
+        if (collapsed) {
+          attendanceCollapsedGrades.add(stateKey);
+        } else {
+          attendanceCollapsedGrades.delete(stateKey);
+        }
+
+        button.setAttribute('aria-expanded', String(!collapsed));
+        button.setAttribute(
+          'aria-label',
+          t(
+            collapsed
+              ? 'attendance.grade.expand'
+              : 'attendance.grade.collapse',
+            { grade: gradeLabel }
+          )
+        );
       });
     }
   );

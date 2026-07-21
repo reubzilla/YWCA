@@ -116,6 +116,68 @@
   border-top: 1px solid var(--color-border);
 }
 
+.attendance-grade-list {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.attendance-grade-section {
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-container);
+}
+
+.attendance-grade-header {
+  display: grid;
+  grid-template-columns: minmax(9rem, auto) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-page-background);
+}
+
+.attendance-grade-heading h3,
+.attendance-grade-heading span {
+  margin: 0;
+}
+
+.attendance-grade-heading h3 {
+  font-size: var(--font-body);
+}
+
+.attendance-grade-heading span {
+  color: var(--color-text-muted);
+  font-size: var(--font-supporting);
+}
+
+.attendance-grade-summary {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2) var(--space-3);
+}
+
+.attendance-grade-summary-item {
+  display: inline-flex;
+  gap: var(--space-1);
+  align-items: baseline;
+  color: var(--color-text-muted);
+  font-size: var(--font-supporting);
+  white-space: nowrap;
+}
+
+.attendance-grade-summary-item strong {
+  color: var(--color-text);
+}
+
+.attendance-grade-toggle {
+  display: none;
+}
+
+.attendance-grade-members {
+  padding: 0 var(--space-4);
+}
+
 .attendance-roster-row {
   display: grid;
   grid-template-columns: minmax(14rem, 1fr) minmax(10rem, auto) auto;
@@ -223,6 +285,44 @@
 
   .attendance-summary-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .attendance-grade-list {
+    gap: var(--space-4);
+  }
+
+  .attendance-grade-header {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--space-2) var(--space-3);
+  }
+
+  .attendance-grade-summary {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+
+  .attendance-grade-toggle {
+    display: inline-flex;
+    grid-column: 2;
+    grid-row: 1;
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .attendance-grade-toggle span {
+    transition: transform 160ms ease;
+  }
+
+  .attendance-grade-section.is-collapsed .attendance-grade-toggle span {
+    transform: rotate(-90deg);
+  }
+
+  .attendance-grade-section.is-collapsed .attendance-grade-members {
+    display: none;
+  }
+
+  .attendance-grade-members {
+    padding: 0 var(--space-3);
   }
 
   .attendance-roster-row {
