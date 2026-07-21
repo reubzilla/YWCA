@@ -40,6 +40,7 @@ This document describes the code currently in the repository. Sections explicitl
     ├── App.html         Shared state, startup, navigation, and routing
     ├── Notifications.gs Date, time, and Boolean utilities
     ├── Portal.gs        Availability read/write API
+    ├── AvailabilityAggregation.gs Shared response selection and timing metadata
     ├── Sessions.gs      Same-day cross-sheet aggregation and summaries
     ├── FutureAvailability.gs Permission-protected future aggregation
     ├── ManageSessions.gs Teacher-only session and event management
@@ -155,7 +156,7 @@ Subsequent views independently request availability or dashboard data. Spreadshe
 3. It obtains active, non-cancelled Today and Upcoming sessions within `CONFIG.UPCOMING_WEEKS`, plus active past sessions in a separate history collection.
 4. It reads availability rows and attaches the current recognised response using `Member ID` or normalized email. Duplicate legacy rows are resolved by latest `Updated At`, then `Submitted At`.
 5. The browser defensively classifies returned date-only values against the current Tokyo date. Only Today and Upcoming sessions enter the editable collection.
-6. The browser sorts No response first, then `Unsure`, then answered editable sessions, while preserving chronological order within each group.
+6. The server sorts Today and future sessions chronologically and history reverse chronologically. The browser reuses the same machine-value ordering when merging pages or updating local response state.
 7. A compact list can be filtered by response need or session type; selecting a session opens one focused editor with radio options and an optional note. Past sessions render separately with the signed-in member's final response and private note but no controls.
 8. On save, the browser sends only `sessionId`, `response`, and `reason` to `saveAvailability()`.
 9. The server derives identity again, validates the input object, session ID, allowed response, and 500-character limit.
@@ -191,7 +192,7 @@ Visitor-schedule management does not replace or duplicate this same-day aggregat
 
 1. The `today-overview` route selects the operational Today renderer for Club Leaders and Teachers. The `student-availability` route uses the same permission-protected Today payload but presents only the response summary and availability groups. The personal `today` route renders the signed-in member's own Today page. The `planning` route independently selects the Upcoming Activities renderer; there are no internal Dashboard tabs.
 2. `getDashboardData()` calls `requireDashboardAccess_()`.
-3. `getTodaySessions_()` returns active, non-cancelled sessions matching today's date, sorted by start time.
+3. `getTodaySessions_()` returns active, non-cancelled sessions matching today's date, sorted by Start Time, Title, and Session ID.
 4. The first session is passed to `buildTodaySessionData_()`.
 5. The browser renders a session selector when multiple sessions exist.
 6. It displays conflicts and missing expected attendance first, followed by action totals, visitor assignments, availability and attendance groups, and a read-only attendance count.
@@ -217,6 +218,12 @@ Upcoming Activities is a separate management Planning route. Today Overview rema
 10. Selecting a session calls `getUpcomingActivityDetail(sessionId)`, which repeats permission and session validation before returning grouped member details. Wide layouts use master-detail; narrower layouts use a focused detail state with an explicit Back action.
 
 The detail payload contains Member ID, name, grade, role, response, private availability Reason, and current visitor-assignment details. It excludes member email and all Attendance data. Availability groups include every matching member regardless of assignment; visitor and conflict groups intentionally overlap the response groups. A conflict uses the same definition as Today: an active visitor assignment combined with `Unavailable`.
+
+## Shared session and assignment ordering
+
+`Notifications.gs` owns the server-side session comparators used by personal sessions, Today, notifications, Upcoming Activities, session management, and visitor-session selectors. Dates are normalized through `getDateOnlyValue_()` in Asia/Tokyo. Future sessions sort by date ascending; history sorts by date descending; same-date ties use Start Time ascending with missing times last, then Title, then Session ID. `BrowserHelpers.html` contains the equivalent machine-value comparator only for Availability arrays that are merged or updated locally.
+
+Volunteer Assignment APIs sort against the linked Session date before pagination. Active Today/future assignments use ascending date and Departure Time; historical assignments use descending date. Missing departure times sort after timed assignments, with linked Session Title, Session ID, member name, and Member ID providing stable ties. Frontend assignment views and dropdowns preserve the server order.
 
 ## Availability response timing
 

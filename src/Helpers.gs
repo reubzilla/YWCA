@@ -46,11 +46,7 @@ function getNotifications_(member) {
         String(session['Session Type'] || '') !==
           CONFIG.SESSION_TYPES.CANCELLED;
     })
-    .sort((a, b) =>
-      getDateOnlyValue_(a.Date).localeCompare(
-        getDateOnlyValue_(b.Date)
-      )
-    );
+    .sort(compareSessionsChronologically_);
 
   const notifications = [];
 

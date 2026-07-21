@@ -247,16 +247,7 @@ function getFutureAvailabilitySessionRows_(filters) {
         )
       );
     })
-    .sort((a, b) =>
-      getDateOnlyValue_(a.Date).localeCompare(
-        getDateOnlyValue_(b.Date)
-      ) ||
-      getTimeSortValue_(a['Start Time']) -
-        getTimeSortValue_(b['Start Time']) ||
-      String(a['Session ID'] || '').localeCompare(
-        String(b['Session ID'] || '')
-      )
-    );
+    .sort(compareSessionsChronologically_);
 }
 
 

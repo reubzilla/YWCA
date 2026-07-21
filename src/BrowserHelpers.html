@@ -102,6 +102,64 @@ function classifyDateOnlyValue(value, todayDateValue) {
     : DATE_CLASSIFICATIONS.PAST;
 }
 
+function getClientSessionTimeSortValue(value) {
+  const match = String(value || '').trim().match(
+    /^(\d{1,2}):(\d{2})/
+  );
+
+  if (!match) return Number.POSITIVE_INFINITY;
+
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+
+  return hours <= 23 && minutes <= 59
+    ? hours * 60 + minutes
+    : Number.POSITIVE_INFINITY;
+}
+
+function compareClientSessionDateValues(a, b, reverse) {
+  const aDate = String(a || '');
+  const bDate = String(b || '');
+
+  if (!aDate && !bDate) return 0;
+  if (!aDate) return 1;
+  if (!bDate) return -1;
+
+  return reverse
+    ? bDate.localeCompare(aDate)
+    : aDate.localeCompare(bDate);
+}
+
+function compareClientSessionTieBreakers(a, b) {
+  const aTime = getClientSessionTimeSortValue(a.startTime);
+  const bTime = getClientSessionTimeSortValue(b.startTime);
+
+  if (aTime !== bTime) return aTime - bTime;
+
+  return String(a.title || '').localeCompare(
+    String(b.title || ''),
+    'ja'
+  ) || String(a.sessionId || '').localeCompare(
+    String(b.sessionId || '')
+  );
+}
+
+function compareClientSessionsChronologically(a, b) {
+  return compareClientSessionDateValues(
+    a.dateValue || a.date,
+    b.dateValue || b.date,
+    false
+  ) || compareClientSessionTieBreakers(a, b);
+}
+
+function compareClientSessionsReverseChronologically(a, b) {
+  return compareClientSessionDateValues(
+    a.dateValue || a.date,
+    b.dateValue || b.date,
+    true
+  ) || compareClientSessionTieBreakers(a, b);
+}
+
 function filterCurrentNotifications(notifications, todayDateValue) {
   const todayValue = todayDateValue || getTokyoTodayDateValue();
 

@@ -19,10 +19,7 @@ function getTodaySessions_() {
         sessionType !== CONFIG.SESSION_TYPES.CANCELLED
       );
     })
-    .sort((a, b) => {
-      return getTimeSortValue_(a['Start Time']) -
-        getTimeSortValue_(b['Start Time']);
-    })
+    .sort(compareSessionsChronologically_)
     .map(row => mapSessionForClient_(row, timeZone));
 }
 
@@ -322,31 +319,4 @@ function isCancelledAssignment_(row) {
     status === 'cancelled' ||
     status === 'declined'
   );
-}
-
-
-/**
- * Produces a sortable number for a spreadsheet time.
- *
- * @param {*} value
- * @return {number}
- */
-function getTimeSortValue_(value) {
-  if (value instanceof Date && !isNaN(value.getTime())) {
-    return (
-      value.getHours() * 60 +
-      value.getMinutes()
-    );
-  }
-
-  const match = String(value || '').match(
-    /^(\d{1,2}):(\d{2})/
-  );
-
-  if (!match) {
-    return 9999;
-  }
-
-  return Number(match[1]) * 60 +
-    Number(match[2]);
 }

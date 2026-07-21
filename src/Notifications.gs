@@ -16,6 +16,145 @@ const SESSION_DATE_CLASSIFICATIONS_ = Object.freeze({
 
 
 /**
+ * Returns a Tokyo calendar-date value from a sheet row or mapped session.
+ *
+ * @param {*} session
+ * @return {string}
+ */
+function getSessionDateSortValue_(session) {
+  if (!session || typeof session !== 'object') {
+    return getDateOnlyValue_(session);
+  }
+
+  return getDateOnlyValue_(
+    session.dateValue || session.Date
+  );
+}
+
+
+/**
+ * Returns sortable minutes for a spreadsheet Date or HH:mm value.
+ * Missing and invalid times sort after timed sessions.
+ *
+ * @param {*} value
+ * @return {number}
+ */
+function getSessionTimeSortValue_(value) {
+  const timeText = value instanceof Date && !isNaN(value.getTime())
+    ? Utilities.formatDate(value, getTimeZone_(), 'HH:mm')
+    : String(value || '').trim();
+  const match = timeText.match(/^(\d{1,2}):(\d{2})/);
+
+  if (!match) return Number.POSITIVE_INFINITY;
+
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+
+  return hours <= 23 && minutes <= 59
+    ? hours * 60 + minutes
+    : Number.POSITIVE_INFINITY;
+}
+
+
+/**
+ * Compares valid date-only values while placing missing dates last.
+ *
+ * @param {string} aDateValue
+ * @param {string} bDateValue
+ * @param {boolean=} reverse
+ * @return {number}
+ */
+function compareSessionDateValues_(
+  aDateValue,
+  bDateValue,
+  reverse
+) {
+  if (!aDateValue && !bDateValue) return 0;
+  if (!aDateValue) return 1;
+  if (!bDateValue) return -1;
+
+  return reverse
+    ? bDateValue.localeCompare(aDateValue)
+    : aDateValue.localeCompare(bDateValue);
+}
+
+
+/**
+ * Applies the shared same-date session tie-breakers.
+ *
+ * @param {Object} a
+ * @param {Object} b
+ * @return {number}
+ */
+function compareSessionTieBreakers_(a, b) {
+  const aTime = getSessionTimeSortValue_(
+    a.startTime || a['Start Time']
+  );
+  const bTime = getSessionTimeSortValue_(
+    b.startTime || b['Start Time']
+  );
+
+  if (aTime !== bTime) return aTime - bTime;
+
+  const titleComparison = String(
+    a.title || a.Title || ''
+  ).localeCompare(
+    String(b.title || b.Title || ''),
+    'ja'
+  );
+
+  return titleComparison || String(
+    a.sessionId || a['Session ID'] || ''
+  ).localeCompare(
+    String(b.sessionId || b['Session ID'] || '')
+  );
+}
+
+
+/**
+ * Sorts sessions by Tokyo date ascending with stable same-date ties.
+ *
+ * @param {Object} a
+ * @param {Object} b
+ * @return {number}
+ */
+function compareSessionsChronologically_(a, b) {
+  return compareSessionDateValues_(
+    getSessionDateSortValue_(a),
+    getSessionDateSortValue_(b),
+    false
+  ) || compareSessionTieBreakers_(a, b);
+}
+
+
+/**
+ * Sorts session dates descending while retaining ascending same-date ties.
+ *
+ * @param {Object} a
+ * @param {Object} b
+ * @return {number}
+ */
+function compareSessionsReverseChronologically_(a, b) {
+  return compareSessionDateValues_(
+    getSessionDateSortValue_(a),
+    getSessionDateSortValue_(b),
+    true
+  ) || compareSessionTieBreakers_(a, b);
+}
+
+
+/**
+ * Compatibility wrapper for existing time-only callers.
+ *
+ * @param {*} value
+ * @return {number}
+ */
+function getTimeSortValue_(value) {
+  return getSessionTimeSortValue_(value);
+}
+
+
+/**
  * Returns a validated calendar-date value in the application time zone.
  * Date-only strings are parsed explicitly and never through UTC defaults.
  *

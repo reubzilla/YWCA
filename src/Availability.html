@@ -67,11 +67,7 @@ function renderAvailabilityData(data) {
         item.sessionId === session.sessionId
       ) === index
     )
-    .sort((a, b) =>
-      String(b.dateValue || '').localeCompare(
-        String(a.dateValue || '')
-      )
-    );
+    .sort(compareClientSessionsReverseChronologically);
   const target = consumePersonalRouteTarget('availability');
   if (target?.sessionId && findAvailabilitySession(target.sessionId)) {
     availabilityState.selectedId = target.sessionId;
@@ -100,14 +96,7 @@ function renderAvailabilityData(data) {
 }
 
 function compareAvailabilitySessions(a, b) {
-  const rank = session => {
-    const response = session.availability?.response || '';
-    if (!response) return 0;
-    if (response === 'Unsure') return 1;
-    return 2;
-  };
-  return rank(a) - rank(b) ||
-    String(a.dateValue || '').localeCompare(String(b.dateValue || ''));
+  return compareClientSessionsChronologically(a, b);
 }
 
 function renderAvailabilityWorkspace() {
@@ -531,9 +520,8 @@ function loadOlderAvailabilityHistory() {
           availabilityHistorySessions.push(session);
         }
       });
-      availabilityHistorySessions.sort((a, b) =>
-        String(b.dateValue || '').localeCompare(String(a.dateValue || '')) ||
-        String(a.sessionId || '').localeCompare(String(b.sessionId || ''))
+      availabilityHistorySessions.sort(
+        compareClientSessionsReverseChronologically
       );
       availabilityHistoryPage = data.historyPage || {
         nextOffset: availabilityHistorySessions.length,

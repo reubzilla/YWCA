@@ -304,22 +304,7 @@ function getVisibleUpcomingActivitySessions() {
     .filter(session =>
       !upcomingActivitiesFilters.needsAttention ||
       getUpcomingActivityAttentionReasons(session).length > 0
-    )
-    .slice()
-    .sort((a, b) => {
-      const aAttention = getUpcomingActivityAttentionReasons(a);
-      const bAttention = getUpcomingActivityAttentionReasons(b);
-
-      return (
-        Number(bAttention.length > 0) -
-          Number(aAttention.length > 0) ||
-        (b.counts.conflicts || 0) -
-          (a.counts.conflicts || 0) ||
-        (b.counts.noResponse || 0) -
-          (a.counts.noResponse || 0) ||
-        String(a.dateValue).localeCompare(String(b.dateValue))
-      );
-    });
+    );
 }
 
 function buildUpcomingActivitiesList() {

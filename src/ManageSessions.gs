@@ -107,18 +107,12 @@ function compareManagedSessions_(a, b, todayDateValue) {
   }
 
   if (aLifecycle === MANAGED_SESSION_LIFECYCLES_.TODAY) {
-    return a.startTime.localeCompare(b.startTime) ||
-      a.sessionId.localeCompare(b.sessionId);
+    return compareSessionsChronologically_(a, b);
   }
 
-  const dateComparison = aLifecycle ===
-    MANAGED_SESSION_LIFECYCLES_.UPCOMING
-    ? a.dateValue.localeCompare(b.dateValue)
-    : b.dateValue.localeCompare(a.dateValue);
-
-  return dateComparison ||
-    a.startTime.localeCompare(b.startTime) ||
-    a.sessionId.localeCompare(b.sessionId);
+  return aLifecycle === MANAGED_SESSION_LIFECYCLES_.UPCOMING
+    ? compareSessionsChronologically_(a, b)
+    : compareSessionsReverseChronologically_(a, b);
 }
 
 

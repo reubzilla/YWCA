@@ -129,11 +129,7 @@ function getVisitorScheduleManagementData(filters) {
       row,
       getTimeZone_()
     ))
-    .sort((a, b) =>
-      a.dateValue.localeCompare(b.dateValue) ||
-      a.startTime.localeCompare(b.startTime) ||
-      a.sessionId.localeCompare(b.sessionId)
-    );
+    .sort(compareSessionsChronologically_);
   const eligibleMembers = memberRows
     .filter(isEligibleVolunteerMember_)
     .map(member => mapEligibleVolunteerMember_(
@@ -1349,29 +1345,49 @@ function compareVolunteerAssignments_(a, b, todayDateValue) {
     b.dateValue,
     todayDateValue
   );
-  const aUpcoming =
-    aClassification === SESSION_DATE_CLASSIFICATIONS_.TODAY ||
-    aClassification === SESSION_DATE_CLASSIFICATIONS_.UPCOMING;
-  const bUpcoming =
-    bClassification === SESSION_DATE_CLASSIFICATIONS_.TODAY ||
-    bClassification === SESSION_DATE_CLASSIFICATIONS_.UPCOMING;
+  const aActive = ![
+    CONFIG.ASSIGNMENT_STATUSES.CANCELLED,
+    CONFIG.ASSIGNMENT_STATUSES.DECLINED
+  ].includes(a.assignmentStatus);
+  const bActive = ![
+    CONFIG.ASSIGNMENT_STATUSES.CANCELLED,
+    CONFIG.ASSIGNMENT_STATUSES.DECLINED
+  ].includes(b.assignmentStatus);
+  const aUpcoming = aActive && [
+    SESSION_DATE_CLASSIFICATIONS_.TODAY,
+    SESSION_DATE_CLASSIFICATIONS_.UPCOMING
+  ].includes(aClassification);
+  const bUpcoming = bActive && [
+    SESSION_DATE_CLASSIFICATIONS_.TODAY,
+    SESSION_DATE_CLASSIFICATIONS_.UPCOMING
+  ].includes(bClassification);
 
   if (aUpcoming !== bUpcoming) {
     return aUpcoming ? -1 : 1;
   }
 
-  const dateComparison = aUpcoming
-    ? a.dateValue.localeCompare(b.dateValue)
-    : b.dateValue.localeCompare(a.dateValue);
+  const dateComparison = compareSessionDateValues_(
+    getSessionDateSortValue_(a),
+    getSessionDateSortValue_(b),
+    !aUpcoming
+  );
+  const aDepartureTime = getSessionTimeSortValue_(a.departureTime);
+  const bDepartureTime = getSessionTimeSortValue_(b.departureTime);
+  const departureComparison = aDepartureTime === bDepartureTime
+    ? 0
+    : aDepartureTime - bDepartureTime;
 
-  return dateComparison ||
-    a.departureTime.localeCompare(b.departureTime) ||
-    String(a.memberName || '').localeCompare(
-      String(b.memberName || ''),
+  return dateComparison || departureComparison ||
+    String(a.sessionTitle || '').localeCompare(
+      String(b.sessionTitle || ''),
       'ja'
     ) ||
     String(a.sessionId || '').localeCompare(
       String(b.sessionId || '')
+    ) ||
+    String(a.memberName || '').localeCompare(
+      String(b.memberName || ''),
+      'ja'
     ) ||
     String(a.memberId || '').localeCompare(
       String(b.memberId || '')

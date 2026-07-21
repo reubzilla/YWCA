@@ -24,11 +24,7 @@ function getUpcomingSessions_(weeksAhead) {
         classification === SESSION_DATE_CLASSIFICATIONS_.UPCOMING &&
         dateValue <= finalDateValue;
     })
-    .sort((a, b) =>
-      getDateOnlyValue_(a.Date).localeCompare(
-        getDateOnlyValue_(b.Date)
-      )
-    )
+    .sort(compareSessionsChronologically_)
     .map(row => mapSessionForClient_(row, timeZone));
 }
 
@@ -66,10 +62,7 @@ function getAvailabilitySessions_(weeksAhead, historyOptions) {
       session.dateClassification ===
         SESSION_DATE_CLASSIFICATIONS_.PAST
     )
-    .sort((a, b) =>
-      b.dateValue.localeCompare(a.dateValue) ||
-      a.sessionId.localeCompare(b.sessionId)
-    );
+    .sort(compareSessionsReverseChronologically_);
   const historySource = !includeHistory
     ? []
     : includeOlder
@@ -94,9 +87,7 @@ function getAvailabilitySessions_(weeksAhead, historyOptions) {
           SESSION_DATE_CLASSIFICATIONS_.PAST &&
         session.dateValue <= finalDateValue
       )
-      .sort((a, b) =>
-        a.dateValue.localeCompare(b.dateValue)
-      ),
+      .sort(compareSessionsChronologically_),
     history: historyPage.items,
     historyPage: {
       offset: historyPage.offset,
