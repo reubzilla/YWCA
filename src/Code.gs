@@ -35,12 +35,24 @@ const CONFIG = Object.freeze({
     CANCELLED: 'Cancelled'
   }),
 
+  ATTENDANCE_STATUSES: Object.freeze({
+    PRESENT: 'Present',
+    LATE: 'Late',
+    ABSENT: 'Absent',
+    EXCUSED: 'Excused'
+  }),
+
+  ATTENDANCE_METHODS: Object.freeze({
+    TEACHER_MANUAL: 'Teacher Manual'
+  }),
+
   DEFAULT_TIME_ZONE: 'Asia/Tokyo',
   UPCOMING_WEEKS: 8,
   NOTIFICATION_DAYS: 14,
   STUDENT_HISTORY_DAYS: 60,
   STUDENT_HISTORY_PAGE_SIZE: 20,
-  MANAGEMENT_HISTORY_PAGE_SIZE: 50
+  MANAGEMENT_HISTORY_PAGE_SIZE: 50,
+  ATTENDANCE_NOTE_MAX_LENGTH: 500
 });
 
 /**

@@ -78,7 +78,9 @@ function getPermissions_(member) {
 
     canViewDashboard: isTeacher || isLeader,
     canViewAllAvailability: isTeacher || isLeader,
-    canRecordAttendance: isTeacher || isLeader,
+    canViewAttendanceSummary: isTeacher || isLeader,
+    canRecordAttendance: isTeacher,
+    canViewAttendanceHistory: isTeacher,
     canManageVolunteers: isTeacher || isLeader,
 
     canManageSessions: isTeacher,

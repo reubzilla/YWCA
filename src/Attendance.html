@@ -1,6 +1,917 @@
-function renderAttendance() {
-  renderPlaceholder(
-    t('nav.checkIn'),
-    t('attendance.placeholder')
+let activeAttendanceSessionData = null;
+let activeAttendanceContext = 'today';
+let attendanceReturnScrollY = null;
+let attendanceReturnFocusMemberId = '';
+let attendancePendingAnnouncement = '';
+let attendanceHistoryRequestToken = 0;
+let attendanceHistorySessionRequestToken = 0;
+let attendanceHistoryState = {
+  historyScope: 'currentSchoolYear',
+  fromDateValue: '',
+  toDateValue: '',
+  filterError: '',
+  sessions: [],
+  page: null,
+  selectedSessionId: '',
+  selectedSessionData: null
+};
+
+
+function buildTeacherAttendanceWorkspace(data, options) {
+  if (portalData?.user?.role !== TEACHER_ROLE || !data) {
+    return '';
+  }
+
+  const settings = options || {};
+  const summary = data.summary || {};
+  const members = data.members || [];
+  const canBulk = settings.history !== true && data.editable !== false;
+  const expectedNotRecorded = members.filter(member =>
+    member.availability !== 'Unavailable' && !member.attendance
+  ).length;
+
+  return `
+    <section
+      class="attendance-workspace"
+      aria-labelledby="attendance-workspace-title"
+    >
+      <div class="today-section-heading attendance-heading">
+        <div>
+          <h2 id="attendance-workspace-title">
+            ${t('attendance.title')}
+          </h2>
+          <p>${t('attendance.rosterHelp')}</p>
+        </div>
+        ${canBulk
+          ? `
+            <button
+              type="button"
+              class="primary-button"
+              id="attendance-mark-expected"
+              ${expectedNotRecorded === 0 ? 'disabled' : ''}
+            >
+              ${t('attendance.bulk.markExpected')}
+            </button>
+          `
+          : ''}
+      </div>
+
+      <div class="attendance-summary-grid">
+        ${buildSummaryMetric(
+          summary.activeMembers || 0,
+          t('dashboard.summary.activeMembers'),
+          'neutral'
+        )}
+        ${buildSummaryMetric(
+          summary.expected || 0,
+          t('attendance.summary.expected'),
+          'information'
+        )}
+        ${buildSummaryMetric(
+          summary.present || 0,
+          t('attendance.status.present'),
+          'success'
+        )}
+        ${buildSummaryMetric(
+          summary.late || 0,
+          t('attendance.status.late'),
+          'warning'
+        )}
+        ${buildSummaryMetric(
+          summary.absent || 0,
+          t('attendance.status.absent'),
+          'danger'
+        )}
+        ${buildSummaryMetric(
+          summary.excused || 0,
+          t('attendance.status.excused'),
+          'neutral'
+        )}
+        ${buildSummaryMetric(
+          summary.notRecorded || 0,
+          t('attendance.status.notRecorded'),
+          summary.notRecorded > 0 ? 'warning' : 'neutral'
+        )}
+      </div>
+
+      <div
+        class="attendance-live-region"
+        id="attendance-live-region"
+        role="status"
+        aria-live="polite"
+      >${escapeHtml(attendancePendingAnnouncement)}</div>
+
+      ${members.length > 0
+        ? `
+          <div class="attendance-roster" role="list">
+            ${members.map(member =>
+              buildAttendanceRosterRow(member, data.editable !== false)
+            ).join('')}
+          </div>
+        `
+        : buildEmptyState({
+            message: t('attendance.noMembers')
+          })}
+    </section>
+  `;
+}
+
+
+function buildAttendanceRosterRow(member, editable) {
+  const attendance = member.attendance || null;
+  const status = attendance ? attendance.status : '';
+  const visitor = member.volunteer || null;
+  const meta = [
+    member.grade,
+    getDashboardAvailabilityLabel(member.availability)
+  ].filter(Boolean);
+
+  return `
+    <article
+      class="attendance-roster-row${attendance ? '' : ' not-recorded'}"
+      role="listitem"
+    >
+      <div class="attendance-member-copy">
+        <strong>${escapeHtml(member.name)}</strong>
+        <span>${meta.map(escapeHtml).join(' · ')}</span>
+        <div class="record-row-statuses">
+          ${buildAvailabilityTimingBadges(member)}
+          ${visitor
+            ? buildStatusBadge(
+                t('attendance.visitorAssignment'),
+                'information'
+              )
+            : ''}
+          ${attendance && attendance.teacherNote
+            ? buildStatusBadge(t('attendance.noteIndicator'), 'neutral')
+            : ''}
+        </div>
+        ${visitor
+          ? `<span class="attendance-visitor-detail">${escapeHtml(
+              [
+                visitor.activity,
+                visitor.location,
+                visitor.departureTime
+              ].filter(Boolean).join(' · ')
+            )}</span>`
+          : ''}
+      </div>
+
+      <div class="attendance-current-value">
+        ${buildStatusBadge(
+          getAttendanceStatusLabel(status),
+          getAttendanceStatusTone(status)
+        )}
+        ${attendance && attendance.checkInTime
+          ? `<span>${escapeHtml(getAttendanceTimeInputValue(
+              attendance.checkInTime
+            ))}</span>`
+          : ''}
+      </div>
+
+      ${editable
+        ? `
+          <button
+            type="button"
+            class="secondary-button attendance-edit-button"
+            data-attendance-member-id="${escapeHtml(member.memberId)}"
+            aria-label="${escapeHtml(t(
+              attendance
+                ? 'attendance.editForMember'
+                : 'attendance.recordForMember',
+              { name: member.name }
+            ))}"
+          >
+            ${t(attendance
+              ? 'attendance.action.edit'
+              : 'attendance.action.record')}
+          </button>
+        `
+        : ''}
+    </article>
+  `;
+}
+
+
+function initialiseTeacherAttendanceEvents(data, context) {
+  if (portalData?.user?.role !== TEACHER_ROLE || !data) {
+    return;
+  }
+
+  activeAttendanceSessionData = data;
+  activeAttendanceContext = context || 'today';
+
+  document.querySelectorAll('[data-attendance-member-id]').forEach(
+    button => {
+      button.addEventListener('click', () => {
+        const member = (data.members || []).find(item =>
+          item.memberId === button.dataset.attendanceMemberId
+        );
+
+        if (member) {
+          openAttendanceEditor(member, button);
+        }
+      });
+    }
   );
+
+  const bulkButton = document.getElementById(
+    'attendance-mark-expected'
+  );
+
+  if (bulkButton) {
+    bulkButton.addEventListener('click', () => {
+      confirmMarkExpectedPresent(bulkButton);
+    });
+  }
+
+  if (attendanceReturnScrollY !== null) {
+    const scrollY = attendanceReturnScrollY;
+    attendanceReturnScrollY = null;
+    window.requestAnimationFrame(() => window.scrollTo(0, scrollY));
+  }
+
+  if (attendanceReturnFocusMemberId) {
+    const memberId = attendanceReturnFocusMemberId;
+    attendanceReturnFocusMemberId = '';
+    window.requestAnimationFrame(() => {
+      document.querySelector(
+        `[data-attendance-member-id="${cssEscape(memberId)}"]`
+      )?.focus({ preventScroll: true });
+    });
+  }
+
+  attendancePendingAnnouncement = '';
+}
+
+
+function openAttendanceEditor(member, invoker) {
+  const attendance = member.attendance || {};
+  const status = attendance.status || '';
+  const checkInTime = getAttendanceTimeInputValue(
+    attendance.checkInTime
+  );
+
+  openSidePanel({
+    title: t(attendance.status
+      ? 'attendance.action.edit'
+      : 'attendance.action.record'),
+    invoker: invoker,
+    contentHtml: `
+      <form id="attendance-editor-form" novalidate>
+        <p class="attendance-editor-member">
+          <strong>${escapeHtml(member.name)}</strong>
+          ${member.grade
+            ? `<span>${escapeHtml(member.grade)}</span>`
+            : ''}
+        </p>
+
+        <div
+          class="form-error"
+          id="attendance-form-error"
+          role="alert"
+          hidden
+        ></div>
+
+        <label class="form-field">
+          <span>${t('attendance.field.status')}</span>
+          <select
+            id="attendance-status"
+            name="status"
+            data-side-panel-initial-focus
+            required
+            aria-describedby="attendance-status-error"
+          >
+            <option value="">${t('attendance.field.selectStatus')}</option>
+            ${['Present', 'Late', 'Absent', 'Excused'].map(value => `
+              <option value="${value}" ${value === status ? 'selected' : ''}>
+                ${escapeHtml(getAttendanceStatusLabel(value))}
+              </option>
+            `).join('')}
+          </select>
+          <span class="field-error" id="attendance-status-error"></span>
+        </label>
+
+        <label class="form-field">
+          <span>${t('attendance.field.checkInTime')}</span>
+          <input
+            type="time"
+            id="attendance-check-in-time"
+            value="${escapeHtml(checkInTime)}"
+            aria-describedby="attendance-time-help attendance-time-error"
+          >
+          <span class="field-help" id="attendance-time-help">
+            ${t('attendance.field.timeHelp')}
+          </span>
+          <span class="field-error" id="attendance-time-error"></span>
+        </label>
+
+        <label class="form-field">
+          <span>${t('attendance.field.teacherNote')}</span>
+          <textarea
+            id="attendance-teacher-note"
+            maxlength="500"
+            rows="5"
+            aria-describedby="attendance-note-help attendance-note-error"
+          >${escapeHtml(attendance.teacherNote || '')}</textarea>
+          <span class="field-help" id="attendance-note-help">
+            ${t('attendance.field.notePrivacy')}
+          </span>
+          <span class="field-error" id="attendance-note-error"></span>
+        </label>
+
+        <p class="attendance-method">
+          ${t('attendance.field.method')}:
+          ${t('attendance.method.teacherManual')}
+        </p>
+
+        <div class="attendance-editor-actions">
+          ${attendance.status
+            ? `
+              <button
+                type="button"
+                class="danger-button"
+                id="attendance-clear-button"
+              >
+                ${t('attendance.action.clear')}
+              </button>
+            `
+            : ''}
+          <button
+            type="submit"
+            class="primary-button"
+            id="attendance-save-button"
+          >
+            ${t('common.save')}
+          </button>
+        </div>
+      </form>
+    `
+  });
+
+  const form = document.getElementById('attendance-editor-form');
+  const statusField = document.getElementById('attendance-status');
+
+  updateAttendanceTimeField(statusField.value);
+  statusField.addEventListener('change', () => {
+    updateAttendanceTimeField(statusField.value);
+  });
+  form.addEventListener('submit', event => {
+    event.preventDefault();
+    submitAttendanceEditor(member);
+  });
+
+  const clearButton = document.getElementById('attendance-clear-button');
+  if (clearButton) {
+    clearButton.addEventListener('click', () => {
+      confirmClearAttendance(member, clearButton);
+    });
+  }
+}
+
+
+function updateAttendanceTimeField(status) {
+  const timeField = document.getElementById(
+    'attendance-check-in-time'
+  );
+  if (!timeField) return;
+
+  const disabled = ['Absent', 'Excused'].includes(status);
+  timeField.disabled = disabled;
+  if (disabled) timeField.value = '';
+}
+
+
+function submitAttendanceEditor(member) {
+  const statusField = document.getElementById('attendance-status');
+  const timeField = document.getElementById('attendance-check-in-time');
+  const noteField = document.getElementById('attendance-teacher-note');
+  const saveButton = document.getElementById('attendance-save-button');
+  const status = statusField.value;
+  const checkInTime = timeField.disabled ? '' : timeField.value;
+  const teacherNote = noteField.value;
+
+  clearAttendanceFormErrors();
+
+  if (!['Present', 'Late', 'Absent', 'Excused'].includes(status)) {
+    setAttendanceFieldError(
+      statusField,
+      'attendance-status-error',
+      t('attendance.validation.statusRequired')
+    );
+    statusField.focus();
+    return;
+  }
+  if (checkInTime && !/^\d{2}:\d{2}$/.test(checkInTime)) {
+    setAttendanceFieldError(
+      timeField,
+      'attendance-time-error',
+      t('attendance.validation.timeInvalid')
+    );
+    timeField.focus();
+    return;
+  }
+  if (teacherNote.length > 500) {
+    setAttendanceFieldError(
+      noteField,
+      'attendance-note-error',
+      t('attendance.validation.noteTooLong')
+    );
+    noteField.focus();
+    return;
+  }
+
+  saveButton.disabled = true;
+  saveButton.textContent = t('common.saving');
+
+  google.script.run
+    .withSuccessHandler(result => {
+      if (!result || !result.success) {
+        showAttendanceFormError(t('attendance.error.saveFailed'));
+        saveButton.disabled = false;
+        saveButton.textContent = t('common.save');
+        return;
+      }
+
+      attendancePendingAnnouncement = t('attendance.saved');
+      attendanceReturnScrollY = window.scrollY;
+      attendanceReturnFocusMemberId = member.memberId;
+      closeSidePanel('saved', false);
+      refreshAttendanceContext();
+    })
+    .withFailureHandler(() => {
+      showAttendanceFormError(t('attendance.error.saveFailed'));
+      saveButton.disabled = false;
+      saveButton.textContent = t('common.save');
+    })
+    .saveManualAttendance({
+      sessionId: activeAttendanceSessionData.session.sessionId,
+      memberId: member.memberId,
+      status: status,
+      checkInTime: checkInTime,
+      clearCheckInTime: timeField.disabled,
+      teacherNote: teacherNote
+    });
+}
+
+
+function confirmClearAttendance(member, invoker) {
+  openConfirmationDialog({
+    title: t('attendance.clear.title'),
+    contentHtml: `<p>${escapeHtml(t('attendance.clear.message', {
+      name: member.name
+    }))}</p>`,
+    confirmLabel: t('attendance.action.clear'),
+    danger: true,
+    invoker: invoker,
+    onConfirm: (dialog, button) => {
+      button.disabled = true;
+      google.script.run
+        .withSuccessHandler(() => {
+          attendancePendingAnnouncement = t('attendance.cleared');
+          attendanceReturnScrollY = window.scrollY;
+          attendanceReturnFocusMemberId = member.memberId;
+          closeDialog('confirmed', false);
+          closeSidePanel('cleared', false);
+          refreshAttendanceContext();
+        })
+        .withFailureHandler(() => {
+          button.disabled = false;
+          const body = dialog.querySelector('.dialog-body');
+          body.insertAdjacentHTML(
+            'beforeend',
+            `<p class="form-error" role="alert">${escapeHtml(
+              t('attendance.error.clearFailed')
+            )}</p>`
+          );
+        })
+        .clearManualAttendance({
+          sessionId: activeAttendanceSessionData.session.sessionId,
+          memberId: member.memberId,
+          confirmed: true
+        });
+      return false;
+    }
+  });
+}
+
+
+function confirmMarkExpectedPresent(invoker) {
+  const eligible = (activeAttendanceSessionData.members || []).filter(
+    member => member.availability !== 'Unavailable' && !member.attendance
+  );
+
+  openConfirmationDialog({
+    title: t('attendance.bulk.title'),
+    contentHtml: `
+      <p>${escapeHtml(t('attendance.bulk.message', {
+        count: eligible.length
+      }))}</p>
+      <p>${escapeHtml(t('attendance.bulk.noOverwrite'))}</p>
+    `,
+    confirmLabel: t('attendance.bulk.markExpected'),
+    invoker: invoker,
+    onConfirm: (dialog, button) => {
+      button.disabled = true;
+      google.script.run
+        .withSuccessHandler(result => {
+          attendancePendingAnnouncement = t(
+            'attendance.bulk.result',
+            {
+              created: result.created || 0,
+              skipped: result.skipped || 0,
+              failed: result.failed || 0
+            }
+          );
+          attendanceReturnScrollY = window.scrollY;
+          closeDialog('confirmed', false);
+          refreshAttendanceContext();
+        })
+        .withFailureHandler(() => {
+          button.disabled = false;
+          const body = dialog.querySelector('.dialog-body');
+          body.insertAdjacentHTML(
+            'beforeend',
+            `<p class="form-error" role="alert">${escapeHtml(
+              t('attendance.error.bulkFailed')
+            )}</p>`
+          );
+        })
+        .markAllExpectedPresent({
+          sessionId: activeAttendanceSessionData.session.sessionId,
+          confirmed: true
+        });
+      return false;
+    }
+  });
+}
+
+
+function refreshAttendanceContext() {
+  const sessionId = activeAttendanceSessionData.session.sessionId;
+
+  if (activeAttendanceContext === 'history') {
+    loadAttendanceHistory(false, sessionId);
+  } else {
+    loadDashboardSession(sessionId);
+  }
+}
+
+
+function getAttendanceTimeInputValue(value) {
+  const inputValue = formatDateTimeInput(value);
+  return inputValue ? inputValue.slice(11, 16) : '';
+}
+
+
+function getAttendanceStatusLabel(status) {
+  const keys = {
+    Present: 'attendance.status.present',
+    Late: 'attendance.status.late',
+    Absent: 'attendance.status.absent',
+    Excused: 'attendance.status.excused'
+  };
+  return t(keys[status] || 'attendance.status.notRecorded');
+}
+
+
+function getAttendanceStatusTone(status) {
+  const tones = {
+    Present: 'success',
+    Late: 'warning',
+    Absent: 'danger',
+    Excused: 'neutral'
+  };
+  return tones[status] || 'warning';
+}
+
+
+function clearAttendanceFormErrors() {
+  document.querySelectorAll('#attendance-editor-form [aria-invalid]')
+    .forEach(field => field.removeAttribute('aria-invalid'));
+  document.querySelectorAll('#attendance-editor-form .field-error')
+    .forEach(error => { error.textContent = ''; });
+  const formError = document.getElementById('attendance-form-error');
+  if (formError) {
+    formError.hidden = true;
+    formError.textContent = '';
+  }
+}
+
+
+function setAttendanceFieldError(field, errorId, message) {
+  field.setAttribute('aria-invalid', 'true');
+  const error = document.getElementById(errorId);
+  if (error) error.textContent = message;
+}
+
+
+function showAttendanceFormError(message) {
+  const error = document.getElementById('attendance-form-error');
+  if (!error) return;
+  error.textContent = message;
+  error.hidden = false;
+  error.focus?.();
+}
+
+
+function renderAttendanceHistory() {
+  const content = document.getElementById('content');
+  content.className = '';
+  content.innerHTML = `
+    ${buildPageHeader({ title: t('attendance.history.title') })}
+    ${buildLoadingState(t('attendance.history.loading'))}
+  `;
+  loadAttendanceHistory(false);
+}
+
+
+function loadAttendanceHistory(append, selectedSessionId) {
+  const requestToken = ++attendanceHistoryRequestToken;
+  const offset = append && attendanceHistoryState.page
+    ? attendanceHistoryState.page.nextOffset
+    : 0;
+
+  google.script.run
+    .withSuccessHandler(data => {
+      if (
+        requestToken !== attendanceHistoryRequestToken ||
+        currentRouteId !== 'attendance-history'
+      ) return;
+
+      attendanceHistoryState.sessions = append
+        ? attendanceHistoryState.sessions.concat(data.sessions || [])
+        : data.sessions || [];
+      attendanceHistoryState.page = data.page || null;
+      attendanceHistoryState.selectedSessionId =
+        selectedSessionId || attendanceHistoryState.selectedSessionId;
+      attendanceHistoryState.selectedSessionData = null;
+      renderAttendanceHistoryData();
+
+      if (attendanceHistoryState.selectedSessionId) {
+        loadAttendanceHistorySession(
+          attendanceHistoryState.selectedSessionId
+        );
+      }
+    })
+    .withFailureHandler(() => {
+      if (
+        requestToken !== attendanceHistoryRequestToken ||
+        currentRouteId !== 'attendance-history'
+      ) return;
+      renderAttendanceHistoryError();
+    })
+    .getAttendanceHistory({
+      historyScope: attendanceHistoryState.historyScope,
+      fromDateValue: attendanceHistoryState.fromDateValue,
+      toDateValue: attendanceHistoryState.toDateValue,
+      offset: offset
+    });
+}
+
+
+function renderAttendanceHistoryData() {
+  const content = document.getElementById('content');
+  const sessions = attendanceHistoryState.sessions;
+  const selected = attendanceHistoryState.selectedSessionData;
+
+  content.innerHTML = `
+    ${buildPageHeader({
+      title: t('attendance.history.title'),
+      supportingText: t('attendance.history.intro')
+    })}
+    ${buildAttendanceHistoryFilters()}
+    <div class="attendance-history-layout">
+      <section aria-labelledby="attendance-history-list-title">
+        <div class="today-section-heading">
+          <h2 id="attendance-history-list-title">
+            ${t('attendance.history.recentSessions')}
+          </h2>
+        </div>
+        ${sessions.length
+          ? `<div class="record-row-list">${sessions.map(
+              buildAttendanceHistoryRow
+            ).join('')}</div>`
+          : buildEmptyState({
+              message: t('attendance.history.empty')
+            })}
+        ${attendanceHistoryState.page?.hasMore
+          ? `
+            <button
+              type="button"
+              class="secondary-button attendance-history-load-more"
+              id="attendance-history-load-more"
+            >
+              ${t('history.loadMore')}
+            </button>
+          `
+          : ''}
+      </section>
+
+      <section
+        class="attendance-history-detail"
+        aria-label="${escapeHtml(t('attendance.history.detailLabel'))}"
+      >
+        ${selected
+          ? `
+            <div class="attendance-history-detail-heading">
+              <h2>${escapeHtml(selected.session.title)}</h2>
+              <p>${escapeHtml(formatDateOnly(
+                selected.session.dateValue
+              ))}</p>
+            </div>
+            ${buildTeacherAttendanceWorkspace(selected, { history: true })}
+          `
+          : attendanceHistoryState.selectedSessionId
+            ? buildLoadingState(t('attendance.history.loadingSession'))
+            : buildEmptyState({
+                message: t('attendance.history.selectSession')
+              })}
+      </section>
+    </div>
+  `;
+
+  initialiseAttendanceHistoryEvents();
+  if (selected) initialiseTeacherAttendanceEvents(selected, 'history');
+}
+
+
+function buildAttendanceHistoryFilters() {
+  const custom = attendanceHistoryState.historyScope === 'custom';
+  return buildFilterBar({
+    label: t('attendance.history.filters'),
+    fieldsHtml: `
+      <label>
+        <span>${t('history.scope')}</span>
+        <select id="attendance-history-scope">
+          <option value="currentSchoolYear" ${
+            attendanceHistoryState.historyScope === 'currentSchoolYear'
+              ? 'selected'
+              : ''
+          }>${t('history.currentSchoolYear')}</option>
+          <option value="archive" ${
+            attendanceHistoryState.historyScope === 'archive'
+              ? 'selected'
+              : ''
+          }>${t('history.archive')}</option>
+          <option value="custom" ${custom ? 'selected' : ''}>
+            ${t('history.customDateRange')}
+          </option>
+        </select>
+      </label>
+      <label ${custom ? '' : 'hidden'} data-attendance-custom-date>
+        <span>${t('attendance.history.fromDate')}</span>
+        <input type="date" id="attendance-history-from" value="${escapeHtml(
+          attendanceHistoryState.fromDateValue
+        )}">
+      </label>
+      <label ${custom ? '' : 'hidden'} data-attendance-custom-date>
+        <span>${t('attendance.history.toDate')}</span>
+        <input type="date" id="attendance-history-to" value="${escapeHtml(
+          attendanceHistoryState.toDateValue
+        )}">
+      </label>
+    `,
+    actionsHtml: `
+      <div class="form-error" role="alert">${escapeHtml(
+        attendanceHistoryState.filterError
+      )}</div>
+      <button type="button" class="primary-button" id="attendance-history-apply">
+        ${t('attendance.history.applyFilters')}
+      </button>
+    `
+  });
+}
+
+
+function buildAttendanceHistoryRow(session) {
+  const summary = session.summary || {};
+  return buildRecordRow({
+    title: session.title,
+    metaHtml: `
+      <p class="record-row-meta">
+        ${escapeHtml(formatDateOnly(session.dateValue))}
+      </p>
+      <p class="record-row-meta">
+        ${escapeHtml(t('attendance.history.summary', {
+          present: summary.present || 0,
+          late: summary.late || 0,
+          absent: summary.absent || 0,
+          excused: summary.excused || 0,
+          notRecorded: summary.notRecorded || 0
+        }))}
+      </p>
+    `,
+    statusHtml: session.cancelled || !session.active
+      ? buildStatusBadge(t('sessions.lifecycle.cancelled'), 'neutral')
+      : '',
+    actionsHtml: `
+      <button
+        type="button"
+        class="secondary-button"
+        data-attendance-history-session="${escapeHtml(session.sessionId)}"
+        aria-label="${escapeHtml(t('attendance.history.viewSession', {
+          title: session.title
+        }))}"
+      >
+        ${t('attendance.history.view')}
+      </button>
+    `
+  });
+}
+
+
+function initialiseAttendanceHistoryEvents() {
+  document.querySelectorAll('[data-attendance-history-session]').forEach(
+    button => button.addEventListener('click', () => {
+      attendanceHistoryState.selectedSessionId =
+        button.dataset.attendanceHistorySession;
+      attendanceHistoryState.selectedSessionData = null;
+      renderAttendanceHistoryData();
+      loadAttendanceHistorySession(
+        attendanceHistoryState.selectedSessionId
+      );
+    })
+  );
+
+  const scope = document.getElementById('attendance-history-scope');
+  if (scope) {
+    scope.addEventListener('change', () => {
+      document.querySelectorAll('[data-attendance-custom-date]')
+        .forEach(field => { field.hidden = scope.value !== 'custom'; });
+    });
+  }
+
+  document.getElementById('attendance-history-apply')
+    ?.addEventListener('click', () => {
+      const fromDateValue =
+        document.getElementById('attendance-history-from').value;
+      const toDateValue =
+        document.getElementById('attendance-history-to').value;
+
+      if (
+        scope.value === 'custom' &&
+        (!fromDateValue && !toDateValue)
+      ) {
+        attendanceHistoryState.filterError = t(
+          'attendance.history.dateRequired'
+        );
+        renderAttendanceHistoryData();
+        return;
+      }
+      if (fromDateValue && toDateValue && fromDateValue > toDateValue) {
+        attendanceHistoryState.filterError = t(
+          'attendance.history.dateOrderInvalid'
+        );
+        renderAttendanceHistoryData();
+        return;
+      }
+
+      attendanceHistoryState.filterError = '';
+      attendanceHistoryState.historyScope = scope.value;
+      attendanceHistoryState.fromDateValue = fromDateValue;
+      attendanceHistoryState.toDateValue = toDateValue;
+      attendanceHistoryState.selectedSessionId = '';
+      attendanceHistoryState.selectedSessionData = null;
+      loadAttendanceHistory(false);
+    });
+
+  document.getElementById('attendance-history-load-more')
+    ?.addEventListener('click', () => loadAttendanceHistory(true));
+}
+
+
+function loadAttendanceHistorySession(sessionId) {
+  const requestToken = ++attendanceHistorySessionRequestToken;
+
+  google.script.run
+    .withSuccessHandler(data => {
+      if (
+        requestToken !== attendanceHistorySessionRequestToken ||
+        currentRouteId !== 'attendance-history' ||
+        attendanceHistoryState.selectedSessionId !== sessionId
+      ) return;
+      attendanceHistoryState.selectedSessionData = data;
+      renderAttendanceHistoryData();
+    })
+    .withFailureHandler(() => {
+      if (
+        requestToken !== attendanceHistorySessionRequestToken ||
+        currentRouteId !== 'attendance-history'
+      ) return;
+      renderAttendanceHistoryError();
+    })
+    .getAttendanceHistorySession(sessionId);
+}
+
+
+function renderAttendanceHistoryError() {
+  const content = document.getElementById('content');
+  content.innerHTML = `
+    ${buildPageHeader({ title: t('attendance.history.title') })}
+    ${buildErrorState({
+      title: t('common.error'),
+      message: t('attendance.history.error')
+    })}
+  `;
 }

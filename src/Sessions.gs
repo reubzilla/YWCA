@@ -91,16 +91,16 @@ function buildTodaySessionData_(sessionId) {
       !isCancelledAssignment_(row)
     );
 
-    const attendance = attendanceRows.find(row =>
-      String(row['Session ID'] || '').trim() ===
-        session.sessionId &&
-      memberMatches_(row, memberId, email)
+    const attendance = findAttendanceRowForMember_(
+      attendanceRows,
+      session.sessionId,
+      memberId,
+      email
     );
 
     return {
       memberId: memberId,
       name: String(member.Name || ''),
-      email: email,
       grade: String(member.Grade || ''),
       role: String(member.Role || ''),
 
@@ -141,8 +141,9 @@ function buildTodaySessionData_(sessionId) {
             status: String(
               attendance['Attendance Status'] || ''
             ),
-            checkInTime: formatDateTime_(
+            checkInTime: formatAttendanceCheckInForClient_(
               attendance['Check-in Time'],
+              session.dateValue,
               timeZone
             ),
             method: String(
@@ -230,9 +231,21 @@ function createTodaySummary_(members) {
       CONFIG.AVAILABILITY.UNAVAILABLE
   );
 
-  const attendanceRecorded = expected.filter(member =>
+  const attendanceCounts = Object.values(
+    CONFIG.ATTENDANCE_STATUSES
+  ).reduce((counts, status) => {
+    counts[status] = members.filter(member =>
+      member.attendance && member.attendance.status === status
+    ).length;
+    return counts;
+  }, {});
+  const attendanceRecorded = members.filter(member =>
     Boolean(member.attendance)
   );
+  const notRecorded = members.length - attendanceRecorded.length;
+  const expectedNotRecorded = expected.filter(member =>
+    !member.attendance
+  ).length;
 
   return {
     activeMembers: members.length,
@@ -243,10 +256,12 @@ function createTodaySummary_(members) {
     noResponse: noResponse.length,
     volunteers: volunteers.length,
     attendanceRecorded: attendanceRecorded.length,
-    notYetRecorded: Math.max(
-      expected.length - attendanceRecorded.length,
-      0
-    )
+    present: attendanceCounts[CONFIG.ATTENDANCE_STATUSES.PRESENT],
+    late: attendanceCounts[CONFIG.ATTENDANCE_STATUSES.LATE],
+    absent: attendanceCounts[CONFIG.ATTENDANCE_STATUSES.ABSENT],
+    excused: attendanceCounts[CONFIG.ATTENDANCE_STATUSES.EXCUSED],
+    notRecorded: notRecorded,
+    notYetRecorded: expectedNotRecorded
   };
 }
 
@@ -293,12 +308,140 @@ function createTodayGroups_(members) {
       !member.attendance
     ),
 
+    present: members.filter(member =>
+      member.attendance &&
+      member.attendance.status === CONFIG.ATTENDANCE_STATUSES.PRESENT
+    ),
+
+    late: members.filter(member =>
+      member.attendance &&
+      member.attendance.status === CONFIG.ATTENDANCE_STATUSES.LATE
+    ),
+
+    absent: members.filter(member =>
+      member.attendance &&
+      member.attendance.status === CONFIG.ATTENDANCE_STATUSES.ABSENT
+    ),
+
+    excused: members.filter(member =>
+      member.attendance &&
+      member.attendance.status === CONFIG.ATTENDANCE_STATUSES.EXCUSED
+    ),
+
+    notRecorded: members.filter(member => !member.attendance),
+
     conflicts: members.filter(member =>
       Boolean(member.volunteer) &&
       member.availability ===
         CONFIG.AVAILABILITY.UNAVAILABLE
     )
   };
+}
+
+
+/**
+ * Returns the single attendance row for a session and member.
+ * Member ID is authoritative. Email is used only for legacy rows that
+ * do not yet contain a Member ID.
+ *
+ * @param {Object[]} rows
+ * @param {string} sessionId
+ * @param {string} memberId
+ * @param {string} email
+ * @return {Object|null}
+ */
+function findAttendanceRowForMember_(
+  rows,
+  sessionId,
+  memberId,
+  email
+) {
+  const normalizedSessionId = String(sessionId || '').trim();
+  const normalizedMemberId = String(memberId || '').trim();
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  const matches = (rows || []).filter(row => {
+    if (
+      String(row['Session ID'] || '').trim() !== normalizedSessionId
+    ) {
+      return false;
+    }
+
+    const rowMemberId = String(row['Member ID'] || '').trim();
+    const rowEmail = String(row['Student Email'] || '')
+      .trim()
+      .toLowerCase();
+
+    return rowMemberId
+      ? Boolean(normalizedMemberId && rowMemberId === normalizedMemberId)
+      : Boolean(normalizedEmail && rowEmail === normalizedEmail);
+  });
+
+  if (matches.length > 1) {
+    throw new Error(
+      'Duplicate attendance rows exist for this member and session.'
+    );
+  }
+
+  if (!matches.length) {
+    return null;
+  }
+
+  const status = String(
+    matches[0]['Attendance Status'] || ''
+  ).trim();
+
+  if (!isApprovedAttendanceStatus_(status)) {
+    throw new Error(
+      'An attendance row contains an unsupported status.'
+    );
+  }
+
+  return matches[0];
+}
+
+
+function isApprovedAttendanceStatus_(status) {
+  return Object.values(CONFIG.ATTENDANCE_STATUSES).includes(
+    String(status || '').trim()
+  );
+}
+
+
+/**
+ * Normalizes legacy HH:mm attendance values to a Tokyo date-time while
+ * preserving normal spreadsheet Date values.
+ *
+ * @param {*} value
+ * @param {string} sessionDateValue
+ * @param {string} timeZone
+ * @return {string}
+ */
+function formatAttendanceCheckInForClient_(
+  value,
+  sessionDateValue,
+  timeZone
+) {
+  const text = String(value || '').trim();
+  const dateValue = value instanceof Date && !isNaN(value.getTime())
+    ? getDateOnlyValue_(value)
+    : '';
+  const legacyTime = dateValue && dateValue < '2000-01-01'
+    ? formatTime_(value, timeZone)
+    : /^\d{2}:\d{2}$/.test(text)
+      ? text
+      : '';
+
+  if (legacyTime && sessionDateValue) {
+    const parsed = new Date(
+      `${sessionDateValue}T${legacyTime}:00+09:00`
+    );
+
+    if (!isNaN(parsed.getTime())) {
+      return formatDateTime_(parsed, timeZone);
+    }
+  }
+
+  return formatDateTime_(value, timeZone);
 }
 
 

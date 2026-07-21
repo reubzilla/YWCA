@@ -36,7 +36,8 @@ This document describes the code currently in the repository. Sections explicitl
     ├── Dashboard.html   Management dashboard rendering and event handlers
     ├── Volunteer.html   Signed-in member's volunteer schedule
     ├── VisitorScheduleManagement.html Manager visitor-schedule view
-    ├── Attendance.html  Attendance placeholder view
+    ├── Attendance.html  Teacher Today attendance editor and history view
+    ├── AttendanceManagement.gs Teacher-only attendance APIs and writes
     ├── App.html         Shared state, startup, navigation, and routing
     ├── Notifications.gs Date, time, and Boolean utilities
     ├── Portal.gs        Availability read/write API
@@ -86,9 +87,10 @@ The active routes are:
 - `members`: Teacher-only Member management, labelled People in the shell;
 - `availability`: the signed-in member's Availability view;
 - `assignments`: the signed-in member's personal Volunteer Assignment view;
-- `notifications`: the signed-in member's dedicated read-only notification list, with actions into personal routes.
+- `notifications`: the signed-in member's dedicated read-only notification list, with actions into personal routes;
+- `attendance-history`: Teacher-only, bounded historical attendance summaries and roster correction.
 
-The previous `home`, `dashboard`, and `volunteer` IDs are accepted only through `selectView()` as compatibility aliases for existing event handlers. Attendance is not registered because its view is still a placeholder. Invalid or inaccessible route IDs fall back to the first permitted route: personal `today` for Students and Club Leaders, and `today-overview` for Teachers.
+The previous `home`, `dashboard`, and `volunteer` IDs are accepted only through `selectView()` as compatibility aliases for existing event handlers. Invalid or inaccessible route IDs fall back to the first permitted route: personal `today` for Students and Club Leaders, and `today-overview` for Teachers. Attendance History is a secondary Teacher route and does not add another primary mobile destination.
 
 Students receive only `today`, `availability`, `assignments`, and `notifications`. Club Leaders receive those same four personal routes first, plus the secondary `today-overview`, `student-availability`, `visitor-coordination`, and `planning` tools. Personal assignments never share a route with visitor management, personal Today never shares a route with Today Overview, and personal availability never shares a route with club-wide availability.
 
@@ -179,7 +181,7 @@ The flow is:
 2. Map it to client-safe session data.
 3. Load active members whose roles are `Student` or `Club Leader`; Teachers are excluded from attendance totals.
 4. Load all availability, volunteer assignment, and attendance rows.
-5. For each member, find the first matching record for the selected session using `Member ID` or email.
+5. For each member, find one matching Attendance record using Session ID and Member ID. Email is used only for a legacy row without Member ID; duplicate rows or unsupported statuses are rejected as data-integrity errors.
 6. Ignore volunteer assignments whose normalized status is `cancelled` or `declined`.
 7. Produce a member record containing availability, private reason, volunteer details, and attendance details.
 8. Calculate totals and categorized groups, including volunteer/unavailable conflicts.
@@ -195,12 +197,25 @@ Visitor-schedule management does not replace or duplicate this same-day aggregat
 3. `getTodaySessions_()` returns active, non-cancelled sessions matching today's date, sorted by Start Time, Title, and Session ID.
 4. The first session is passed to `buildTodaySessionData_()`.
 5. The browser renders a session selector when multiple sessions exist.
-6. It displays conflicts and missing expected attendance first, followed by action totals, visitor assignments, availability and attendance groups, and a read-only attendance count.
+6. It displays conflicts and missing expected attendance first, followed by action totals, visitor assignments, availability groups, and status-specific attendance totals.
 7. Selecting or refreshing a session calls `getDashboardSession(sessionId)`, which repeats server-side dashboard authorization and calls the same aggregation function.
 
 `getDashboardSession()` validates the supplied ID against the active, non-cancelled sessions returned for today before building dashboard data.
 
-Attendance is read-only in the current dashboard. Manual and QR attendance operations are not implemented.
+Club Leaders receive attendance summary counts only. `sanitizeDashboardSessionData_()` removes individual Attendance objects and all attendance groups before a Club Leader dashboard payload is returned. Teachers receive the full roster and may open the manual editor. QR and self-check-in are not implemented.
+
+## Manual attendance flow
+
+`AttendanceManagement.gs` owns Teacher-only attendance reads and mutations. Every public function calls `requireAttendanceTeacherAccess_()` before returning management data or accepting a write.
+
+1. The Teacher Today roster reuses `buildTodaySessionData_()` for the active Student/Club Leader roster, availability timing, visitor assignments, and existing attendance.
+2. `saveManualAttendance()` validates the session, active eligible member, approved status, time, and 500-character Teacher Note while holding a script lock.
+3. The Attendance sheet is matched by Session ID and Member ID. Student Email is only a compatibility fallback when a legacy row has no Member ID. One match is updated, no match is appended, and multiple matches are rejected.
+4. `Present` may default to the current Tokyo time for Today. `Late` retains or accepts a supplied time. `Absent` and `Excused` always clear Check-in Time. The server assigns `Teacher Manual` rather than accepting a client method.
+5. `clearManualAttendance()` requires explicit confirmation and removes only one exact row. `markAllExpectedPresent()` is Today-only and creates `Present` rows only for expected members without an existing record; Unavailable members and every existing status are skipped.
+6. `Not Recorded` is derived. Present + Late + Absent + Excused + Not Recorded equals the included active Student/Club Leader roster; Expected remains a separate availability measure.
+
+Attendance History defaults to the current Japanese school year through `resolveManagementHistoryQuery_()`, includes Past sessions only, sorts recent first, and returns at most `CONFIG.MANAGEMENT_HISTORY_PAGE_SIZE` summaries per request. A selected roster is loaded separately. Active non-cancelled past sessions may be corrected one member at a time; cancelled or inactive sessions are view-only. The schema does not snapshot historical active membership or store the editing Teacher, so those remain documented limitations.
 
 ## Upcoming Activities flow
 
@@ -286,6 +301,12 @@ The HTML frontend calls:
 | `saveAvailability(submission)` | Yes | Authenticates the member and creates or updates that member's response |
 | `getDashboardData()` | Yes | Requires Club Leader or Teacher dashboard access |
 | `getDashboardSession(sessionId)` | Yes | Requires Club Leader or Teacher dashboard access |
+| `getAttendanceSession(sessionId)` | Yes | Requires Teacher access and returns one Today or past attendance roster |
+| `saveManualAttendance(submission)` | Yes | Requires Teacher access; validates and upserts one locked manual attendance row |
+| `clearManualAttendance(submission)` | Yes | Requires Teacher access and explicit confirmation before clearing one row |
+| `markAllExpectedPresent(submission)` | Yes | Requires Teacher access; creates only missing expected Today records under one lock |
+| `getAttendanceHistory(filters)` | Yes | Requires Teacher access and returns one server-filtered current-school-year/archive/custom page |
+| `getAttendanceHistorySession(sessionId)` | Yes | Requires Teacher access and returns one past-session roster |
 | `getUpcomingActivities(filters)` | Yes | Requires club-wide availability access and returns active future session summaries |
 | `getUpcomingActivityDetail(sessionId)` | Yes | Requires club-wide availability access and returns one active future session's grouped details |
 | `getSessionManagementData()` | Yes | Requires Teacher access and returns Sessions rows for management |
@@ -317,6 +338,10 @@ Current server-enforced boundaries include:
 - the account must match an active `Members` row;
 - availability reads and writes are scoped to the authenticated member;
 - dashboard APIs repeat authorization on the server;
+- Club Leader dashboard responses contain attendance summary counts but omit individual attendance, Check-in Time, Method, and Teacher Note data;
+- every attendance-management public function repeats active-Teacher authorization server-side;
+- attendance writes use `LockService`, exact English statuses, server-owned `Teacher Manual`, strict composite matching, and duplicate-row rejection;
+- Students and Club Leaders cannot call attendance history or mutation APIs;
 - both Upcoming Activities APIs require `canViewAllAvailability` before reading or returning club-wide data;
 - future list payloads contain counts only, while detail payloads omit member email and Attendance data;
 - availability input is validated server-side;

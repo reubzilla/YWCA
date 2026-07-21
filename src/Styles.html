@@ -54,6 +54,192 @@
   --mobile-navigation-height: 72px;
 }
 
+/* Teacher attendance */
+.attendance-workspace {
+  margin-top: var(--space-6);
+  padding: var(--space-5);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-container);
+  background: var(--color-surface);
+}
+
+.attendance-heading {
+  align-items: flex-start;
+  gap: var(--space-4);
+}
+
+.attendance-heading p {
+  margin: var(--space-1) 0 0;
+  color: var(--color-text-muted);
+}
+
+.attendance-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr));
+  gap: var(--space-3);
+  margin: var(--space-4) 0;
+}
+
+.attendance-summary-list {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.attendance-summary-list div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.attendance-summary-list dt,
+.attendance-summary-list dd {
+  margin: 0;
+}
+
+.attendance-summary-list dd {
+  font-weight: 700;
+}
+
+.attendance-live-region:empty {
+  display: none;
+}
+
+.attendance-live-region {
+  margin-bottom: var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius-control);
+  background: #e6f4ea;
+}
+
+.attendance-roster {
+  border-top: 1px solid var(--color-border);
+}
+
+.attendance-roster-row {
+  display: grid;
+  grid-template-columns: minmax(14rem, 1fr) minmax(10rem, auto) auto;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.attendance-roster-row.not-recorded {
+  background: var(--action-bg);
+}
+
+.attendance-member-copy,
+.attendance-current-value {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.attendance-member-copy > span,
+.attendance-current-value > span,
+.attendance-visitor-detail,
+.attendance-method {
+  color: var(--color-text-muted);
+  font-size: var(--font-supporting);
+}
+
+.attendance-edit-button,
+.attendance-editor-actions button,
+#attendance-mark-expected,
+.attendance-history-load-more {
+  min-height: 44px;
+}
+
+.attendance-editor-member {
+  display: flex;
+  flex-direction: column;
+  margin-top: 0;
+}
+
+.attendance-editor-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-top: var(--space-5);
+}
+
+.field-error {
+  color: var(--color-danger);
+  font-size: var(--font-supporting);
+}
+
+.attendance-history-layout {
+  display: grid;
+  grid-template-columns: minmax(20rem, 0.8fr) minmax(28rem, 1.2fr);
+  gap: var(--space-5);
+  align-items: start;
+}
+
+.attendance-history-detail {
+  min-width: 0;
+}
+
+.attendance-history-detail-heading {
+  margin-bottom: var(--space-3);
+}
+
+.attendance-history-detail-heading h2,
+.attendance-history-detail-heading p {
+  margin: 0;
+}
+
+.attendance-history-detail-heading p {
+  margin-top: var(--space-1);
+  color: var(--color-text-muted);
+}
+
+.attendance-history-load-more {
+  width: 100%;
+  margin-top: var(--space-3);
+}
+
+@media (max-width: 1199px) {
+  .attendance-history-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 767px) {
+  .attendance-workspace {
+    padding: var(--space-4);
+  }
+
+  .attendance-heading,
+  .attendance-editor-actions {
+    flex-direction: column;
+  }
+
+  .attendance-heading button,
+  .attendance-editor-actions button {
+    width: 100%;
+  }
+
+  .attendance-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .attendance-roster-row {
+    grid-template-columns: 1fr auto;
+    gap: var(--space-3);
+  }
+
+  .attendance-current-value {
+    align-items: flex-end;
+  }
+
+  .attendance-edit-button {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+}
+
 * {
   box-sizing: border-box;
 }

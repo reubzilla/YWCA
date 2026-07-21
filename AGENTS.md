@@ -220,3 +220,13 @@ After editing:
 6. State what could and could not be tested locally.
 7. Provide a manual Apps Script testing checklist.
 8. Do not claim the live web app has been tested or deployed.
+
+## Chronological ordering
+
+Never rely on Google Sheets row order for sessions or assignments.
+
+- Future sessions: ascending by date and start time.
+- Today: ascending by start time.
+- Past/history: descending by date and start time.
+- Assignment lists: ordered using the linked session date.
+- Same-date results must use stable title and ID tie-breakers.

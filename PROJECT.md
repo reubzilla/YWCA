@@ -14,7 +14,7 @@ Role values stored in the `Members` sheet are:
 - `Club Leader`
 - `Teacher`
 
-The current permission map grants every active registered member availability submission, check-in, and own-schedule permissions. Club Leaders and Teachers receive dashboard, club-wide availability, attendance, and volunteer-management permissions. Teachers additionally receive session, member, role, and settings-management permissions.
+The current permission map grants every active registered member availability submission, check-in, and own-schedule permissions. Club Leaders and Teachers receive dashboard, club-wide availability, attendance-summary, and volunteer-management permissions. Only Teachers may record attendance or open attendance history. Teachers additionally receive session, member, role, and settings-management permissions.
 
 Some permissions describe intended features that do not yet have corresponding interfaces or server functions.
 
@@ -36,11 +36,11 @@ The availability interface and save operation exist. The personal volunteer sche
 
 ### Club Leaders and Teachers
 
-Club Leaders and Teachers can open a same-day Today workspace. It combines active students and Club Leaders with their availability, volunteer assignment, and attendance records. Operational conflicts and missing attendance are shown before neutral totals, followed by visitor assignments, grouped member status, and a read-only attendance summary.
+Club Leaders and Teachers can open a same-day Today workspace. It combines active students and Club Leaders with their availability, volunteer assignment, and attendance records. Operational conflicts and missing attendance are shown before neutral totals. Club Leaders receive attendance summary counts only. Teachers additionally receive a compact roster for recording and correcting manual attendance, Check-in Time, and private Teacher Notes.
 
 Upcoming Activities is a separate Planning destination. It lists active Regular and Event sessions after today, defaults to the next eight weeks, and provides club-wide response totals, response deadlines, attention indicators, and detailed groups for active Students and Club Leaders. Both the list and detail APIs require club-wide availability permission.
 
-Day-to-day attendance editing is intended but not implemented. Club Leaders and Teachers can manage visitor schedules/Volunteer Assignments. Teachers can also manage sessions and events, and club member records, roles, and active status. Teacher-only settings management is not implemented.
+Teachers can open a bounded, current-school-year Attendance History view and correct past records one member at a time. Club Leaders and Teachers can manage visitor schedules/Volunteer Assignments. Teachers can also manage sessions and events, and club member records, roles, and active status. Teacher-only settings management is not implemented.
 
 ## Current working features
 
@@ -56,7 +56,10 @@ The following code paths are present:
 - optional availability notes limited to 500 characters;
 - upcoming missing-response and volunteer-assignment notification generation;
 - same-day session aggregation across members, availability, volunteer assignments, and attendance;
-- a role-protected Today workspace with priority alerts, action-oriented summaries, visitor details, grouped member status, conflict detection, and read-only attendance;
+- a role-protected Today workspace with priority alerts, action-oriented summaries, visitor details, grouped member status, conflict detection, Club Leader attendance summaries, and Teacher-only manual attendance;
+- locked Teacher-only attendance upserts and clears using one Session ID/Member ID row, validated English statuses, Asia/Tokyo Check-in Time, and private Teacher Notes;
+- a safe Today bulk action that marks only expected Not Recorded members Present and never overwrites an existing record;
+- a Teacher-only, server-filtered, paginated Attendance History route defaulting to the current Japanese school year;
 - a separate permission-protected Upcoming Activities Planning route with date, session-type, and attention filters, future response totals, response deadlines, private management notes, visitor assignments, and conflict details;
 - Teacher-only session and event creation, editing, cancellation, filtering, and integrity-protected deletion;
 - Teacher-only member creation, editing, role changes, activation, deactivation, filtering, and integrity-protected deletion;
@@ -79,9 +82,9 @@ The following code paths are present:
 The initial portal payload is provided by `getPortalData()`, which returns the authenticated member's profile, permissions, notifications, and active current/future sessions.
 
 ## Incomplete features
-- Student, QR, and manual attendance check-in are not implemented.
-- Attendance can be read for the dashboard but cannot be recorded through the application.
-- Attendance is not exposed as a working navigation destination while it remains incomplete.
+- Student and QR/self-check-in are not implemented.
+- Club Leaders cannot edit attendance; they receive summary counts only.
+- The Attendance schema does not record which Teacher created or changed a row.
 - Settings management is not implemented.
 - English is the canonical frontend source language. A single English/Japanese dictionary supplies client labels, Japanese is the default, and the language selector stores the user's preference in `localStorage`.
 - The frontend is split into HTML partials for styles, localisation, shared browser utilities, application routing, and each view; `Index.html` contains only the document shell and ordered includes.
@@ -92,8 +95,8 @@ The initial portal payload is provided by `getPortalData()`, which returns the a
 The repository instructions establish the following intended direction. These items are not implemented unless explicitly listed above:
 
 - same-day student check-in;
-- manual and QR attendance workflows;
-- Club Leader and Teacher attendance management;
+- QR and Student self-check-in workflows;
+- any future Club Leader attendance editing, subject to explicit approval;
 - Teacher management of settings;
 - a clearly defined Today's Engine abstraction shared by dashboard features.
 
@@ -161,7 +164,7 @@ These column names are the repository's prescribed schemas and must not be chang
 1. `Setting`
 2. `Value`
 
-Internal business values remain English. Roles are `Student`, `Club Leader`, and `Teacher`; availability values are `Available`, `Unavailable`, and `Unsure`; session types are `Regular`, `Event`, and `Cancelled`; assignment statuses are `Assigned`, `Confirmed`, `Declined`, and `Cancelled`.
+Internal business values remain English. Roles are `Student`, `Club Leader`, and `Teacher`; availability values are `Available`, `Unavailable`, and `Unsure`; session types are `Regular`, `Event`, and `Cancelled`; assignment statuses are `Assigned`, `Confirmed`, `Declined`, and `Cancelled`; attendance statuses are `Present`, `Late`, `Absent`, and `Excused`; the implemented manual method is `Teacher Manual`. `Not Recorded` is derived from the absence of an Attendance row and is never stored.
 
 ## Deployment assumptions
 

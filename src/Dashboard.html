@@ -225,17 +225,22 @@ function renderDashboardSession(data) {
     <div class="today-workspace-grid">
       <main class="today-primary-column">
         ${buildTodayVisitors(groups.volunteers || [])}
-        ${buildTodayMemberStatus(members, groups)}
+        ${buildTodayMemberStatus(members, groups, {
+          availabilityOnly: true
+        })}
       </main>
       <aside class="today-secondary-column">
         ${buildTodayAttendanceSummary(summary)}
         ${buildVisitorScheduleDashboardLink()}
       </aside>
     </div>
+
+    ${buildTeacherAttendanceWorkspace(data)}
   `;
 
   initialiseTodayWorkspaceEvents();
   initialiseDisclosures(content);
+  initialiseTeacherAttendanceEvents(data, 'today');
 }
 
 function buildTodayHeaderActions(selectedSessionId) {
@@ -595,28 +600,42 @@ function buildTodayMember(member, context) {
 }
 
 function buildTodayAttendanceSummary(summary) {
+  const readOnly = portalData?.user?.role !== TEACHER_ROLE;
+
   return `
     <section class="today-section today-attendance-summary">
       <div class="today-section-heading">
         <h2>${t('dashboard.attendance.title')}</h2>
-        ${buildStatusBadge(
-          t('dashboard.attendance.readOnly'),
-          'neutral'
-        )}
+        ${readOnly
+          ? buildStatusBadge(
+              t('dashboard.attendance.readOnly'),
+              'neutral'
+            )
+          : ''}
       </div>
-      <p>
-        ${t('dashboard.attendance.summary', {
-          recorded: `<strong>${escapeHtml(
-            summary.attendanceRecorded
-          )}</strong>`,
-          expected: `<strong>${escapeHtml(
-            summary.expected
-          )}</strong>`
-        })}
-      </p>
-      <p class="session-details">
-        ${t('dashboard.attendance.futureNotice')}
-      </p>
+      <dl class="attendance-summary-list">
+        <div><dt>${t('dashboard.summary.activeMembers')}</dt><dd>${escapeHtml(
+          summary.activeMembers || 0
+        )}</dd></div>
+        <div><dt>${t('attendance.summary.expected')}</dt><dd>${escapeHtml(
+          summary.expected || 0
+        )}</dd></div>
+        <div><dt>${t('attendance.status.present')}</dt><dd>${escapeHtml(
+          summary.present || 0
+        )}</dd></div>
+        <div><dt>${t('attendance.status.late')}</dt><dd>${escapeHtml(
+          summary.late || 0
+        )}</dd></div>
+        <div><dt>${t('attendance.status.absent')}</dt><dd>${escapeHtml(
+          summary.absent || 0
+        )}</dd></div>
+        <div><dt>${t('attendance.status.excused')}</dt><dd>${escapeHtml(
+          summary.excused || 0
+        )}</dd></div>
+        <div><dt>${t('attendance.status.notRecorded')}</dt><dd>${escapeHtml(
+          summary.notRecorded || 0
+        )}</dd></div>
+      </dl>
     </section>
   `;
 }

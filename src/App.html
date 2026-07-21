@@ -82,6 +82,24 @@ const ROUTE_REGISTRY = Object.freeze([
     enabled: true
   }),
   Object.freeze({
+    id: 'attendance-history',
+    labelKey: 'nav.attendanceHistory',
+    roles: Object.freeze([TEACHER_ROLE]),
+    permission: 'canViewAttendanceHistory',
+    groupByRole: Object.freeze({
+      Teacher: 'operations'
+    }),
+    orderByRole: Object.freeze({
+      Teacher: 2
+    }),
+    renderer: renderAttendanceHistoryRoute,
+    icon: 'availability',
+    desktop: true,
+    mobilePrimaryRoles: Object.freeze([]),
+    mobileSecondaryRoles: Object.freeze([TEACHER_ROLE]),
+    enabled: true
+  }),
+  Object.freeze({
     id: 'visitor-coordination',
     labelKey: 'nav.visitorCoordination',
     mobileLabelKey: 'nav.visitorsShort',
@@ -623,6 +641,11 @@ function renderTodayOverviewRoute() {
 function renderStudentAvailabilityRoute() {
   currentView = 'student-availability';
   renderStudentAvailabilityDashboard();
+}
+
+function renderAttendanceHistoryRoute() {
+  currentView = 'attendance-history';
+  renderAttendanceHistory();
 }
 
 function renderPlanningRoute() {

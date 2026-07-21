@@ -47,6 +47,7 @@
         'nav.myAssignments': 'My Assignments',
         'nav.assignmentsShort': 'Assignments',
         'nav.notifications': 'Notifications',
+        'nav.attendanceHistory': 'Attendance History',
         'nav.people': 'People',
         'nav.personal': 'Personal',
         'nav.more': 'More',
@@ -64,6 +65,8 @@
         'common.close': 'Close',
         'common.cancel': 'Cancel',
         'common.confirm': 'Confirm',
+        'common.save': 'Save',
+        'common.saving': 'Saving…',
         'history.recent': 'Recent history',
         'history.archive': 'Archive',
         'history.showOlderActivities': 'Show older activities',
@@ -287,6 +290,84 @@
           'Attendance has been recorded for {recorded} of {expected} expected members.',
         'dashboard.attendance.futureNotice':
           'This section will update automatically once manual or QR check-in is added.',
+        'attendance.title': 'Attendance',
+        'attendance.rosterHelp':
+          'Record actual attendance separately from availability.',
+        'attendance.summary.expected': 'Expected',
+        'attendance.status.present': 'Present',
+        'attendance.status.late': 'Late',
+        'attendance.status.absent': 'Absent',
+        'attendance.status.excused': 'Excused',
+        'attendance.status.notRecorded': 'Not Recorded',
+        'attendance.visitorAssignment': 'Visitor assignment',
+        'attendance.noteIndicator': 'Teacher note',
+        'attendance.noMembers': 'No active members were found.',
+        'attendance.action.record': 'Record attendance',
+        'attendance.action.edit': 'Edit attendance',
+        'attendance.action.clear': 'Clear attendance record',
+        'attendance.recordForMember': 'Record attendance for {name}',
+        'attendance.editForMember': 'Edit attendance for {name}',
+        'attendance.field.status': 'Attendance status',
+        'attendance.field.selectStatus': 'Select a status',
+        'attendance.field.checkInTime': 'Check-in time',
+        'attendance.field.timeHelp':
+          'Optional for Present and recommended for Late.',
+        'attendance.field.teacherNote': 'Teacher note',
+        'attendance.field.notePrivacy':
+          'Visible only to authorised Teachers.',
+        'attendance.field.method': 'Method',
+        'attendance.method.teacherManual': 'Teacher Manual',
+        'attendance.validation.statusRequired':
+          'Select Present, Late, Absent or Excused.',
+        'attendance.validation.timeInvalid': 'Enter a valid time.',
+        'attendance.validation.noteTooLong':
+          'The Teacher note must be 500 characters or fewer.',
+        'attendance.saved': 'Attendance saved.',
+        'attendance.cleared': 'Attendance record cleared.',
+        'attendance.error.saveFailed':
+          'Attendance could not be saved.',
+        'attendance.error.clearFailed':
+          'The attendance record could not be cleared.',
+        'attendance.error.bulkFailed':
+          'The bulk attendance action could not be completed.',
+        'attendance.clear.title': 'Clear attendance record?',
+        'attendance.clear.message':
+          'Clear the attendance record for {name}? Its Teacher note will also be removed.',
+        'attendance.bulk.title': 'Mark expected members Present?',
+        'attendance.bulk.markExpected': 'Mark all expected Present',
+        'attendance.bulk.message':
+          '{count} Not Recorded expected member(s) will be marked Present.',
+        'attendance.bulk.noOverwrite':
+          'Existing records will not be overwritten.',
+        'attendance.bulk.result':
+          'Bulk attendance finished: {created} created, {skipped} skipped, {failed} failed.',
+        'attendance.history.title': 'Attendance History',
+        'attendance.history.intro':
+          'Review and correct attendance for past sessions.',
+        'attendance.history.loading': 'Loading attendance history…',
+        'attendance.history.loadingSession':
+          'Loading the attendance roster…',
+        'attendance.history.recentSessions': 'Recent sessions',
+        'attendance.history.empty':
+          'No past sessions match this history period.',
+        'attendance.history.selectSession':
+          'Select a session to view its attendance roster.',
+        'attendance.history.detailLabel': 'Selected attendance record',
+        'attendance.history.filters': 'Attendance history filters',
+        'attendance.history.fromDate': 'From date',
+        'attendance.history.toDate': 'To date',
+        'attendance.history.applyFilters': 'Apply filters',
+        'attendance.history.dateRequired':
+          'Enter a start date or an end date for a custom range.',
+        'attendance.history.dateOrderInvalid':
+          'The start date must not be after the end date.',
+        'attendance.history.view': 'View attendance',
+        'attendance.history.viewSession':
+          'View attendance for {title}',
+        'attendance.history.summary':
+          'Present {present} · Late {late} · Absent {absent} · Excused {excused} · Not Recorded {notRecorded}',
+        'attendance.history.error':
+          'Attendance history could not be loaded.',
         'dashboard.volunteer.departureTime': 'Leave {time}',
         'dashboard.conflict.title':
           'Volunteer assignment conflict',
@@ -798,6 +879,7 @@
         'nav.myAssignments': '自分の担当',
         'nav.assignmentsShort': '担当',
         'nav.notifications': '通知',
+        'nav.attendanceHistory': '出席履歴',
         'nav.people': 'メンバー',
         'nav.personal': '個人',
         'nav.more': 'その他',
@@ -815,6 +897,8 @@
         'common.close': '閉じる',
         'common.cancel': 'キャンセル',
         'common.confirm': '確認',
+        'common.save': '保存',
+        'common.saving': '保存しています…',
         'history.recent': '最近の履歴',
         'history.archive': 'アーカイブ',
         'history.showOlderActivities': '以前の活動を表示',
@@ -1027,6 +1111,82 @@
           '出席記録：対象{expected}名のうち{recorded}名',
         'dashboard.attendance.futureNotice':
           '手動またはQRコードのチェックイン追加後、この欄は自動的に更新されます。',
+        'attendance.title': '出席',
+        'attendance.rosterHelp':
+          '参加可否とは別に、実際の出席状況を記録します。',
+        'attendance.summary.expected': '参加予定',
+        'attendance.status.present': '出席',
+        'attendance.status.late': '遅刻',
+        'attendance.status.absent': '欠席',
+        'attendance.status.excused': '公欠',
+        'attendance.status.notRecorded': '未記録',
+        'attendance.visitorAssignment': '訪問担当',
+        'attendance.noteIndicator': '教員メモあり',
+        'attendance.noMembers': '在籍中の対象メンバーはいません。',
+        'attendance.action.record': '出席を記録',
+        'attendance.action.edit': '出席を編集',
+        'attendance.action.clear': '出席記録を削除',
+        'attendance.recordForMember': '{name}さんの出席を記録',
+        'attendance.editForMember': '{name}さんの出席を編集',
+        'attendance.field.status': '出席状況',
+        'attendance.field.selectStatus': '状況を選択',
+        'attendance.field.checkInTime': 'チェックイン時刻',
+        'attendance.field.timeHelp':
+          '出席は任意、遅刻は入力を推奨します。',
+        'attendance.field.teacherNote': '教員メモ',
+        'attendance.field.notePrivacy':
+          '権限のある教員だけが閲覧できます。',
+        'attendance.field.method': '記録方法',
+        'attendance.method.teacherManual': '教員による手動記録',
+        'attendance.validation.statusRequired':
+          '出席・遅刻・欠席・公欠のいずれかを選択してください。',
+        'attendance.validation.timeInvalid': '正しい時刻を入力してください。',
+        'attendance.validation.noteTooLong':
+          '教員メモは500文字以内で入力してください。',
+        'attendance.saved': '出席を保存しました。',
+        'attendance.cleared': '出席記録を削除しました。',
+        'attendance.error.saveFailed': '出席を保存できませんでした。',
+        'attendance.error.clearFailed':
+          '出席記録を削除できませんでした。',
+        'attendance.error.bulkFailed':
+          '一括出席記録を完了できませんでした。',
+        'attendance.clear.title': '出席記録を削除しますか？',
+        'attendance.clear.message':
+          '{name}さんの出席記録を削除しますか？教員メモも削除されます。',
+        'attendance.bulk.title': '参加予定者を出席にしますか？',
+        'attendance.bulk.markExpected': '参加予定者を全員出席にする',
+        'attendance.bulk.message':
+          '未記録の参加予定者{count}名を出席として記録します。',
+        'attendance.bulk.noOverwrite':
+          '既存の出席記録は上書きされません。',
+        'attendance.bulk.result':
+          '一括記録が完了しました：作成{created}件、対象外{skipped}件、失敗{failed}件。',
+        'attendance.history.title': '出席履歴',
+        'attendance.history.intro':
+          '過去の活動の出席を確認・修正します。',
+        'attendance.history.loading': '出席履歴を読み込んでいます…',
+        'attendance.history.loadingSession':
+          '出席名簿を読み込んでいます…',
+        'attendance.history.recentSessions': '最近の活動',
+        'attendance.history.empty':
+          'この期間に該当する過去の活動はありません。',
+        'attendance.history.selectSession':
+          '活動を選択すると出席名簿が表示されます。',
+        'attendance.history.detailLabel': '選択した出席記録',
+        'attendance.history.filters': '出席履歴の絞り込み',
+        'attendance.history.fromDate': '開始日',
+        'attendance.history.toDate': '終了日',
+        'attendance.history.applyFilters': '絞り込みを適用',
+        'attendance.history.dateRequired':
+          '期間指定では開始日または終了日を入力してください。',
+        'attendance.history.dateOrderInvalid':
+          '開始日は終了日より後に設定できません。',
+        'attendance.history.view': '出席を表示',
+        'attendance.history.viewSession': '{title}の出席を表示',
+        'attendance.history.summary':
+          '出席 {present}・遅刻 {late}・欠席 {absent}・公欠 {excused}・未記録 {notRecorded}',
+        'attendance.history.error':
+          '出席履歴を読み込めませんでした。',
         'dashboard.volunteer.departureTime': '出発 {time}',
         'dashboard.conflict.title': '訪問担当の不一致',
         'dashboard.conflict.description':

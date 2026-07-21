@@ -21,8 +21,9 @@ function getDashboardData() {
 
     selectedSession:
       todaySessions.length > 0
-        ? buildTodaySessionData_(
-            todaySessions[0].sessionId
+        ? sanitizeDashboardSessionData_(
+            buildTodaySessionData_(todaySessions[0].sessionId),
+            member
           )
         : null
   };
@@ -36,7 +37,7 @@ function getDashboardData() {
  * @return {Object}
  */
 function getDashboardSession(sessionId) {
-  requireDashboardAccess_();
+  const member = requireDashboardAccess_();
 
   if (!sessionId) {
     throw new Error(
@@ -54,9 +55,56 @@ function getDashboardSession(sessionId) {
     );
   }
 
-  return buildTodaySessionData_(
-    todaySession.sessionId
+  return sanitizeDashboardSessionData_(
+    buildTodaySessionData_(todaySession.sessionId),
+    member
   );
+}
+
+
+/**
+ * Removes detailed attendance information from non-Teacher dashboard
+ * payloads while preserving the authorised operational summary.
+ *
+ * @param {Object} data
+ * @param {Object} viewer
+ * @return {Object}
+ */
+function sanitizeDashboardSessionData_(data, viewer) {
+  if (
+    String(viewer.Role || '').trim() === CONFIG.ROLES.TEACHER
+  ) {
+    return data;
+  }
+
+  const sanitizeMember = member => ({
+    ...member,
+    attendance: null
+  });
+  const detailedAttendanceGroups = new Set([
+    'attendanceRecorded',
+    'attendanceMissing',
+    'present',
+    'late',
+    'absent',
+    'excused',
+    'notRecorded'
+  ]);
+  const groups = Object.keys(data.groups || {}).reduce(
+    (result, key) => {
+      result[key] = detailedAttendanceGroups.has(key)
+        ? []
+        : (data.groups[key] || []).map(sanitizeMember);
+      return result;
+    },
+    {}
+  );
+
+  return {
+    ...data,
+    groups: groups,
+    members: (data.members || []).map(sanitizeMember)
+  };
 }
 
 
