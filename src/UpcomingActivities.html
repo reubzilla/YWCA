@@ -870,6 +870,9 @@ function buildUpcomingActivityMember(member, type) {
       <div class="member-meta">
         ${details.filter(Boolean).map(escapeHtml).join(' · ')}
       </div>
+      <div class="record-row-statuses">
+        ${buildAvailabilityTimingBadges(member)}
+      </div>
       ${member.reason
         ? `
           <div class="member-reason">

@@ -193,6 +193,9 @@ function buildAvailabilityList(sessions) {
       statusHtml: `<div class="record-row-statuses">${urgent
         ? buildStatusBadge(t('availability.urgent'), 'warning') : ''}${buildStatusBadge(
           status.label, statusToneForAvailability(response)
+        )}${buildAvailabilityTimingBadges(
+          session.availability,
+          true
         )}</div>`,
       actionsHtml: `<button type="button" class="secondary-button" data-availability-edit="${escapeHtml(
         session.sessionId
@@ -218,6 +221,9 @@ function buildAvailabilityEditor() {
       'session.responseDeadlineWithValue',
       {deadline: formatDateTime(session.responseDeadline)}
     ))}</p>` : ''}
+    <div class="record-row-statuses">
+      ${buildAvailabilityTimingBadges(session.availability, true)}
+    </div>
     <fieldset class="availability-response-fieldset">
       <legend>${t('availability.responseLegend')}</legend>
       <div class="response-options" role="radiogroup" id="availability-response-group">${[
@@ -377,7 +383,11 @@ function handleAvailabilitySaved(result, sessionId) {
       ...(session.availability || {}),
       response: result.response,
       reason: result.reason,
-      updatedAt: result.updatedAt
+      submittedAt: result.submittedAt,
+      updatedAt: result.updatedAt,
+      responseDeadline: result.responseDeadline,
+      isLateResponse: result.isLateResponse,
+      wasUpdatedAfterDeadline: result.wasUpdatedAfterDeadline
     };
   }
   availabilityDrafts[sessionId] = {
@@ -554,6 +564,9 @@ function buildAvailabilityHistoryCard(session) {
     statusHtml: `<div class="record-row-statuses">${buildStatusBadge(
       status.label,
       statusToneForAvailability(availability.response || '')
+    )}${buildAvailabilityTimingBadges(
+      availability,
+      true
     )}${buildStatusBadge(t('availability.history.ended'), 'neutral')}</div>`,
     bodyHtml: `<p class="personal-card-meta">${t(
       'availability.history.responseUnavailable'

@@ -18,7 +18,7 @@ function renderTodayDashboard() {
     .withSuccessHandler(data => {
       if (
         requestToken !== dashboardTodayRequestToken ||
-        currentRouteId !== 'today'
+        currentRouteId !== 'today-overview'
       ) {
         return;
       }
@@ -28,7 +28,7 @@ function renderTodayDashboard() {
     .withFailureHandler(error => {
       if (
         requestToken !== dashboardTodayRequestToken ||
-        currentRouteId !== 'today'
+        currentRouteId !== 'today-overview'
       ) {
         return;
       }
@@ -118,7 +118,7 @@ function loadDashboardSession(sessionId) {
     .withSuccessHandler(data => {
       if (
         requestToken !== dashboardSessionRequestToken ||
-        currentRouteId !== 'today' ||
+        currentRouteId !== 'today-overview' ||
         currentDashboardSessionId !== sessionId
       ) {
         return;
@@ -129,7 +129,7 @@ function loadDashboardSession(sessionId) {
     .withFailureHandler(error => {
       if (
         requestToken !== dashboardSessionRequestToken ||
-        currentRouteId !== 'today'
+        currentRouteId !== 'today-overview'
       ) {
         return;
       }
@@ -433,6 +433,7 @@ function buildTodayVisitors(visitors) {
             getDashboardAvailabilityLabel(member.availability),
             getAvailabilityTone(member.availability)
           )}
+          ${buildAvailabilityTimingBadges(member)}
           ${isConflict
             ? buildStatusBadge(
                 t('dashboard.summary.conflicts'),
@@ -464,7 +465,8 @@ function buildTodayVisitors(visitors) {
   `;
 }
 
-function buildTodayMemberStatus(members, groups) {
+function buildTodayMemberStatus(members, groups, options) {
+  const settings = options || {};
   const availabilityGroups = [
     {
       id: 'today-available',
@@ -527,14 +529,16 @@ function buildTodayMemberStatus(members, groups) {
           buildTodayMemberDisclosure(group, index === 0)
         ).join('')}
       </div>
-      <h3 class="today-status-context">
-        ${t('dashboard.memberStatus.attendance')}
-      </h3>
-      <div class="disclosure-stack">
-        ${attendanceGroups.map(group =>
-          buildTodayMemberDisclosure(group, false)
-        ).join('')}
-      </div>
+      ${settings.availabilityOnly ? '' : `
+        <h3 class="today-status-context">
+          ${t('dashboard.memberStatus.attendance')}
+        </h3>
+        <div class="disclosure-stack">
+          ${attendanceGroups.map(group =>
+            buildTodayMemberDisclosure(group, false)
+          ).join('')}
+        </div>
+      `}
     </section>
   `;
 }
@@ -576,6 +580,11 @@ function buildTodayMember(member, context) {
       <div class="member-meta">
         ${details.filter(Boolean).map(escapeHtml).join(' · ')}
       </div>
+      ${context === 'availability'
+        ? `<div class="record-row-statuses">${buildAvailabilityTimingBadges(
+            member
+          )}</div>`
+        : ''}
       ${context === 'availability' && member.reason
         ? `<div class="member-reason">${escapeHtml(
             member.reason
@@ -670,4 +679,183 @@ function renderDashboardError() {
   `;
 
   initialiseTodayWorkspaceEvents();
+}
+
+function renderStudentAvailabilityDashboard() {
+  const content = document.getElementById('content');
+  const requestToken = ++dashboardTodayRequestToken;
+
+  content.className = '';
+  content.innerHTML = buildLoadingState(
+    t('dashboard.loadingToday')
+  );
+
+  google.script.run
+    .withSuccessHandler(data => {
+      if (
+        requestToken !== dashboardTodayRequestToken ||
+        currentRouteId !== 'student-availability'
+      ) return;
+
+      dashboardTodaySessions = data.sessions || [];
+      dashboardTodayDateValue =
+        data.todayDateValue || data.todayLabel || '';
+
+      if (!dashboardTodaySessions.length) {
+        currentDashboardSessionId = null;
+        renderEmptyStudentAvailabilityDashboard();
+        return;
+      }
+
+      const selected = dashboardTodaySessions.find(session =>
+        session.sessionId === currentDashboardSessionId
+      ) || dashboardTodaySessions[0];
+
+      if (
+        !data.selectedSession ||
+        data.selectedSession.session.sessionId !== selected.sessionId
+      ) {
+        loadStudentAvailabilitySession(selected.sessionId);
+        return;
+      }
+
+      renderStudentAvailabilityData(data.selectedSession);
+    })
+    .withFailureHandler(() => {
+      if (
+        requestToken === dashboardTodayRequestToken &&
+        currentRouteId === 'student-availability'
+      ) renderStudentAvailabilityError();
+    })
+    .getDashboardData();
+}
+
+function loadStudentAvailabilitySession(sessionId) {
+  const requestToken = ++dashboardSessionRequestToken;
+  currentDashboardSessionId = sessionId;
+
+  google.script.run
+    .withSuccessHandler(data => {
+      if (
+        requestToken !== dashboardSessionRequestToken ||
+        currentRouteId !== 'student-availability' ||
+        currentDashboardSessionId !== sessionId
+      ) return;
+
+      renderStudentAvailabilityData(data);
+    })
+    .withFailureHandler(() => {
+      if (
+        requestToken === dashboardSessionRequestToken &&
+        currentRouteId === 'student-availability'
+      ) renderStudentAvailabilityError();
+    })
+    .getDashboardSession(sessionId);
+}
+
+function renderEmptyStudentAvailabilityDashboard() {
+  const content = document.getElementById('content');
+
+  content.innerHTML = `
+    ${buildPageHeader({
+      title: t('nav.studentAvailability'),
+      supportingText: formatDateOnly(dashboardTodayDateValue)
+    })}
+    ${buildEmptyState({
+      title: t('dashboard.noSessionToday'),
+      message: t('dashboard.noSessionTodayHelp')
+    })}
+  `;
+}
+
+function renderStudentAvailabilityData(data) {
+  if (!data) return;
+
+  const content = document.getElementById('content');
+  const session = data.session;
+  const summary = data.summary;
+
+  currentDashboardSessionId = session.sessionId;
+  content.className = '';
+  content.innerHTML = `
+    ${buildPageHeader({
+      title: t('nav.studentAvailability'),
+      supportingText: `${formatDateOnly(
+        session.dateValue || session.date
+      )} · ${session.title}`,
+      actionsHtml: buildStudentAvailabilityHeaderActions(
+        session.sessionId
+      )
+    })}
+    <div class="planning-detail-summary">
+      ${buildSummaryMetric(summary.available,
+        t('dashboard.summary.available'), 'success')}
+      ${buildSummaryMetric(summary.unavailable,
+        t('dashboard.summary.unavailable'),
+        summary.unavailable ? 'danger' : 'neutral')}
+      ${buildSummaryMetric(summary.unsure,
+        t('dashboard.summary.unsure'),
+        summary.unsure ? 'warning' : 'neutral')}
+      ${buildSummaryMetric(summary.noResponse,
+        t('dashboard.summary.noResponse'),
+        summary.noResponse ? 'warning' : 'neutral')}
+    </div>
+    ${buildTodayMemberStatus(
+      data.members || [],
+      data.groups || {},
+      { availabilityOnly: true }
+    )}
+  `;
+
+  initialiseStudentAvailabilityEvents();
+  initialiseDisclosures(content);
+}
+
+function buildStudentAvailabilityHeaderActions(selectedSessionId) {
+  const selector = dashboardTodaySessions.length > 1
+    ? `<label class="today-session-selector">
+        <span>${t('dashboard.sessionSelectorLabel')}</span>
+        <select id="student-availability-session-selector">
+          ${dashboardTodaySessions.map(session => `
+            <option value="${escapeHtml(session.sessionId)}" ${
+              session.sessionId === selectedSessionId ? 'selected' : ''
+            }>${escapeHtml(session.title)}</option>
+          `).join('')}
+        </select>
+      </label>`
+    : '';
+
+  return `${selector}<button type="button" class="secondary-button"
+    id="refresh-student-availability">${t('common.refresh')}</button>`;
+}
+
+function initialiseStudentAvailabilityEvents() {
+  document.getElementById(
+    'student-availability-session-selector'
+  )?.addEventListener('change', event =>
+    loadStudentAvailabilitySession(event.target.value)
+  );
+  document.getElementById(
+    'refresh-student-availability'
+  )?.addEventListener('click', () => {
+    if (currentDashboardSessionId) {
+      loadStudentAvailabilitySession(currentDashboardSessionId);
+    } else {
+      renderStudentAvailabilityDashboard();
+    }
+  });
+}
+
+function renderStudentAvailabilityError() {
+  if (currentRouteId !== 'student-availability') return;
+
+  const content = document.getElementById('content');
+  content.className = '';
+  content.innerHTML = `
+    ${buildPageHeader({title: t('nav.studentAvailability')})}
+    ${buildErrorState({
+      title: t('common.error'),
+      message: t('dashboard.error.loadFailed')
+    })}
+  `;
 }

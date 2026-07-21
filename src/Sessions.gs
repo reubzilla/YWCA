@@ -76,10 +76,15 @@ function buildTodaySessionData_(sessionId) {
       .trim()
       .toLowerCase();
 
-    const availability = availabilityRows.find(row =>
-      String(row['Session ID'] || '').trim() ===
-        session.sessionId &&
-      memberMatches_(row, memberId, email)
+    const availability = findCurrentAvailabilityRow_(
+      session.sessionId,
+      memberId,
+      email,
+      availabilityRows
+    );
+    const availabilityRecord = buildAvailabilityRecord_(
+      availability,
+      sessionRow['Response Deadline']
     );
 
     const volunteerAssignment = volunteerRows.find(row =>
@@ -102,13 +107,14 @@ function buildTodaySessionData_(sessionId) {
       grade: String(member.Grade || ''),
       role: String(member.Role || ''),
 
-      availability: availability
-        ? String(availability.Response || '')
-        : '',
-
-      reason: availability
-        ? String(availability.Reason || '')
-        : '',
+      availability: availabilityRecord.response,
+      reason: availabilityRecord.reason,
+      submittedAt: availabilityRecord.submittedAt,
+      updatedAt: availabilityRecord.updatedAt,
+      responseDeadline: availabilityRecord.responseDeadline,
+      isLateResponse: availabilityRecord.isLateResponse,
+      wasUpdatedAfterDeadline:
+        availabilityRecord.wasUpdatedAfterDeadline,
 
       volunteer: volunteerAssignment
         ? {

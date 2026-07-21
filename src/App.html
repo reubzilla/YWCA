@@ -17,34 +17,68 @@ const ROUTE_REGISTRY = Object.freeze([
   Object.freeze({
     id: 'today',
     labelKey: 'nav.today',
-    labelKeyByRole: Object.freeze({
-      'Club Leader': 'nav.todayOverview'
-    }),
     roles: Object.freeze([
       STUDENT_ROLE,
-      CLUB_LEADER_ROLE,
-      TEACHER_ROLE
+      CLUB_LEADER_ROLE
     ]),
     permission: '',
     groupByRole: Object.freeze({
       Student: 'personal',
-      'Club Leader': 'operations',
-      Teacher: 'operations'
+      'Club Leader': 'personal'
     }),
     orderByRole: Object.freeze({
       Student: 1,
-      'Club Leader': 1,
-      Teacher: 1
+      'Club Leader': 1
     }),
     renderer: renderTodayRoute,
     icon: 'today',
     desktop: true,
     mobilePrimaryRoles: Object.freeze([
       STUDENT_ROLE,
+      CLUB_LEADER_ROLE
+    ]),
+    mobileSecondaryRoles: Object.freeze([]),
+    enabled: true
+  }),
+  Object.freeze({
+    id: 'today-overview',
+    labelKey: 'nav.todayOverview',
+    roles: Object.freeze([
       CLUB_LEADER_ROLE,
       TEACHER_ROLE
     ]),
-    mobileSecondaryRoles: Object.freeze([]),
+    permission: 'canViewDashboard',
+    groupByRole: Object.freeze({
+      'Club Leader': 'clubLeaderTools',
+      Teacher: 'operations'
+    }),
+    orderByRole: Object.freeze({
+      'Club Leader': 1,
+      Teacher: 1
+    }),
+    renderer: renderTodayOverviewRoute,
+    icon: 'today',
+    desktop: true,
+    mobilePrimaryRoles: Object.freeze([TEACHER_ROLE]),
+    mobileSecondaryRoles: Object.freeze([CLUB_LEADER_ROLE]),
+    enabled: true
+  }),
+  Object.freeze({
+    id: 'student-availability',
+    labelKey: 'nav.studentAvailability',
+    roles: Object.freeze([CLUB_LEADER_ROLE]),
+    permission: 'canViewAllAvailability',
+    groupByRole: Object.freeze({
+      'Club Leader': 'clubLeaderTools'
+    }),
+    orderByRole: Object.freeze({
+      'Club Leader': 2
+    }),
+    renderer: renderStudentAvailabilityRoute,
+    icon: 'availability',
+    desktop: true,
+    mobilePrimaryRoles: Object.freeze([]),
+    mobileSecondaryRoles: Object.freeze([CLUB_LEADER_ROLE]),
     enabled: true
   }),
   Object.freeze({
@@ -60,20 +94,19 @@ const ROUTE_REGISTRY = Object.freeze([
     ]),
     permission: 'canManageVolunteers',
     groupByRole: Object.freeze({
-      'Club Leader': 'operations',
+      'Club Leader': 'clubLeaderTools',
       Teacher: 'planning'
     }),
     orderByRole: Object.freeze({
-      'Club Leader': 2,
+      'Club Leader': 3,
       Teacher: 3
     }),
     renderer: renderVisitorCoordinationRoute,
     icon: 'visitors',
     desktop: true,
-    mobilePrimaryRoles: Object.freeze([
-      CLUB_LEADER_ROLE
-    ]),
+    mobilePrimaryRoles: Object.freeze([]),
     mobileSecondaryRoles: Object.freeze([
+      CLUB_LEADER_ROLE,
       TEACHER_ROLE
     ]),
     enabled: true
@@ -88,21 +121,20 @@ const ROUTE_REGISTRY = Object.freeze([
     ]),
     permission: 'canViewAllAvailability',
     groupByRole: Object.freeze({
-      'Club Leader': 'planning',
+      'Club Leader': 'clubLeaderTools',
       Teacher: 'planning'
     }),
     orderByRole: Object.freeze({
-      'Club Leader': 1,
+      'Club Leader': 4,
       Teacher: 1
     }),
     renderer: renderPlanningRoute,
     icon: 'planning',
     desktop: true,
     mobilePrimaryRoles: Object.freeze([
-      CLUB_LEADER_ROLE,
       TEACHER_ROLE
     ]),
-    mobileSecondaryRoles: Object.freeze([]),
+    mobileSecondaryRoles: Object.freeze([CLUB_LEADER_ROLE]),
     enabled: true
   }),
   Object.freeze({
@@ -162,14 +194,15 @@ const ROUTE_REGISTRY = Object.freeze([
     }),
     orderByRole: Object.freeze({
       Student: 2,
-      'Club Leader': 1,
+      'Club Leader': 2,
       Teacher: 1
     }),
     renderer: renderAvailabilityRoute,
     icon: 'availability',
     desktop: true,
     mobilePrimaryRoles: Object.freeze([
-      STUDENT_ROLE
+      STUDENT_ROLE,
+      CLUB_LEADER_ROLE
     ]),
     mobileSecondaryRoles: Object.freeze([]),
     enabled: true
@@ -191,14 +224,15 @@ const ROUTE_REGISTRY = Object.freeze([
     }),
     orderByRole: Object.freeze({
       Student: 3,
-      'Club Leader': 2,
+      'Club Leader': 3,
       Teacher: 2
     }),
     renderer: renderAssignmentsRoute,
     icon: 'assignments',
     desktop: true,
     mobilePrimaryRoles: Object.freeze([
-      STUDENT_ROLE
+      STUDENT_ROLE,
+      CLUB_LEADER_ROLE
     ]),
     mobileSecondaryRoles: Object.freeze([]),
     enabled: true
@@ -219,14 +253,15 @@ const ROUTE_REGISTRY = Object.freeze([
     }),
     orderByRole: Object.freeze({
       Student: 4,
-      'Club Leader': 3,
+      'Club Leader': 4,
       Teacher: 3
     }),
     renderer: renderNotificationsRoute,
     icon: 'notifications',
     desktop: true,
     mobilePrimaryRoles: Object.freeze([
-      STUDENT_ROLE
+      STUDENT_ROLE,
+      CLUB_LEADER_ROLE
     ]),
     mobileSecondaryRoles: Object.freeze([]),
     enabled: true
@@ -414,13 +449,17 @@ function selectView(view) {
 }
 
 function resolveLegacyRouteId(view) {
+  const managementToday = portalData &&
+    portalData.permissions.canViewDashboard
+    ? 'today-overview'
+    : 'today';
   const aliases = {
     home: 'today',
-    dashboard: 'today',
+    dashboard: managementToday,
     sessions: 'sessions',
     members: 'members',
     availability: 'availability',
-    attendance: 'today'
+    attendance: managementToday
   };
 
   if (view === 'volunteer') {
@@ -484,7 +523,7 @@ function getDesktopNavigationGroups() {
   const groupOrder = role === STUDENT_ROLE
     ? ['personal']
     : role === CLUB_LEADER_ROLE
-      ? ['operations', 'planning', 'personal']
+      ? ['personal', 'clubLeaderTools']
       : ['operations', 'planning', 'people', 'personal'];
 
   return groupOrder.map(groupId => ({
@@ -514,7 +553,14 @@ function getMobileNavigationItems() {
       route: route
     }));
 
-  if (role !== STUDENT_ROLE) {
+  if (role === CLUB_LEADER_ROLE) {
+    items.push({
+      type: 'action',
+      action: 'more',
+      labelKey: 'nav.more',
+      icon: 'more'
+    });
+  } else if (role === TEACHER_ROLE) {
     items.push(
       {
         type: 'action',
@@ -536,6 +582,7 @@ function getMobileNavigationItems() {
 
 function getPersonalRoutes() {
   return [
+    'today',
     'availability',
     'assignments',
     'notifications'
@@ -564,14 +611,18 @@ function shouldShowStandaloneMobileLanguage() {
 }
 
 function renderTodayRoute() {
-  if (portalData.permissions.canViewDashboard) {
-    currentView = 'dashboard';
-    renderTodayDashboard();
-    return;
-  }
-
   currentView = 'home';
   renderHome();
+}
+
+function renderTodayOverviewRoute() {
+  currentView = 'dashboard';
+  renderTodayDashboard();
+}
+
+function renderStudentAvailabilityRoute() {
+  currentView = 'student-availability';
+  renderStudentAvailabilityDashboard();
 }
 
 function renderPlanningRoute() {

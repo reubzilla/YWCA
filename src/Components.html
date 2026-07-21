@@ -124,6 +124,38 @@ function buildStatusBadge(label, tone) {
   `;
 }
 
+function buildAvailabilityTimingBadges(availability, detailed) {
+  if (!availability || !availability.responseDeadline) return '';
+
+  const badges = [];
+
+  if (availability.isLateResponse) {
+    badges.push(buildStatusBadge(
+      t(detailed
+        ? 'availability.timing.submittedAfterDeadline'
+        : 'availability.timing.respondedLate'),
+      'warning'
+    ));
+  } else if (availability.submittedAt) {
+    badges.push(buildStatusBadge(
+      t('availability.timing.onTimeResponse'),
+      'success'
+    ));
+  }
+
+  if (
+    availability.wasUpdatedAfterDeadline &&
+    !availability.isLateResponse
+  ) {
+    badges.push(buildStatusBadge(
+      t('availability.timing.updatedAfterDeadline'),
+      'warning'
+    ));
+  }
+
+  return badges.join('');
+}
+
 function buildSummaryMetric(value, label, tone) {
   return `
     <div class="summary-metric summary-metric-${escapeHtml(

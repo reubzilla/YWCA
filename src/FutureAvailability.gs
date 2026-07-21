@@ -365,7 +365,9 @@ function buildFutureActivityData_(sessionRow, context) {
     createFutureAvailabilityMemberRecord_(
       member,
       availabilityRows,
-      volunteerRows
+      volunteerRows,
+      sessionRow['Response Deadline'],
+      session.sessionId
     )
   );
 
@@ -412,12 +414,16 @@ function mapFutureAvailabilitySession_(row) {
  * @param {Object} member
  * @param {Object[]} availabilityRows
  * @param {Object[]} volunteerRows
+ * @param {*} responseDeadline
+ * @param {string} sessionId
  * @return {Object}
  */
 function createFutureAvailabilityMemberRecord_(
   member,
   availabilityRows,
-  volunteerRows
+  volunteerRows,
+  responseDeadline,
+  sessionId
 ) {
   const memberId = String(
     member['Member ID'] || ''
@@ -425,8 +431,15 @@ function createFutureAvailabilityMemberRecord_(
   const email = String(member.Email || '')
     .trim()
     .toLowerCase();
-  const availability = availabilityRows.find(row =>
-    memberMatches_(row, memberId, email)
+  const availability = findCurrentAvailabilityRow_(
+    sessionId,
+    memberId,
+    email,
+    availabilityRows
+  );
+  const availabilityRecord = buildAvailabilityRecord_(
+    availability,
+    responseDeadline
   );
   const volunteerAssignment = volunteerRows.find(row =>
     memberMatches_(row, memberId, email)
@@ -437,13 +450,14 @@ function createFutureAvailabilityMemberRecord_(
     name: String(member.Name || ''),
     grade: String(member.Grade || ''),
     role: String(member.Role || '').trim(),
-    hasAvailability: Boolean(availability),
-    response: availability
-      ? String(availability.Response || '').trim()
-      : '',
-    reason: availability
-      ? String(availability.Reason || '')
-      : '',
+    response: availabilityRecord.response,
+    reason: availabilityRecord.reason,
+    submittedAt: availabilityRecord.submittedAt,
+    updatedAt: availabilityRecord.updatedAt,
+    responseDeadline: availabilityRecord.responseDeadline,
+    isLateResponse: availabilityRecord.isLateResponse,
+    wasUpdatedAfterDeadline:
+      availabilityRecord.wasUpdatedAfterDeadline,
     volunteer: volunteerAssignment
       ? {
           activity: String(
@@ -490,7 +504,7 @@ function createFutureAvailabilitySummary_(members) {
 /**
  * Organises members into availability and assignment groups.
  *
- * No response is derived only when no matching Availability row exists.
+ * No response is derived only when no valid current response exists.
  * Visitor and conflict groups intentionally overlap response groups.
  *
  * @param {Object[]} members
@@ -507,9 +521,7 @@ function createFutureAvailabilityGroups_(members) {
     unsure: members.filter(member =>
       member.response === CONFIG.AVAILABILITY.UNSURE
     ),
-    noResponse: members.filter(member =>
-      !member.hasAvailability
-    ),
+    noResponse: members.filter(member => !member.response),
     visitors: members.filter(member =>
       Boolean(member.volunteer)
     ),
@@ -532,9 +544,7 @@ function mapFutureAvailabilityGroupsForClient_(groups) {
     Object.entries(groups).map(([groupName, members]) => [
       groupName,
       members.map(member => {
-        const clientMember = { ...member };
-        delete clientMember.hasAvailability;
-        return clientMember;
+        return { ...member };
       })
     ])
   );

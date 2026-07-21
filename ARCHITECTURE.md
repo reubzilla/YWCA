@@ -76,7 +76,9 @@ Apps Script requires unique filenames regardless of extension. The generic sheet
 
 The active routes are:
 
-- `today`: an action-first personal Today view for Students and the operational Today workspace for Club Leaders and Teachers;
+- `today`: the personal Today view for Students and Club Leaders;
+- `today-overview`: the permission-protected operational Today workspace for Club Leaders and Teachers;
+- `student-availability`: the Club Leader's focused view of today's club-wide availability;
 - `visitor-coordination`: existing Visitor Schedule management for Club Leaders and Teachers;
 - `planning`: the independent Upcoming Activities Planning view;
 - `sessions`: Teacher-only Session management;
@@ -85,9 +87,9 @@ The active routes are:
 - `assignments`: the signed-in member's personal Volunteer Assignment view;
 - `notifications`: the signed-in member's dedicated read-only notification list, with actions into personal routes.
 
-The previous `home`, `dashboard`, and `volunteer` IDs are accepted only through `selectView()` as compatibility aliases for existing event handlers. Attendance is not registered because its view is still a placeholder. Invalid or inaccessible route IDs fall back to the first permitted route, which is `today`.
+The previous `home`, `dashboard`, and `volunteer` IDs are accepted only through `selectView()` as compatibility aliases for existing event handlers. Attendance is not registered because its view is still a placeholder. Invalid or inaccessible route IDs fall back to the first permitted route: personal `today` for Students and Club Leaders, and `today-overview` for Teachers.
 
-Students receive only `today`, `availability`, `assignments`, and `notifications`. Club Leaders have separate operational routes (`today`, `visitor-coordination`, and `planning`) and personal routes (`availability`, `assignments`, and `notifications`). Personal assignments never share a route with visitor management, and personal availability never shares a route with club-wide planning.
+Students receive only `today`, `availability`, `assignments`, and `notifications`. Club Leaders receive those same four personal routes first, plus the secondary `today-overview`, `student-availability`, `visitor-coordination`, and `planning` tools. Personal assignments never share a route with visitor management, personal Today never shares a route with Today Overview, and personal availability never shares a route with club-wide availability.
 
 At 1024 CSS pixels and above, the shell uses a persistent 252-pixel sidebar. Between 768 and 1023 pixels it uses a labelled navigation drawer. Below 768 pixels it uses no more than five role-specific bottom actions. Teacher mobile navigation is Today, Planning, People, Personal, and More. Personal and More open a shared side-panel component containing secondary routes, language controls, and the signed-in account summary.
 
@@ -151,20 +153,20 @@ Subsequent views independently request availability or dashboard data. Spreadshe
 1. The availability view calls `getAvailabilityPageData()`.
 2. The server authenticates the current member.
 3. It obtains active, non-cancelled Today and Upcoming sessions within `CONFIG.UPCOMING_WEEKS`, plus active past sessions in a separate history collection.
-4. It reads availability rows and attaches matching responses using `Member ID` or normalized email.
+4. It reads availability rows and attaches the current recognised response using `Member ID` or normalized email. Duplicate legacy rows are resolved by latest `Updated At`, then `Submitted At`.
 5. The browser defensively classifies returned date-only values against the current Tokyo date. Only Today and Upcoming sessions enter the editable collection.
 6. The browser sorts No response first, then `Unsure`, then answered editable sessions, while preserving chronological order within each group.
 7. A compact list can be filtered by response need or session type; selecting a session opens one focused editor with radio options and an optional note. Past sessions render separately with the signed-in member's final response and private note but no controls.
 8. On save, the browser sends only `sessionId`, `response`, and `reason` to `saveAvailability()`.
 9. The server derives identity again, validates the input object, session ID, allowed response, and 500-character limit.
-10. `getEditableSession_()` requires the shared classification to be `Today` or `Upcoming`, requires an active non-cancelled session, and enforces a configured response deadline.
+10. `getEditableSession_()` requires the shared classification to be `Today` or `Upcoming` and requires an active non-cancelled session. A configured response deadline annotates timing but does not currently lock saving.
 11. A script lock protects the read/modify/write operation.
-12. The first matching row is replaced, preserving its original `Submitted At`; otherwise a row is appended.
-13. The server returns the saved values and a machine-readable update timestamp with the `Asia/Tokyo` offset.
+12. The first matching row is replaced, preserving its original `Submitted At`; legacy rows without that value fall back to their existing `Updated At`. Otherwise a row is appended.
+13. The server returns the saved values plus machine-readable submission, update, deadline, and late-status metadata with the `Asia/Tokyo` offset.
 14. The browser updates local list state, returns to the list, and refreshes cached portal notifications in the background.
 
 
-Known limitation: duplicate availability rows are not prevented. When updating an existing row, columns not managed by `saveAvailability()` are preserved.
+Known limitation: duplicate availability rows are not prevented. Reads resolve them deterministically, but saving still updates the first matching row. When updating an existing row, columns not managed by `saveAvailability()` are preserved.
 
 ## Today's Engine flow
 
@@ -187,7 +189,7 @@ Visitor-schedule management does not replace or duplicate this same-day aggregat
 
 ## Dashboard flow
 
-1. The `today` route selects the operational Today renderer for Club Leaders and Teachers. The `planning` route independently selects the Upcoming Activities renderer; there are no internal Dashboard tabs.
+1. The `today-overview` route selects the operational Today renderer for Club Leaders and Teachers. The `student-availability` route uses the same permission-protected Today payload but presents only the response summary and availability groups. The personal `today` route renders the signed-in member's own Today page. The `planning` route independently selects the Upcoming Activities renderer; there are no internal Dashboard tabs.
 2. `getDashboardData()` calls `requireDashboardAccess_()`.
 3. `getTodaySessions_()` returns active, non-cancelled sessions matching today's date, sorted by start time.
 4. The first session is passed to `buildTodaySessionData_()`.
@@ -201,7 +203,7 @@ Attendance is read-only in the current dashboard. Manual and QR attendance opera
 
 ## Upcoming Activities flow
 
-Upcoming Activities is a separate management Planning route. Today remains the default management route and continues to use the existing Today APIs and aggregation.
+Upcoming Activities is a separate management Planning route. Today Overview remains the Teacher's default management route and continues to use the existing Today APIs and aggregation; Club Leaders now land on personal Today first.
 
 1. `getUpcomingActivities(filters)` requires `canViewAllAvailability`.
 2. The server validates machine-readable date filters and an optional exact English Session Type.
@@ -209,12 +211,18 @@ Upcoming Activities is a separate management Planning route. Today remains the d
 4. Active Students and Club Leaders come from `getActiveAttendingMembers_()`; inactive members and Teachers are excluded consistently with Today.
 5. Availability and Volunteer Assignment rows are loaded once and indexed by Session ID.
 6. Each session receives `Available`, `Unavailable`, `Unsure`, No response, assigned visitor, and conflict counts, plus the existing machine-readable response deadline from the shared session mapper.
-7. No response means there is no matching Availability row for the member and session.
+7. No response means there is no recognised current Availability response for the member and session. Duplicate legacy rows are resolved by preferring the most recently updated valid response.
 8. Cancelled and Declined Volunteer Assignments are ignored through the existing assignment-status helper.
 9. The browser may filter those summaries to activities needing attention, defined as missing responses, assignment conflicts, or a response deadline within the next 72 hours.
 10. Selecting a session calls `getUpcomingActivityDetail(sessionId)`, which repeats permission and session validation before returning grouped member details. Wide layouts use master-detail; narrower layouts use a focused detail state with an explicit Back action.
 
 The detail payload contains Member ID, name, grade, role, response, private availability Reason, and current visitor-assignment details. It excludes member email and all Attendance data. Availability groups include every matching member regardless of assignment; visitor and conflict groups intentionally overlap the response groups. A conflict uses the same definition as Today: an active visitor assignment combined with `Unavailable`.
+
+## Availability response timing
+
+`AvailabilityAggregation.gs` is the shared interpretation layer used by personal Availability, Today, Upcoming Activities, visitor conflict checks, and response notifications. It keeps the stored response (`Available`, `Unavailable`, or `Unsure`) independent from deadline timing.
+
+For a recognised current response, `Submitted At` determines `isLateResponse`, while `Updated At` independently determines `wasUpdatedAfterDeadline`. Both are compared with the Session's machine-readable `Response Deadline`; a missing deadline is never late. Client payloads use Asia/Tokyo offset date-times. Legacy rows without `Submitted At` fall back to `Updated At`, so their first-submission timing is necessarily an approximation. Normal response updates preserve the original `Submitted At` and refresh `Updated At`.
 
 ## Sessions and Events management flow
 

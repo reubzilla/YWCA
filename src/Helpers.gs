@@ -61,9 +61,11 @@ function getNotifications_(member) {
 
     const sessionDateValue = getDateOnlyValue_(session.Date);
 
-    const response = availabilityRows.find(row =>
-      String(row['Session ID'] || '').trim() === sessionId &&
-      memberMatches_(row, memberId, email)
+    const response = findCurrentAvailabilityRow_(
+      sessionId,
+      memberId,
+      email,
+      availabilityRows
     );
 
     const volunteerAssignment = volunteerRows.find(row =>

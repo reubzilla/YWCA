@@ -1057,12 +1057,14 @@ function findVolunteerAvailabilityResponse_(
     member['Member ID'] || ''
   ).trim();
   const email = normalizeVolunteerEmail_(member.Email);
-  const row = availabilityRows.find(item =>
-    String(item['Session ID'] || '').trim() === sessionId &&
-    memberMatches_(item, memberId, email)
+  const row = findCurrentAvailabilityRow_(
+    sessionId,
+    memberId,
+    email,
+    availabilityRows
   );
 
-  return row ? String(row.Response || '').trim() : '';
+  return row ? normalizeAvailabilityResponse_(row.Response) : '';
 }
 
 

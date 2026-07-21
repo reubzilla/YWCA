@@ -55,32 +55,24 @@ function getAvailabilityPageData(options) {
 
   const responsesBySession = {};
 
-  responseRows.forEach(row => {
-    if (!memberMatches_(row, memberId, email)) {
-      return;
-    }
+  sessionGroups.sessions
+    .concat(sessionGroups.history)
+    .forEach(session => {
+      if (!returnedSessionIds.has(session.sessionId)) return;
 
-    const sessionId = String(
-      row['Session ID'] || ''
-    ).trim();
+      const row = findCurrentAvailabilityRow_(
+        session.sessionId,
+        memberId,
+        email,
+        responseRows
+      );
 
-    if (!sessionId || !returnedSessionIds.has(sessionId)) {
-      return;
-    }
-
-    responsesBySession[sessionId] = {
-      response: String(row.Response || ''),
-      reason: String(row.Reason || ''),
-      submittedAt: formatDateTime_(
-        row['Submitted At'],
-        getTimeZone_()
-      ),
-      updatedAt: formatDateTime_(
-        row['Updated At'],
-        getTimeZone_()
-      )
-    };
-  });
+      responsesBySession[session.sessionId] =
+        buildAvailabilityRecord_(
+          row,
+          session.responseDeadline
+        );
+    });
 
   const attachAvailability = session => ({
     ...session,
@@ -89,7 +81,10 @@ function getAvailabilityPageData(options) {
         response: '',
         reason: '',
         submittedAt: '',
-        updatedAt: ''
+        updatedAt: '',
+        responseDeadline: session.responseDeadline || '',
+        isLateResponse: false,
+        wasUpdatedAfterDeadline: false
       }
   });
 
@@ -238,9 +233,13 @@ function saveAvailability(submission) {
         matchingRowValues = values[rowIndex];
 
         originalSubmittedAt =
-          parseDateTime_(
+          parseAvailabilityDateTime_(
             rowObject['Submitted At']
-          ) || now;
+          ) ||
+          parseAvailabilityDateTime_(
+            rowObject['Updated At']
+          ) ||
+          now;
 
         break;
       }
@@ -282,16 +281,18 @@ function saveAvailability(submission) {
 
     SpreadsheetApp.flush();
 
+    const savedAvailability = buildAvailabilityRecord_(
+      newRowObject,
+      session['Response Deadline']
+    );
+
     return {
       success: true,
       sessionId: sessionId,
       response: response,
       reason: reason,
       messageKey: 'availability.saved',
-      updatedAt: formatDateTime_(
-        now,
-        getTimeZone_()
-      )
+      ...savedAvailability
     };
   } finally {
     lock.releaseLock();
@@ -307,8 +308,6 @@ function saveAvailability(submission) {
  * @return {Object|null}
  */
 function getEditableSession_(sessionId) {
-  const now = new Date();
-
   return getSheetObjects_(
     CONFIG.SHEETS.SESSIONS
   ).find(session => {
@@ -322,10 +321,6 @@ function getEditableSession_(sessionId) {
       session['Session Type'] || ''
     ).trim();
 
-    const responseDeadline = parseDateTime_(
-      session['Response Deadline']
-    );
-
     return (
       rowSessionId === sessionId &&
       (
@@ -334,8 +329,7 @@ function getEditableSession_(sessionId) {
       ) &&
       isTrue_(session.Active) &&
       sessionType !==
-        CONFIG.SESSION_TYPES.CANCELLED &&
-      (!responseDeadline || now <= responseDeadline)
+        CONFIG.SESSION_TYPES.CANCELLED
     );
   }) || null;
 }
